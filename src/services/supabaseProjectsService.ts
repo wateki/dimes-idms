@@ -1,0 +1,184 @@
+import { supabase } from '@/lib/supabaseClient';
+import type { Database } from '@/types/supabase';
+import { supabaseAuthService } from './supabaseAuthService';
+import type { Project } from '@/types/dashboard';
+
+type ProjectRow = Database['public']['Tables']['projects']['Row'];
+
+class SupabaseProjectsService {
+  private formatProject(project: ProjectRow): Project {
+    return {
+      id: project.id,
+      name: project.name,
+      description: project.description,
+      country: project.country,
+      status: project.status as Project['status'],
+      startDate: new Date(project.startDate),
+      endDate: new Date(project.endDate),
+      progress: project.progress,
+      budget: project.budget,
+      spent: project.spent,
+      backgroundInformation: project.backgroundInformation || undefined,
+      mapData: project.mapData as any,
+      theoryOfChange: project.theoryOfChange as any,
+      createdAt: new Date(project.createdAt),
+      updatedAt: new Date(project.updatedAt),
+      createdBy: project.createdBy,
+      updatedBy: project.updatedBy,
+    };
+  }
+
+  async getAllProjects(): Promise<Project[]> {
+    const { data, error } = await supabase
+      .from('projects')
+      .select('*')
+      .order('createdAt', { ascending: false });
+
+    if (error) {
+      throw new Error(error.message || 'Failed to fetch projects');
+    }
+
+    return (data || []).map(p => this.formatProject(p));
+  }
+
+  async getProjectById(id: string): Promise<Project> {
+    const { data, error } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) {
+      throw new Error(error?.message || 'Project not found');
+    }
+
+    return this.formatProject(data);
+  }
+
+  async getProjectsByCountry(country: string): Promise<Project[]> {
+    const { data, error } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('country', country)
+      .order('createdAt', { ascending: false });
+
+    if (error) {
+      throw new Error(error.message || 'Failed to fetch projects by country');
+    }
+
+    return (data || []).map(p => this.formatProject(p));
+  }
+
+  async createProject(projectData: Omit<Project, 'id'>): Promise<Project> {
+    const currentUser = await supabaseAuthService.getCurrentUser();
+    if (!currentUser) {
+      throw new Error('Not authenticated');
+    }
+
+    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
+    if (!userProfile) {
+      throw new Error('User profile not found');
+    }
+
+    const now = new Date().toISOString();
+    const { data, error } = await supabase
+      .from('projects')
+      .insert({
+        name: projectData.name,
+        description: projectData.description,
+        country: projectData.country,
+        status: projectData.status as Database['public']['Enums']['ProjectStatus'],
+        startDate: projectData.startDate.toISOString(),
+        endDate: projectData.endDate.toISOString(),
+        progress: projectData.progress || 0,
+        budget: projectData.budget || 0,
+        spent: projectData.spent || 0,
+        backgroundInformation: projectData.backgroundInformation || null,
+        mapData: projectData.mapData || null,
+        theoryOfChange: projectData.theoryOfChange || null,
+        createdBy: userProfile.id,
+        updatedBy: userProfile.id,
+        createdAt: now,
+        updatedAt: now,
+      } as Database['public']['Tables']['projects']['Insert'])
+      .select()
+      .single();
+
+    if (error || !data) {
+      throw new Error(error?.message || 'Failed to create project');
+    }
+
+    return this.formatProject(data);
+  }
+
+  async updateProject(id: string, updates: Partial<Project>): Promise<Project> {
+    const currentUser = await supabaseAuthService.getCurrentUser();
+    if (!currentUser) {
+      throw new Error('Not authenticated');
+    }
+
+    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
+    if (!userProfile) {
+      throw new Error('User profile not found');
+    }
+
+    const updateData: any = {
+      updatedBy: userProfile.id,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (updates.name !== undefined) updateData.name = updates.name;
+    if (updates.description !== undefined) updateData.description = updates.description;
+    if (updates.country !== undefined) updateData.country = updates.country;
+    if (updates.status !== undefined) updateData.status = updates.status as Database['public']['Enums']['ProjectStatus'];
+    if (updates.startDate !== undefined) updateData.startDate = updates.startDate.toISOString();
+    if (updates.endDate !== undefined) updateData.endDate = updates.endDate.toISOString();
+    if (updates.progress !== undefined) updateData.progress = updates.progress;
+    if (updates.budget !== undefined) updateData.budget = updates.budget;
+    if (updates.spent !== undefined) updateData.spent = updates.spent;
+    if (updates.backgroundInformation !== undefined) updateData.backgroundInformation = updates.backgroundInformation || null;
+    if (updates.mapData !== undefined) updateData.mapData = updates.mapData || null;
+    if (updates.theoryOfChange !== undefined) updateData.theoryOfChange = updates.theoryOfChange || null;
+
+    const { data, error } = await supabase
+      .from('projects')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error || !data) {
+      throw new Error(error?.message || 'Failed to update project');
+    }
+
+    return this.formatProject(data);
+  }
+
+  async deleteProject(id: string): Promise<{ success: boolean; message: string }> {
+    const { error } = await supabase
+      .from('projects')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      throw new Error(error.message || 'Failed to delete project');
+    }
+
+    return { success: true, message: 'Project deleted successfully' };
+  }
+
+  async archiveProject(id: string): Promise<Project> {
+    return this.updateProject(id, { status: 'ARCHIVED' });
+  }
+
+  async restoreProject(id: string): Promise<Project> {
+    // Get the project to determine appropriate status
+    const project = await this.getProjectById(id);
+    // Restore to ACTIVE if it was archived
+    const newStatus = project.status === 'ARCHIVED' ? 'ACTIVE' : project.status;
+    return this.updateProject(id, { status: newStatus });
+  }
+}
+
+export const supabaseProjectsService = new SupabaseProjectsService();
+

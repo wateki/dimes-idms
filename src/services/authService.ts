@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api/client';
+import { supabaseAuthService } from './supabaseAuthService';
 
 export interface ChangePasswordRequest {
   currentPassword: string;
@@ -10,22 +10,17 @@ export interface ChangePasswordResponse {
 }
 
 class AuthService {
-  private baseUrl = '/auth';
-
   async changePassword(data: ChangePasswordRequest): Promise<ChangePasswordResponse> {
-    const response = await apiClient.post<ChangePasswordResponse>(`${this.baseUrl}/change-password`, data);
-    if (!response.success || !response.data) {
-      throw new Error(response.error || 'Failed to change password');
-    }
-    return response.data;
+    await supabaseAuthService.changePassword( data.newPassword);
+    return { message: 'Password changed successfully' };
   }
 
   async getProfile(): Promise<any> {
-    const response = await apiClient.get(`${this.baseUrl}/profile`);
-    if (!response.success || !response.data) {
-      throw new Error(response.error || 'Failed to get profile');
+    const currentUser = await supabaseAuthService.getCurrentUser();
+    if (!currentUser) {
+      return null;
     }
-    return response.data;
+    return supabaseAuthService.getUserProfile(currentUser.id);
   }
 }
 

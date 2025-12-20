@@ -1,5 +1,37 @@
-import { apiClient } from './client';
+import { supabaseFormsService } from '@/services/supabaseFormsService';
+import { supabaseAuthService } from '@/services/supabaseAuthService';
 import { Form, FormResponse, FormTemplate } from '@/components/dashboard/form-creation-wizard/types';
+
+// Helper function to convert Supabase form (with string dates) to Form type (with Date objects)
+function convertSupabaseFormToForm(supabaseForm: any): Form {
+  return {
+    ...supabaseForm,
+    createdAt: new Date(supabaseForm.createdAt),
+    updatedAt: new Date(supabaseForm.updatedAt),
+    lastResponseAt: supabaseForm.lastResponseAt ? new Date(supabaseForm.lastResponseAt) : undefined,
+  } as Form;
+}
+
+// Helper function to convert Supabase form response (with string dates) to FormResponse type (with Date objects)
+function convertSupabaseResponseToFormResponse(supabaseResponse: any): FormResponse {
+  return {
+    ...supabaseResponse,
+    startedAt: new Date(supabaseResponse.startedAt),
+    submittedAt: supabaseResponse.submittedAt ? new Date(supabaseResponse.submittedAt) : undefined,
+    attachments: supabaseResponse.attachments?.map((att: any) => ({
+      ...att,
+      uploadedAt: new Date(att.uploadedAt),
+    })) || [],
+  } as FormResponse;
+}
+
+// Helper function to convert Supabase template to FormTemplate type
+function convertSupabaseTemplateToFormTemplate(supabaseTemplate: any): FormTemplate {
+  return {
+    ...supabaseTemplate,
+    tags: supabaseTemplate.tags || [],
+  } as FormTemplate;
+}
 
 // DTO interfaces that match backend expectations
 export interface CreateFormDto {
@@ -58,104 +90,51 @@ export const formsApi = {
   // ========================================
 
   async createForm(projectId: string, formData: CreateFormDto): Promise<Form> {
-    const response = await apiClient.post(`/forms/projects/${projectId}/forms`, formData);
-    if (response.success && response.data) {
-      return response.data as Form;
-    }
-    throw new Error(response.error || 'Failed to create form');
+    const user = await supabaseAuthService.getCurrentUser();
+    if (!user) throw new Error('User not authenticated');
+    const supabaseForm = await supabaseFormsService.createForm(projectId, formData, user.id);
+    return convertSupabaseFormToForm(supabaseForm);
   },
 
   async getProjectForms(projectId: string): Promise<Form[]> {
-    const response = await apiClient.get(`/forms/projects/${projectId}/forms`);
-    if (response.success && response.data) {
-      return response.data as Form[];
-    }
-    throw new Error(response.error || 'Failed to fetch project forms');
+    const supabaseForms = await supabaseFormsService.getProjectForms(projectId);
+    return supabaseForms.map(convertSupabaseFormToForm);
   },
 
   async getForm(projectId: string, formId: string): Promise<Form> {
-    const response = await apiClient.get(`/forms/projects/${projectId}/forms/${formId}`);
-    if (response.success && response.data) {
-      return response.data as Form;
-    }
-    throw new Error(response.error || 'Failed to fetch form');
+    const supabaseForm = await supabaseFormsService.getForm(projectId, formId);
+    return convertSupabaseFormToForm(supabaseForm);
   },
 
   async updateForm(projectId: string, formId: string, updates: UpdateFormDto): Promise<Form> {
-    const response = await apiClient.patch(`/forms/projects/${projectId}/forms/${formId}`, updates);
-    if (response.success && response.data) {
-      return response.data as Form;
-    }
-    throw new Error(response.error || 'Failed to update form');
+    const supabaseForm = await supabaseFormsService.updateForm(projectId, formId, updates);
+    return convertSupabaseFormToForm(supabaseForm);
   },
 
   async deleteForm(projectId: string, formId: string): Promise<void> {
-    const response = await apiClient.delete(`/forms/projects/${projectId}/forms/${formId}`);
-    if (!response.success) {
-      throw new Error(response.error || 'Failed to delete form');
-    }
+    await supabaseFormsService.deleteForm(projectId, formId);
   },
 
   async duplicateForm(projectId: string, formId: string): Promise<Form> {
-    console.log('🌐 FormsAPI: Making duplicate request for project:', projectId, 'formId:', formId);
-    const response = await apiClient.post(`/forms/projects/${projectId}/forms/${formId}/duplicate`);
-    console.log('📡 FormsAPI: Received response from backend:', {
-      success: response.success,
-      hasData: !!response.data,
-      error: response.error
-    });
-    
-    if (response.success && response.data) {
-      const form = response.data as Form;
-      console.log('📋 FormsAPI: Duplicated form structure:', {
-        id: form.id,
-        title: form.title,
-        sectionsCount: form.sections?.length || 0,
-        totalQuestions: form.sections?.reduce((total, section) => total + (section.questions?.length || 0), 0) || 0
-      });
-      
-      // Log choice questions and their options
-      if (form.sections) {
-        form.sections.forEach((section, sectionIndex) => {
-          section.questions?.forEach((question, questionIndex) => {
-            if (question.type === 'SINGLE_CHOICE' || question.type === 'MULTIPLE_CHOICE') {
-              console.log(`🎯 FormsAPI: Question ${sectionIndex}-${questionIndex} (${question.title}):`, {
-                type: question.type,
-                optionsCount: question.options?.length || 0,
-                options: question.options?.map(opt => ({ id: opt.id, label: opt.label, value: opt.value })) || []
-              });
-            }
-          });
-        });
-      }
-      
-      return form;
-    }
-    throw new Error(response.error || 'Failed to duplicate form');
+    const user = await supabaseAuthService.getCurrentUser();
+    if (!user) throw new Error('User not authenticated');
+    const supabaseForm = await supabaseFormsService.duplicateForm(projectId, formId, user.id);
+    return convertSupabaseFormToForm(supabaseForm);
   },
 
   async archiveForm(projectId: string, formId: string): Promise<Form> {
-    const response = await apiClient.post(`/forms/projects/${projectId}/forms/${formId}/archive`);
-    if (response.success && response.data) {
-      return response.data as Form;
-    }
-    throw new Error(response.error || 'Failed to archive form');
+    const supabaseForm = await supabaseFormsService.archiveForm(projectId, formId);
+    return convertSupabaseFormToForm(supabaseForm);
   },
 
   async disableForm(projectId: string, formId: string): Promise<Form> {
-    const response = await apiClient.post(`/forms/projects/${projectId}/forms/${formId}/disable`);
-    if (response.success && response.data) {
-      return response.data as Form;
-    }
-    throw new Error(response.error || 'Failed to disable form');
+    const supabaseForm = await supabaseFormsService.disableForm(projectId, formId);
+    return convertSupabaseFormToForm(supabaseForm);
   },
 
   async restoreForm(projectId: string, formId: string): Promise<Form> {
-    const response = await apiClient.post(`/forms/projects/${projectId}/forms/${formId}/restore`);
-    if (response.success && response.data) {
-      return response.data as Form;
-    }
-    throw new Error(response.error || 'Failed to restore form');
+    const supabaseForm = await supabaseFormsService.restoreForm(projectId, formId);
+    return convertSupabaseFormToForm(supabaseForm);
   },
 
 
@@ -164,11 +143,8 @@ export const formsApi = {
   // ========================================
 
   async submitResponse(responseData: CreateFormResponseDto): Promise<FormResponse> {
-    const response = await apiClient.post('/forms/responses', responseData);
-    if (response.success && response.data) {
-      return response.data as FormResponse;
-    }
-    throw new Error(response.error || 'Failed to submit response');
+    const supabaseResponse = await supabaseFormsService.createResponse(responseData);
+    return convertSupabaseResponseToFormResponse(supabaseResponse);
   },
 
   async getFormResponses(
@@ -188,35 +164,16 @@ export const formsApi = {
     totalPages: number;
     stats: { totalAll: number; totalComplete: number; totalIncomplete: number }
   }> {
-    const params = new URLSearchParams();
-    if (options?.page) params.append('page', String(options.page));
-    if (options?.limit) params.append('limit', String(options.limit));
-    if (options?.search) params.append('search', options.search);
-    if (options?.status && options.status !== 'all') params.append('status', options.status);
-    
-    const queryString = params.toString();
-    const url = `/forms/projects/${projectId}/forms/${formId}/responses${queryString ? `?${queryString}` : ''}`;
-    
-    const response = await apiClient.get(url);
-    if (response.success && response.data) {
-      return response.data as { 
-        responses: FormResponse[]; 
-        total: number; 
-        page: number; 
-        limit: number; 
-        totalPages: number;
-        stats: { totalAll: number; totalComplete: number; totalIncomplete: number }
-      };
-    }
-    throw new Error(response.error || 'Failed to fetch form responses');
+    const result = await supabaseFormsService.getFormResponses(projectId, formId, options);
+    return {
+      ...result,
+      responses: result.responses.map(convertSupabaseResponseToFormResponse),
+    };
   },
 
   async getFormResponse(projectId: string, formId: string, responseId: string): Promise<FormResponse> {
-    const response = await apiClient.get(`/forms/projects/${projectId}/forms/${formId}/responses/${responseId}`);
-    if (response.success && response.data) {
-      return response.data as FormResponse;
-    }
-    throw new Error(response.error || 'Failed to fetch form response');
+    const supabaseResponse = await supabaseFormsService.getFormResponse(projectId, formId, responseId);
+    return convertSupabaseResponseToFormResponse(supabaseResponse);
   },
 
   // Optimized endpoint for exporting ALL responses (no pagination limit)
@@ -227,32 +184,20 @@ export const formsApi = {
       status?: 'all' | 'complete' | 'incomplete';
     }
   ): Promise<{ responses: FormResponse[]; total: number }> {
-    const params = new URLSearchParams();
-    if (options?.status && options.status !== 'all') params.append('status', options.status);
-    
-    const queryString = params.toString();
-    const url = `/forms/projects/${projectId}/forms/${formId}/responses/export${queryString ? `?${queryString}` : ''}`;
-    
-    const response = await apiClient.get(url);
-    if (response.success && response.data) {
-      return response.data as { responses: FormResponse[]; total: number };
-    }
-    throw new Error(response.error || 'Failed to fetch form responses for export');
+    const result = await supabaseFormsService.getAllFormResponsesForExport(projectId, formId, options);
+    return {
+      ...result,
+      responses: result.responses.map(convertSupabaseResponseToFormResponse),
+    };
   },
 
   async updateFormResponse(projectId: string, formId: string, responseId: string, updates: UpdateFormResponseDto): Promise<FormResponse> {
-    const response = await apiClient.put(`/forms/projects/${projectId}/forms/${formId}/responses/${responseId}`, updates);
-    if (response.success && response.data) {
-      return response.data as FormResponse;
-    }
-    throw new Error(response.error || 'Failed to update form response');
+    const supabaseResponse = await supabaseFormsService.updateFormResponse(projectId, formId, responseId, updates);
+    return convertSupabaseResponseToFormResponse(supabaseResponse);
   },
 
   async deleteFormResponse(projectId: string, formId: string, responseId: string): Promise<void> {
-    const response = await apiClient.delete(`/forms/projects/${projectId}/forms/${formId}/responses/${responseId}`);
-    if (!response.success) {
-      throw new Error(response.error || 'Failed to delete form response');
-    }
+    await supabaseFormsService.deleteFormResponse(projectId, formId, responseId);
   },
 
   // ========================================
@@ -260,11 +205,7 @@ export const formsApi = {
   // ========================================
 
   async getFormAnalytics(projectId: string, formId: string): Promise<any> {
-    const response = await apiClient.get(`/forms/projects/${projectId}/forms/${formId}/analytics`);
-    if (response.success && response.data) {
-      return response.data;
-    }
-    throw new Error(response.error || 'Failed to fetch form analytics');
+    return await supabaseFormsService.getFormAnalytics(projectId, formId);
   },
 
   // ========================================
@@ -272,35 +213,29 @@ export const formsApi = {
   // ========================================
 
   async createTemplate(templateData: CreateFormTemplateDto): Promise<FormTemplate> {
-    const response = await apiClient.post('/forms/templates', templateData);
-    if (response.success && response.data) {
-      return response.data as FormTemplate;
-    }
-    throw new Error(response.error || 'Failed to create template');
+    const user = await supabaseAuthService.getCurrentUser();
+    if (!user) throw new Error('User not authenticated');
+    const supabaseTemplate = await supabaseFormsService.createTemplate(templateData, user.id);
+    return convertSupabaseTemplateToFormTemplate(supabaseTemplate);
   },
 
   async getPublicTemplates(): Promise<FormTemplate[]> {
-    const response = await apiClient.get('/forms/templates');
-    if (response.success && response.data) {
-      return response.data as FormTemplate[];
-    }
-    throw new Error(response.error || 'Failed to fetch public templates');
+    const supabaseTemplates = await supabaseFormsService.getPublicTemplates();
+    return supabaseTemplates.map(convertSupabaseTemplateToFormTemplate);
   },
 
   async getUserTemplates(): Promise<FormTemplate[]> {
-    const response = await apiClient.get('/forms/templates/my');
-    if (response.success && response.data) {
-      return response.data as FormTemplate[];
-    }
-    throw new Error(response.error || 'Failed to fetch user templates');
+    const user = await supabaseAuthService.getCurrentUser();
+    if (!user) throw new Error('User not authenticated');
+    const supabaseTemplates = await supabaseFormsService.getUserTemplates(user.id);
+    return supabaseTemplates.map(convertSupabaseTemplateToFormTemplate);
   },
 
   async createFormFromTemplate(projectId: string, templateId: string, title: string): Promise<Form> {
-    const response = await apiClient.post(`/forms/projects/${projectId}/forms/from-template/${templateId}`, { title });
-    if (response.success && response.data) {
-      return response.data as Form;
-    }
-    throw new Error(response.error || 'Failed to create form from template');
+    const user = await supabaseAuthService.getCurrentUser();
+    if (!user) throw new Error('User not authenticated');
+    const supabaseForm = await supabaseFormsService.createFormFromTemplate(projectId, templateId, title, user.id);
+    return convertSupabaseFormToForm(supabaseForm);
   },
 
   // ========================================
@@ -324,19 +259,17 @@ export const formsApi = {
       };
     }
   ): Promise<any> {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('questionId', questionId);
-    if (responseId) formData.append('responseId', responseId);
-    formData.append('metadata', JSON.stringify(metadata));
-
-    const response = await apiClient.upload(`/forms/projects/${projectId}/forms/${formId}/media`, formData);
-    
-    if (!response.success) {
-      throw new Error(`Failed to upload media file: ${response.error}`);
-    }
-
-    return response.data;
+    const user = await supabaseAuthService.getCurrentUser();
+    if (!user) throw new Error('User not authenticated');
+    return await supabaseFormsService.uploadMediaFile(
+      projectId,
+      formId,
+      questionId,
+      responseId,
+      file,
+      metadata,
+      user.id
+    );
   },
 
   async uploadDirectMediaFile(
@@ -345,55 +278,31 @@ export const formsApi = {
     description?: string,
     tags?: string
   ): Promise<any> {
-    const formData = new FormData();
-    formData.append('file', file);
-    if (description) formData.append('description', description);
-    if (tags) formData.append('tags', tags);
-
-    const response = await apiClient.upload(`/forms/projects/${projectId}/media/upload`, formData);
-    
-    if (!response.success) {
-      throw new Error(`Failed to upload media file: ${response.error}`);
-    }
-
-    return response.data;
+    const user = await supabaseAuthService.getCurrentUser();
+    if (!user) throw new Error('User not authenticated');
+    const tagsArray = tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+    return await supabaseFormsService.uploadDirectMediaFile(
+      projectId,
+      file,
+      { description, tags: tagsArray },
+      user.id
+    );
   },
 
   async getFormMediaFiles(projectId: string, formId: string): Promise<any[]> {
-    const response = await apiClient.get(`/forms/projects/${projectId}/forms/${formId}/media`);
-    if (response.success && response.data) {
-      return response.data as any[];
-    }
-    return [];
+    return await supabaseFormsService.getFormMediaFiles(projectId, formId);
   },
 
   async getProjectMediaFiles(projectId: string, search?: string, mediaType?: string): Promise<any[]> {
-    let url = `/forms/projects/${projectId}/media`;
-    const params = new URLSearchParams();
-    if (search) params.append('search', search);
-    if (mediaType) params.append('mediaType', mediaType);
-    if (params.toString()) url += `?${params.toString()}`;
-
-    const response = await apiClient.get(url);
-    if (response.success && response.data) {
-      return response.data as any[];
-    }
-    return [];
+    return await supabaseFormsService.getProjectMediaFiles(projectId, search, mediaType);
   },
 
   async deleteMediaFile(projectId: string, formId: string, mediaId: string): Promise<void> {
-    const response = await apiClient.delete(`/forms/projects/${projectId}/forms/${formId}/media/${mediaId}`);
-    if (!response.success) {
-      throw new Error(response.error || 'Failed to delete media file');
-    }
+    await supabaseFormsService.deleteMediaFile(projectId, formId, mediaId);
   },
 
   async updateMediaFileMetadata(projectId: string, formId: string, mediaId: string, updates: any): Promise<any> {
-    const response = await apiClient.patch(`/forms/projects/${projectId}/forms/${formId}/media/${mediaId}`, updates);
-    if (response.success && response.data) {
-      return response.data;
-    }
-    throw new Error(response.error || 'Failed to update media file metadata');
+    return await supabaseFormsService.updateMediaFileMetadata(projectId, formId, mediaId, updates);
   },
 
   // ========================================
@@ -401,19 +310,13 @@ export const formsApi = {
   // ========================================
 
   async getPublicForm(formId: string): Promise<Form> {
-    const response = await apiClient.get(`/forms/public/${formId}`);
-    if (response.success && response.data) {
-      return response.data as Form;
-    }
-    throw new Error(response.error || 'Failed to fetch public form');
+    const supabaseForm = await supabaseFormsService.getPublicForm(formId);
+    return convertSupabaseFormToForm(supabaseForm);
   },
 
   async getSecureForm(formId: string): Promise<Form> {
-    const response = await apiClient.get(`/forms/secure/${formId}`);
-    if (response.success && response.data) {
-      return response.data as Form;
-    }
-    throw new Error(response.error || 'Failed to fetch secure form');
+    const supabaseForm = await supabaseFormsService.getSecureForm(formId);
+    return convertSupabaseFormToForm(supabaseForm);
   },
 
   // ========================================
@@ -423,8 +326,8 @@ export const formsApi = {
   async getFormByIdOnly(formId: string): Promise<Form | null> {
     try {
       // If user is authenticated, try secure first
-      const token = localStorage.getItem('ics-auth-token');
-      if (token) {
+      const session = await supabaseAuthService.getSession();
+      if (session) {
         try {
           return await this.getSecureForm(formId);
         } catch {

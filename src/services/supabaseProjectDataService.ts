@@ -1,0 +1,503 @@
+import { supabase } from '@/lib/supabaseClient';
+import type { Database } from '@/types/supabase';
+import { supabaseAuthService } from './supabaseAuthService';
+import type { Outcome, Activity } from '@/types/dashboard';
+
+type OutcomeRow = Database['public']['Tables']['outcomes']['Row'];
+type ActivityRow = Database['public']['Tables']['activities']['Row'];
+type KpiRow = Database['public']['Tables']['kpis']['Row'];
+
+export interface CreateOutcomeDto {
+  title: string;
+  description?: string;
+  target?: number;
+  current?: number;
+  unit?: string;
+  status?: 'PLANNING' | 'ACTIVE' | 'COMPLETED' | 'ON_HOLD' | 'ON_TRACK' | 'AT_RISK' | 'BEHIND';
+  progress?: number;
+}
+
+export interface CreateActivityDto {
+  outcomeId: string;
+  title: string;
+  description?: string;
+  responsible?: string;
+  status?: 'PLANNING' | 'ACTIVE' | 'COMPLETED' | 'ON_HOLD' | 'NOT_STARTED' | 'IN_PROGRESS';
+  startDate?: string;
+  endDate?: string;
+  progress?: number;
+  budget?: number;
+  spent?: number;
+}
+
+export interface CreateKPIDto {
+  outcomeId?: string;
+  name: string;
+  title?: string;
+  description?: string;
+  target?: number;
+  current?: number;
+  unit?: string;
+  type?: string;
+  frequency?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY';
+}
+
+class SupabaseProjectDataService {
+  private formatOutcome(outcome: OutcomeRow): Outcome {
+    return {
+      id: outcome.id,
+      projectId: outcome.projectId,
+      title: outcome.title,
+      description: outcome.description || '',
+      target: outcome.target || 0,
+      current: outcome.current || 0,
+      unit: outcome.unit || '',
+      status: outcome.status as Outcome['status'],
+      progress: outcome.progress,
+    };
+  }
+
+  private formatActivity(activity: ActivityRow): Activity {
+    return {
+      id: activity.id,
+      outcomeId: activity.outcomeId,
+      title: activity.title,
+      description: activity.description || '',
+      responsible: activity.responsible || '',
+      status: (activity.status || 'PLANNING') as Activity['status'],
+      startDate: activity.startDate ? new Date(activity.startDate) : new Date(),
+      endDate: activity.endDate ? new Date(activity.endDate) : new Date(),
+      progress: activity.progress,
+    };
+  }
+
+  // Outcomes
+  async getProjectOutcomes(projectId: string): Promise<Outcome[]> {
+    const { data, error } = await supabase
+      .from('outcomes')
+      .select('*')
+      .eq('projectId', projectId)
+      .order('createdAt', { ascending: false });
+
+    if (error) {
+      throw new Error(error.message || 'Failed to fetch project outcomes');
+    }
+
+    return (data || []).map(o => this.formatOutcome(o));
+  }
+
+  async createProjectOutcome(projectId: string, outcomeData: CreateOutcomeDto): Promise<Outcome> {
+    const currentUser = await supabaseAuthService.getCurrentUser();
+    if (!currentUser) {
+      throw new Error('Not authenticated');
+    }
+
+    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
+    if (!userProfile) {
+      throw new Error('User profile not found');
+    }
+
+    const now = new Date().toISOString();
+    const { data, error } = await supabase
+      .from('outcomes')
+      .insert({
+        projectId,
+        title: outcomeData.title,
+        description: outcomeData.description || null,
+        target: outcomeData.target || null,
+        current: outcomeData.current || null,
+        unit: outcomeData.unit || null,
+        status: (outcomeData.status || 'PLANNING') as Database['public']['Enums']['OutcomeStatus'],
+        progress: outcomeData.progress || 0,
+        createdBy: userProfile.id,
+        updatedBy: userProfile.id,
+        createdAt: now,
+        updatedAt: now,
+      } as Database['public']['Tables']['outcomes']['Insert'])
+      .select()
+      .single();
+
+    if (error || !data) {
+      throw new Error(error?.message || 'Failed to create project outcome');
+    }
+
+    return this.formatOutcome(data);
+  }
+
+  async updateProjectOutcome(projectId: string, outcomeId: string, updates: Partial<Outcome>): Promise<Outcome> {
+    const currentUser = await supabaseAuthService.getCurrentUser();
+    if (!currentUser) {
+      throw new Error('Not authenticated');
+    }
+
+    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
+    if (!userProfile) {
+      throw new Error('User profile not found');
+    }
+
+    const updateData: any = {
+      updatedBy: userProfile.id,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (updates.title !== undefined) updateData.title = updates.title;
+    if (updates.description !== undefined) updateData.description = updates.description || null;
+    if (updates.target !== undefined) updateData.target = updates.target || null;
+    if (updates.current !== undefined) updateData.current = updates.current || null;
+    if (updates.unit !== undefined) updateData.unit = updates.unit || null;
+    if (updates.status !== undefined) updateData.status = updates.status as Database['public']['Enums']['OutcomeStatus'];
+    if (updates.progress !== undefined) updateData.progress = updates.progress;
+
+    const { data, error } = await supabase
+      .from('outcomes')
+      .update(updateData)
+      .eq('id', outcomeId)
+      .eq('projectId', projectId)
+      .select()
+      .single();
+
+    if (error || !data) {
+      throw new Error(error?.message || 'Failed to update project outcome');
+    }
+
+    return this.formatOutcome(data);
+  }
+
+  async deleteProjectOutcome(projectId: string, outcomeId: string): Promise<{ success: boolean; message: string }> {
+    const { error } = await supabase
+      .from('outcomes')
+      .delete()
+      .eq('id', outcomeId)
+      .eq('projectId', projectId);
+
+    if (error) {
+      throw new Error(error.message || 'Failed to delete project outcome');
+    }
+
+    return { success: true, message: 'Outcome deleted successfully' };
+  }
+
+  // Activities
+  async getProjectActivities(projectId: string): Promise<Activity[]> {
+    const { data, error } = await supabase
+      .from('activities')
+      .select('*')
+      .eq('projectId', projectId)
+      .order('createdAt', { ascending: false });
+
+    if (error) {
+      throw new Error(error.message || 'Failed to fetch project activities');
+    }
+
+    return (data || []).map(a => this.formatActivity(a));
+  }
+
+  async createProjectActivity(projectId: string, activityData: CreateActivityDto): Promise<Activity> {
+    const currentUser = await supabaseAuthService.getCurrentUser();
+    if (!currentUser) {
+      throw new Error('Not authenticated');
+    }
+
+    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
+    if (!userProfile) {
+      throw new Error('User profile not found');
+    }
+
+    const now = new Date().toISOString();
+    const { data, error } = await supabase
+      .from('activities')
+      .insert({
+        projectId,
+        outcomeId: activityData.outcomeId,
+        title: activityData.title,
+        description: activityData.description || null,
+        responsible: activityData.responsible || null,
+        status: (activityData.status || 'PLANNING') as Database['public']['Enums']['ActivityStatus'],
+        startDate: activityData.startDate || null,
+        endDate: activityData.endDate || null,
+        progress: activityData.progress || 0,
+        budget: activityData.budget || 0,
+        spent: activityData.spent || 0,
+        createdBy: userProfile.id,
+        updatedBy: userProfile.id,
+        createdAt: now,
+        updatedAt: now,
+      } as Database['public']['Tables']['activities']['Insert'])
+      .select()
+      .single();
+
+    if (error || !data) {
+      throw new Error(error?.message || 'Failed to create project activity');
+    }
+
+    return this.formatActivity(data);
+  }
+
+  async updateProjectActivity(projectId: string, activityId: string, updates: Partial<Activity> & { budget?: number; spent?: number }): Promise<Activity> {
+    const currentUser = await supabaseAuthService.getCurrentUser();
+    if (!currentUser) {
+      throw new Error('Not authenticated');
+    }
+
+    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
+    if (!userProfile) {
+      throw new Error('User profile not found');
+    }
+
+    const updateData: any = {
+      updatedBy: userProfile.id,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (updates.title !== undefined) updateData.title = updates.title;
+    if (updates.description !== undefined) updateData.description = updates.description || null;
+    if (updates.responsible !== undefined) updateData.responsible = updates.responsible || null;
+    if (updates.status !== undefined) updateData.status = updates.status as Database['public']['Enums']['ActivityStatus'];
+    if (updates.startDate !== undefined) updateData.startDate = updates.startDate?.toISOString() || null;
+    if (updates.endDate !== undefined) updateData.endDate = updates.endDate?.toISOString() || null;
+    if (updates.progress !== undefined) updateData.progress = updates.progress;
+    if ((updates as any).budget !== undefined) updateData.budget = (updates as any).budget;
+    if ((updates as any).spent !== undefined) updateData.spent = (updates as any).spent;
+
+    const { data, error } = await supabase
+      .from('activities')
+      .update(updateData)
+      .eq('id', activityId)
+      .eq('projectId', projectId)
+      .select()
+      .single();
+
+    if (error || !data) {
+      throw new Error(error?.message || 'Failed to update project activity');
+    }
+
+    return this.formatActivity(data);
+  }
+
+  async deleteProjectActivity(projectId: string, activityId: string): Promise<{ success: boolean; message: string }> {
+    const { error } = await supabase
+      .from('activities')
+      .delete()
+      .eq('id', activityId)
+      .eq('projectId', projectId);
+
+    if (error) {
+      throw new Error(error.message || 'Failed to delete project activity');
+    }
+
+    return { success: true, message: 'Activity deleted successfully' };
+  }
+
+  // Outputs (if they exist as a separate table)
+  async getProjectOutputs(projectId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('outputs')
+      .select('*')
+      .eq('projectId', projectId)
+      .order('createdAt', { ascending: false });
+
+    if (error) {
+      // If outputs table doesn't exist, return empty array
+      if (error.code === 'PGRST116' || error.message.includes('does not exist')) {
+        return [];
+      }
+      throw new Error(error.message || 'Failed to fetch project outputs');
+    }
+
+    return data || [];
+  }
+
+  // Sub-activities
+  async getProjectSubActivities(projectId: string): Promise<any[]> {
+    // Get sub-activities through activities
+    const { data: activities } = await supabase
+      .from('activities')
+      .select('id')
+      .eq('projectId', projectId);
+
+    if (!activities || activities.length === 0) {
+      return [];
+    }
+
+    const activityIds = activities.map(a => a.id);
+    const { data, error } = await supabase
+      .from('sub_activities')
+      .select('*')
+      .in('activityId', activityIds)
+      .order('createdAt', { ascending: false });
+
+    if (error) {
+      throw new Error(error.message || 'Failed to fetch project sub-activities');
+    }
+
+    return data || [];
+  }
+
+  // KPIs
+  async getProjectKPIs(projectId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('kpis')
+      .select('*')
+      .eq('projectId', projectId)
+      .order('createdAt', { ascending: false });
+
+    if (error) {
+      throw new Error(error.message || 'Failed to fetch project KPIs');
+    }
+
+    return (data || []).map(kpi => ({
+      id: kpi.id,
+      projectId: kpi.projectId,
+      outcomeId: kpi.outcomeId || undefined,
+      name: kpi.name,
+      title: kpi.title || undefined,
+      description: kpi.description || undefined,
+      target: kpi.target || undefined,
+      current: kpi.current,
+      unit: kpi.unit || undefined,
+      type: kpi.type || undefined,
+      frequency: kpi.frequency,
+      createdAt: new Date(kpi.createdAt),
+      updatedAt: new Date(kpi.updatedAt),
+      createdBy: kpi.createdBy,
+      updatedBy: kpi.updatedBy,
+    }));
+  }
+
+  async createProjectKPI(projectId: string, kpiData: CreateKPIDto): Promise<any> {
+    const currentUser = await supabaseAuthService.getCurrentUser();
+    if (!currentUser) {
+      throw new Error('Not authenticated');
+    }
+
+    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
+    if (!userProfile) {
+      throw new Error('User profile not found');
+    }
+
+    const now = new Date().toISOString();
+    const { data, error } = await supabase
+      .from('kpis')
+      .insert({
+        projectId,
+        outcomeId: kpiData.outcomeId || null,
+        name: kpiData.name,
+        title: kpiData.title || null,
+        description: kpiData.description || null,
+        target: kpiData.target || null,
+        current: kpiData.current || 0,
+        unit: kpiData.unit || null,
+        type: kpiData.type || null,
+        frequency: (kpiData.frequency || 'MONTHLY') as Database['public']['Enums']['KPIFrequency'],
+        createdBy: userProfile.id,
+        updatedBy: userProfile.id,
+        createdAt: now,
+        updatedAt: now,
+      } as Database['public']['Tables']['kpis']['Insert'])
+      .select()
+      .single();
+
+    if (error || !data) {
+      throw new Error(error?.message || 'Failed to create project KPI');
+    }
+
+    return {
+      id: data.id,
+      projectId: data.projectId,
+      outcomeId: data.outcomeId || undefined,
+      name: data.name,
+      title: data.title || undefined,
+      description: data.description || undefined,
+      target: data.target || undefined,
+      current: data.current,
+      unit: data.unit || undefined,
+      type: data.type || undefined,
+      frequency: data.frequency,
+      createdAt: new Date(data.createdAt),
+      updatedAt: new Date(data.updatedAt),
+      createdBy: data.createdBy,
+      updatedBy: data.updatedBy,
+    };
+  }
+
+  async updateProjectKPI(projectId: string, kpiId: string, updates: any): Promise<any> {
+    const currentUser = await supabaseAuthService.getCurrentUser();
+    if (!currentUser) {
+      throw new Error('Not authenticated');
+    }
+
+    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
+    if (!userProfile) {
+      throw new Error('User profile not found');
+    }
+
+    const updateData: any = {
+      updatedBy: userProfile.id,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (updates.name !== undefined) updateData.name = updates.name;
+    if (updates.title !== undefined) updateData.title = updates.title || null;
+    if (updates.description !== undefined) updateData.description = updates.description || null;
+    if (updates.target !== undefined) updateData.target = updates.target || null;
+    if (updates.current !== undefined) updateData.current = updates.current;
+    if (updates.unit !== undefined) updateData.unit = updates.unit || null;
+    if (updates.type !== undefined) updateData.type = updates.type || null;
+    if (updates.frequency !== undefined) updateData.frequency = updates.frequency as Database['public']['Enums']['KPIFrequency'];
+    if (updates.outcomeId !== undefined) updateData.outcomeId = updates.outcomeId || null;
+
+    const { data, error } = await supabase
+      .from('kpis')
+      .update(updateData)
+      .eq('id', kpiId)
+      .eq('projectId', projectId)
+      .select()
+      .single();
+
+    if (error || !data) {
+      throw new Error(error?.message || 'Failed to update project KPI');
+    }
+
+    return {
+      id: data.id,
+      projectId: data.projectId,
+      outcomeId: data.outcomeId || undefined,
+      name: data.name,
+      title: data.title || undefined,
+      description: data.description || undefined,
+      target: data.target || undefined,
+      current: data.current,
+      unit: data.unit || undefined,
+      type: data.type || undefined,
+      frequency: data.frequency,
+      createdAt: new Date(data.createdAt),
+      updatedAt: new Date(data.updatedAt),
+      createdBy: data.createdBy,
+      updatedBy: data.updatedBy,
+    };
+  }
+
+  async deleteProjectKPI(projectId: string, kpiId: string): Promise<{ success: boolean; message: string }> {
+    const { error } = await supabase
+      .from('kpis')
+      .delete()
+      .eq('id', kpiId)
+      .eq('projectId', projectId);
+
+    if (error) {
+      throw new Error(error.message || 'Failed to delete project KPI');
+    }
+
+    return { success: true, message: 'KPI deleted successfully' };
+  }
+
+  // Reports (delegated to reportService)
+  async getProjectReports(projectId: string): Promise<any[]> {
+    // This should use reportService, but for now return empty array
+    // Reports are handled by reportService
+    return [];
+  }
+}
+
+export const supabaseProjectDataService = new SupabaseProjectDataService();
+

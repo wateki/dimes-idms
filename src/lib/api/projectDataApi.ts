@@ -1,175 +1,87 @@
 import { Outcome, Activity, Report } from '@/types/dashboard';
-import { apiClient, APIResponse } from './client';
+import { supabaseProjectDataService } from '@/services/supabaseProjectDataService';
+import type {
+  CreateOutcomeDto,
+  CreateActivityDto,
+  CreateKPIDto,
+} from '@/services/supabaseProjectDataService';
 
-// DTO interfaces that match backend expectations
-export interface CreateOutcomeDto {
-  title: string;
-  description?: string;
-  target?: number;
-  current?: number;
-  unit?: string;
-  status?: 'PLANNING' | 'ACTIVE' | 'COMPLETED' | 'ON_HOLD' | 'ON_TRACK' | 'AT_RISK' | 'BEHIND';
-  progress?: number;
-}
-
-export interface CreateActivityDto {
-  outcomeId: string;
-  title: string;
-  description?: string;
-  responsible?: string;
-  status?: 'PLANNING' | 'ACTIVE' | 'COMPLETED' | 'ON_HOLD' | 'NOT_STARTED' | 'IN_PROGRESS';
-  startDate?: string;
-  endDate?: string;
-  progress?: number;
-  budget?: number;
-  spent?: number;
-}
-
-export interface CreateKPIDto {
-  outcomeId?: string;
-  name: string;
-  title?: string;
-  description?: string;
-  target?: number;
-  current?: number;
-  unit?: string;
-  type?: string;
-  frequency?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY';
-}
+// Re-export types for backwards compatibility
+export type { CreateOutcomeDto, CreateActivityDto, CreateKPIDto };
 
 export const projectDataApi = {
   // Get project outcomes
   async getProjectOutcomes(projectId: string): Promise<Outcome[]> {
-    const response = await apiClient.get<Outcome[]>(`/projects/${projectId}/outcomes`);
-    if (response.success && response.data) {
-      return response.data;
-    }
-    throw new Error(response.error || 'Failed to fetch project outcomes');
+    return supabaseProjectDataService.getProjectOutcomes(projectId);
   },
 
   // Get project activities
   async getProjectActivities(projectId: string): Promise<Activity[]> {
-    const response = await apiClient.get<Activity[]>(`/projects/${projectId}/activities`);
-    if (response.success && response.data) {
-      return response.data;
-    }
-    throw new Error(response.error || 'Failed to fetch project activities');
+    return supabaseProjectDataService.getProjectActivities(projectId);
   },
 
   // Get project outputs
   async getProjectOutputs(projectId: string): Promise<any[]> {
-    const response = await apiClient.get<any[]>(`/projects/${projectId}/outputs`);
-    if (response.success && response.data) {
-      return response.data;
-    }
-    throw new Error(response.error || 'Failed to fetch project outputs');
+    return supabaseProjectDataService.getProjectOutputs(projectId);
   },
 
   // Get project sub-activities
   async getProjectSubActivities(projectId: string): Promise<any[]> {
-    const response = await apiClient.get<any[]>(`/projects/${projectId}/sub-activities`);
-    if (response.success && response.data) {
-      return response.data;
-    }
-    throw new Error(response.error || 'Failed to fetch project sub-activities');
+    return supabaseProjectDataService.getProjectSubActivities(projectId);
   },
 
   // Get project KPIs
   async getProjectKPIs(projectId: string): Promise<any[]> {
-    const response = await apiClient.get<any[]>(`/projects/${projectId}/kpis`);
-    if (response.success && response.data) {
-      return response.data;
-    }
-    throw new Error(response.error || 'Failed to fetch project KPIs');
+    return supabaseProjectDataService.getProjectKPIs(projectId);
   },
 
   // Get project reports
   async getProjectReports(projectId: string): Promise<Report[]> {
-    const response = await apiClient.get<Report[]>(`/projects/${projectId}/reports`);
-    if (response.success && response.data) {
-      return response.data;
-    }
-    throw new Error(response.error || 'Failed to fetch project reports');
+    return supabaseProjectDataService.getProjectReports(projectId);
   },
 
   // Create project outcome
   async createProjectOutcome(projectId: string, outcomeData: CreateOutcomeDto): Promise<Outcome> {
-    const response = await apiClient.post<Outcome>(`/projects/${projectId}/outcomes`, outcomeData);
-    if (response.success && response.data) {
-      return response.data;
-    }
-    throw new Error(response.error || 'Failed to create project outcome');
+    return supabaseProjectDataService.createProjectOutcome(projectId, outcomeData);
   },
 
   // Create project activity
   async createProjectActivity(projectId: string, activityData: CreateActivityDto): Promise<Activity> {
-    const response = await apiClient.post<Activity>(`/projects/${projectId}/activities`, activityData);
-    if (response.success && response.data) {
-      return response.data;
-    }
-    throw new Error(response.error || 'Failed to create project activity');
+    return supabaseProjectDataService.createProjectActivity(projectId, activityData);
   },
 
   // Update project outcome
   async updateProjectOutcome(projectId: string, outcomeId: string, updates: Partial<Outcome>): Promise<Outcome> {
-    const response = await apiClient.patch<Outcome>(`/projects/${projectId}/outcomes/${outcomeId}`, updates);
-    if (response.success && response.data) {
-      return response.data;
-    }
-    throw new Error(response.error || 'Failed to update project outcome');
+    return supabaseProjectDataService.updateProjectOutcome(projectId, outcomeId, updates);
   },
 
   // Update project activity
   async updateProjectActivity(projectId: string, activityId: string, updates: Partial<Activity>): Promise<Activity> {
-    const response = await apiClient.patch<Activity>(`/projects/${projectId}/activities/${activityId}`, updates);
-    if (response.success && response.data) {
-      return response.data;
-    }
-    throw new Error(response.error || 'Failed to update project activity');
+    return supabaseProjectDataService.updateProjectActivity(projectId, activityId, updates);
   },
 
   // Delete project outcome
   async deleteProjectOutcome(projectId: string, outcomeId: string): Promise<{ success: boolean; message: string }> {
-    const response = await apiClient.delete<{ success: boolean; message: string }>(`/projects/${projectId}/outcomes/${outcomeId}`);
-    if (response.success && response.data) {
-      return response.data;
-    }
-    throw new Error(response.error || 'Failed to delete project outcome');
+    return supabaseProjectDataService.deleteProjectOutcome(projectId, outcomeId);
   },
 
   // Delete project activity
   async deleteProjectActivity(projectId: string, activityId: string): Promise<{ success: boolean; message: string }> {
-    const response = await apiClient.delete<{ success: boolean; message: string }>(`/projects/${projectId}/activities/${activityId}`);
-    if (response.success && response.data) {
-      return response.data;
-    }
-    throw new Error(response.error || 'Failed to delete project activity');
+    return supabaseProjectDataService.deleteProjectActivity(projectId, activityId);
   },
 
   // Create project KPI
   async createProjectKPI(projectId: string, kpiData: CreateKPIDto): Promise<any> {
-    const response = await apiClient.post<any>(`/projects/${projectId}/kpis`, kpiData);
-    if (response.success && response.data) {
-      return response.data;
-    }
-    throw new Error(response.error || 'Failed to create project KPI');
+    return supabaseProjectDataService.createProjectKPI(projectId, kpiData);
   },
 
   // Update project KPI
   async updateProjectKPI(projectId: string, kpiId: string, updates: any): Promise<any> {
-    const response = await apiClient.patch<any>(`/projects/${projectId}/kpis/${kpiId}`, updates);
-    if (response.success && response.data) {
-      return response.data;
-    }
-    throw new Error(response.error || 'Failed to update project KPI');
+    return supabaseProjectDataService.updateProjectKPI(projectId, kpiId, updates);
   },
 
   // Delete project KPI
   async deleteProjectKPI(projectId: string, kpiId: string): Promise<{ success: boolean; message: string }> {
-    const response = await apiClient.delete<{ success: boolean; message: string }>(`/projects/${projectId}/kpis/${kpiId}`);
-    if (response.success && response.data) {
-      return response.data;
-    }
-    throw new Error(response.error || 'Failed to delete project KPI');
+    return supabaseProjectDataService.deleteProjectKPI(projectId, kpiId);
   },
 };

@@ -6,11 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { Eye, EyeOff } from 'lucide-react';
-import { authService } from '@/services/authService';
 import { useNotification } from '@/hooks/useNotification';
 
 export function Settings() {
-  const { user } = useAuth();
+  const { user, changePassword: changePasswordAuth } = useAuth();
   const { showSuccess, showError } = useNotification();
   const [name, setName] = useState(user ? `${user.firstName} ${user.lastName}` : '');
   const [email, setEmail] = useState(user?.email || '');
@@ -55,10 +54,7 @@ export function Settings() {
 
     setPasswordLoading(true);
     try {
-      await authService.changePassword({
-        currentPassword,
-        newPassword,
-      });
+      await changePasswordAuth(currentPassword, newPassword);
       
       setPasswordSuccess('Password changed successfully');
       setCurrentPassword('');

@@ -1,184 +1,157 @@
 import { User } from '@/types/dashboard';
-
-import { config } from '@/config/env';
-
-const API_BASE_URL = config.API_BASE_URL;
+import { supabaseAuthService } from '@/services/supabaseAuthService';
+import type { Session } from '@supabase/supabase-js';
 
 interface LoginResponse {
-  access_token: string;
-  refresh_token: string;
+  session: Session;
   user: User;
 }
 
-interface RefreshResponse {
-  access_token: string;
-  refresh_token: string;
-}
-
-interface APIResponse<T> {
+interface LoginResult {
   success: boolean;
-  data?: T;
   error?: string;
+  data?: LoginResponse;
 }
 
+/**
+ * Pure Supabase-based authentication API
+ * All authentication is handled through Supabase Auth
+ */
 class AuthAPI {
-  private async request<T>(
-    endpoint: string, 
-    options: RequestInit = {}
-  ): Promise<APIResponse<T>> {
-    const url = `${API_BASE_URL}${endpoint}`;
-    
-    const defaultHeaders = {
-      'Content-Type': 'application/json',
-    };
-
+  /**
+   * Sign in with email and password
+   */
+  async login(email: string, password: string): Promise<LoginResult> {
     try {
-      const response = await fetch(url, {
-        ...options,
-        headers: {
-          ...defaultHeaders,
-          ...options.headers,
-        },
-      });
+      const { session, user: authUser, error } = await supabaseAuthService.signIn(email, password);
 
-      const data = await response.json();
-
-      if (response.ok) {
-        return { success: true, data };
-      } else {
-        return { 
-          success: false, 
-          error: data.message || `HTTP ${response.status}` 
+      if (error || !session || !authUser) {
+        return {
+          success: false,
+          error: error?.message || 'Invalid email or password',
         };
       }
-    } catch (error: any) {
-      console.error('API request failed:', error);
-      return { 
-        success: false, 
-        error: error.message || 'Network error occurred' 
-      };
-    }
-  }
 
-  async login(email: string, password: string): Promise<APIResponse<LoginResponse>> {
-    return this.request<LoginResponse>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
-  }
+      // Fetch full user profile with roles and permissions
+      const userProfile = await supabaseAuthService.getUserProfile(authUser.id);
 
-  async logout(token: string): Promise<APIResponse<void>> {
-    return this.request<void>('/auth/logout', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-  }
+      if (!userProfile) {
+        return {
+          success: false,
+          error: 'User profile not found',
+        };
+      }
 
-  async refreshToken(refreshToken: string): Promise<APIResponse<RefreshResponse>> {
-    return this.request<RefreshResponse>('/auth/refresh', {
-      method: 'POST',
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
-  }
-
-  async getProfile(token: string): Promise<User> {
-    const response = await this.request<User>('/auth/me', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-
-    if (response.success && response.data) {
-      return response.data;
-    } else {
-      throw new Error(response.error || 'Failed to get user profile');
-    }
-  }
-
-  async updateProfile(updates: Partial<User>, token: string): Promise<User> {
-    const response = await this.request<User>('/auth/profile', {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(updates),
-    });
-
-    if (response.success && response.data) {
-      return response.data;
-    } else {
-      throw new Error(response.error || 'Failed to update profile');
-    }
-  }
-
-  async changePassword(
-    currentPassword: string, 
-    newPassword: string, 
-    token: string
-  ): Promise<void> {
-    const response = await this.request<void>('/auth/change-password', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        currentPassword,
-        newPassword,
-      }),
-    });
-
-    if (!response.success) {
-      throw new Error(response.error || 'Failed to change password');
-    }
-  }
-
-  // Utility method to check if token is expired
-  isTokenExpired(token: string): boolean {
-    try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(
-        atob(base64)
-          .split('')
-          .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
-      );
-      const payload = JSON.parse(jsonPayload);
-      const currentTime = Date.now() / 1000;
-      
-      return payload.exp < currentTime;
-    } catch (error) {
-      console.error('Error parsing token:', error);
-      return true; // Consider expired if can't parse
-    }
-  }
-
-  // Utility method to get user info from token
-  getUserFromToken(token: string): Partial<User> | null {
-    try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(
-        atob(base64)
-          .split('')
-          .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
-      );
-      const payload = JSON.parse(jsonPayload);
-      
       return {
-        id: payload.id,
-        email: payload.email,
-        firstName: payload.firstName,
-        lastName: payload.lastName,
+        success: true,
+        data: {
+          session,
+          user: userProfile,
+        },
       };
-    } catch (error) {
-      console.error('Error parsing token:', error);
-      return null;
+    } catch (error: any) {
+      console.error('Login error:', error);
+      return {
+        success: false,
+        error: error.message || 'Login failed. Please try again.',
+      };
     }
+  }
+
+  /**
+   * Sign out
+   */
+  async logout(): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { error } = await supabaseAuthService.signOut();
+      
+      if (error) {
+        return {
+          success: false,
+          error: error.message || 'Failed to sign out',
+        };
+      }
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('Logout error:', error);
+      return {
+        success: false,
+        error: error.message || 'Logout failed',
+      };
+    }
+  }
+
+  /**
+   * Get current session
+   */
+  async getSession(): Promise<Session | null> {
+    return supabaseAuthService.getSession();
+  }
+
+  /**
+   * Get user profile
+   */
+  async getProfile(): Promise<User> {
+    const authUser = await supabaseAuthService.getCurrentUser();
+    
+    if (!authUser) {
+      throw new Error('Not authenticated');
+    }
+
+    const userProfile = await supabaseAuthService.getUserProfile(authUser.id);
+    
+    if (!userProfile) {
+      throw new Error('User profile not found');
+    }
+
+    return userProfile;
+  }
+
+  /**
+   * Update user profile
+   */
+  async updateProfile(updates: Partial<User>): Promise<User> {
+    const updatedProfile = await supabaseAuthService.updateUserProfile({
+      firstName: updates.firstName,
+      lastName: updates.lastName,
+      email: updates.email,
+    });
+
+    if (!updatedProfile) {
+      throw new Error('Failed to update profile');
+    }
+
+    return updatedProfile;
+  }
+
+  /**
+   * Change password
+   */
+  async changePassword(
+    currentPassword: string,
+    newPassword: string
+  ): Promise<void> {
+    // Note: Supabase Auth doesn't require current password for password change
+    // You may want to add validation on the backend if needed
+    await supabaseAuthService.changePassword(newPassword);
+  }
+
+  /**
+   * Listen to auth state changes
+   */
+  onAuthStateChange(
+    callback: (event: string, session: Session | null) => void
+  ) {
+    return supabaseAuthService.onAuthStateChange(callback);
+  }
+
+  /**
+   * Utility method to check if session is valid
+   */
+  async isAuthenticated(): Promise<boolean> {
+    const session = await this.getSession();
+    return !!session;
   }
 }
 

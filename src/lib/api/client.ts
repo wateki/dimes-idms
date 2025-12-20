@@ -1,4 +1,5 @@
 import { config } from '@/config/env';
+import { supabase } from '@/lib/supabaseClient';
 
 const API_BASE_URL = config.API_BASE_URL;
 
@@ -9,8 +10,10 @@ export interface APIResponse<T> {
 }
 
 export class APIClient {
-  public getAuthToken(): string | null {
-    return localStorage.getItem('ics-auth-token');
+  public async getAuthToken(): Promise<string | null> {
+    // Get session from Supabase Auth
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token || null;
   }
 
   public getBaseUrl(): string {
@@ -22,7 +25,7 @@ export class APIClient {
     options: RequestInit = {}
   ): Promise<APIResponse<T>> {
     const url = `${API_BASE_URL}${endpoint}`;
-    const token = this.getAuthToken();
+    const token = await this.getAuthToken();
 
     const defaultHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -42,11 +45,10 @@ export class APIClient {
         },
       });
 
-      // Handle 401 - redirect to login or refresh token
+      // Handle 401 - redirect to login
       if (response.status === 401) {
-        // Clear invalid token
-        localStorage.removeItem('ics-auth-token');
-        localStorage.removeItem('ics-refresh-token');
+        // Sign out from Supabase Auth
+        await supabase.auth.signOut();
         
         // Trigger auth context to handle logout
         window.dispatchEvent(new CustomEvent('auth:unauthorized'));
@@ -146,7 +148,7 @@ export class APIClient {
 
   // Helper method for file uploads
   async upload<T>(endpoint: string, formData: FormData): Promise<APIResponse<T>> {
-    const token = this.getAuthToken();
+    const token = await this.getAuthToken();
     const headers: Record<string, string> = {};
     
     if (token) {
@@ -161,8 +163,7 @@ export class APIClient {
       });
 
       if (response.status === 401) {
-        localStorage.removeItem('ics-auth-token');
-        localStorage.removeItem('ics-refresh-token');
+        await supabase.auth.signOut();
         window.dispatchEvent(new CustomEvent('auth:unauthorized'));
         
         return {

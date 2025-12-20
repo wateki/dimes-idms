@@ -1,107 +1,29 @@
-import { apiClient } from '@/lib/api/client';
+import { supabaseKoboDataService } from './supabaseKoboDataService';
+import type {
+  ProjectKoboTableWithMappings as ProjectKoboTable,
+  KoboKpiMappingWithDetails as KoboKpiMapping,
+  AvailableKoboTable,
+  TableColumn,
+  TableStats,
+  KoboTableData,
+  KpiCalculationResult,
+} from './supabaseKoboDataService';
 
-export interface ProjectKoboTable {
-  id: string;
-  projectId: string;
-  tableName: string;
-  displayName: string;
-  description?: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-  createdBy: string;
-  updatedBy: string;
-  kpiMappings: KoboKpiMapping[];
-}
-
-export interface KoboKpiMapping {
-  id: string;
-  projectKoboTableId: string;
-  kpiId: string;
-  columnName: string;
-  aggregationMethod: 'COUNT' | 'SUM' | 'AVG' | 'MIN' | 'MAX' | 'DISTINCT_COUNT';
-  timeFilterField?: string;
-  timeFilterValue?: number;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-  createdBy: string;
-  updatedBy: string;
-  kpi: {
-    id: string;
-    name: string;
-    unit?: string;
-  };
-  projectKoboTable: {
-    id: string;
-    tableName: string;
-    displayName: string;
-  };
-}
-
-export interface KoboTableData {
-  data: any[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
-  tableInfo: {
-    id: string;
-    tableName: string;
-    displayName: string;
-    description?: string;
-  };
-}
-
-export interface KpiCalculationResult {
-  kpiId: string;
-  kpiName: string;
-  results: Array<{
-    mappingId: string;
-    columnName: string;
-    aggregationMethod: string;
-    value: number;
-    tableName: string;
-    error?: string;
-  }>;
-  calculatedAt: string;
-}
-
-export interface AvailableKoboTable {
-  id: number;
-  asset_uid: string;
-  table_name: string;
-  asset_name: string;
-  project: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface TableColumn {
-  name: string;
-  type: string;
-  nullable: boolean;
-  defaultValue: string | null;
-  maxLength: number | null;
-}
-
-export interface TableStats {
-  totalCount: number;
-  hasData: boolean;
-  tableName: string;
-  error?: string;
-}
+// Re-export types for backwards compatibility
+export type {
+  ProjectKoboTable,
+  KoboKpiMapping,
+  AvailableKoboTable,
+  TableColumn,
+  TableStats,
+  KoboTableData,
+  KpiCalculationResult,
+};
 
 export class KoboDataService {
   // Available Kobo Tables
   static async getAvailableKoboTables(projectId: string): Promise<{ data: AvailableKoboTable[] }> {
-    const response = await apiClient.get<AvailableKoboTable[]>(`/projects/${projectId}/kobo-data/available-tables`);
-    if (!response.success) {
-      throw new Error(response.error || 'Failed to fetch available Kobo tables');
-    }
-    return { data: response.data || [] };
+    return supabaseKoboDataService.getAvailableKoboTables(projectId);
   }
 
   // Project Kobo Table Management
@@ -111,26 +33,15 @@ export class KoboDataService {
     description?: string;
     isActive?: boolean;
   }) {
-    return apiClient.post(`/projects/${projectId}/kobo-data/tables`, data);
+    return supabaseKoboDataService.createProjectKoboTable(projectId, data);
   }
 
   static async getProjectKoboTables(projectId: string): Promise<{ data: ProjectKoboTable[] }> {
-    const response = await apiClient.get<ProjectKoboTable[]>(`/projects/${projectId}/kobo-data/tables`);
-    if (!response.success) {
-      throw new Error(response.error || 'Failed to fetch project Kobo tables');
-    }
-    return { data: response.data || [] };
+    return supabaseKoboDataService.getProjectKoboTables(projectId);
   }
 
   static async getProjectKoboTable(projectId: string, tableId: string): Promise<{ data: ProjectKoboTable }> {
-    const response = await apiClient.get<ProjectKoboTable>(`/projects/${projectId}/kobo-data/tables/${tableId}`);
-    if (!response.success) {
-      throw new Error(response.error || 'Failed to fetch project Kobo table');
-    }
-    if (!response.data) {
-      throw new Error('Project Kobo table not found');
-    }
-    return { data: response.data };
+    return supabaseKoboDataService.getProjectKoboTable(projectId, tableId);
   }
 
   static async updateProjectKoboTable(
@@ -142,11 +53,11 @@ export class KoboDataService {
       isActive: boolean;
     }>
   ) {
-    return apiClient.put(`/projects/${projectId}/kobo-data/tables/${tableId}`, data);
+    return supabaseKoboDataService.updateProjectKoboTable(projectId, tableId, data);
   }
 
   static async deleteProjectKoboTable(projectId: string, tableId: string) {
-    return apiClient.delete(`/projects/${projectId}/kobo-data/tables/${tableId}`);
+    return supabaseKoboDataService.deleteProjectKoboTable(projectId, tableId);
   }
 
   // Kobo KPI Mapping Management
@@ -159,18 +70,11 @@ export class KoboDataService {
     timeFilterValue?: number;
     isActive?: boolean;
   }) {
-    return apiClient.post(`/projects/${projectId}/kobo-data/kpi-mappings`, data);
+    return supabaseKoboDataService.createKoboKpiMapping(projectId, data);
   }
 
   static async getKoboKpiMappings(projectId: string, tableId?: string): Promise<{ data: KoboKpiMapping[] }> {
-    const url = tableId 
-      ? `/projects/${projectId}/kobo-data/kpi-mappings?tableId=${tableId}`
-      : `/projects/${projectId}/kobo-data/kpi-mappings`;
-    const response = await apiClient.get<KoboKpiMapping[]>(url);
-    if (!response.success) {
-      throw new Error(response.error || 'Failed to fetch Kobo KPI mappings');
-    }
-    return { data: response.data || [] };
+    return supabaseKoboDataService.getKoboKpiMappings(projectId, tableId);
   }
 
   static async updateKoboKpiMapping(
@@ -184,32 +88,21 @@ export class KoboDataService {
       isActive: boolean;
     }>
   ) {
-    return apiClient.put(`/projects/${projectId}/kobo-data/kpi-mappings/${mappingId}`, data);
+    return supabaseKoboDataService.updateKoboKpiMapping(projectId, mappingId, data);
   }
 
   static async deleteKoboKpiMapping(projectId: string, mappingId: string) {
-    return apiClient.delete(`/projects/${projectId}/kobo-data/kpi-mappings/${mappingId}`);
+    return supabaseKoboDataService.deleteKoboKpiMapping(projectId, mappingId);
   }
 
   // Get table columns
   static async getTableColumns(projectId: string, tableId: string): Promise<{ data: TableColumn[] }> {
-    const response = await apiClient.get<TableColumn[]>(`/projects/${projectId}/kobo-data/tables/${tableId}/columns`);
-    if (!response.success) {
-      throw new Error(response.error || 'Failed to fetch table columns');
-    }
-    return { data: response.data || [] };
+    return supabaseKoboDataService.getTableColumns(projectId, tableId);
   }
 
   // Get table statistics
   static async getTableStats(projectId: string, tableId: string): Promise<{ data: TableStats }> {
-    const response = await apiClient.get<TableStats>(`/projects/${projectId}/kobo-data/tables/${tableId}/stats`);
-    if (!response.success) {
-      throw new Error(response.error || 'Failed to fetch table stats');
-    }
-    if (!response.data) {
-      throw new Error('Table stats not found');
-    }
-    return { data: response.data };
+    return supabaseKoboDataService.getTableStats(projectId, tableId);
   }
 
   // Kobo Data Fetching
@@ -219,26 +112,12 @@ export class KoboDataService {
     page: number = 1, 
     limit: number = 50
   ): Promise<{ data: KoboTableData }> {
-    const response = await apiClient.get<KoboTableData>(`/projects/${projectId}/kobo-data/tables/${tableId}/data?page=${page}&limit=${limit}`);
-    if (!response.success) {
-      throw new Error(response.error || 'Failed to fetch table data');
-    }
-    if (!response.data) {
-      throw new Error('Table data not found');
-    }
-    return { data: response.data };
+    return supabaseKoboDataService.getKoboTableData(projectId, tableId, page, limit);
   }
 
   // KPI Calculation
   static async calculateKpiFromKoboData(projectId: string, kpiId: string): Promise<{ data: KpiCalculationResult }> {
-    const response = await apiClient.get<KpiCalculationResult>(`/projects/${projectId}/kobo-data/kpis/${kpiId}/calculate`);
-    if (!response.success) {
-      throw new Error(response.error || 'Failed to calculate KPI');
-    }
-    if (!response.data) {
-      throw new Error('KPI calculation result not found');
-    }
-    return { data: response.data };
+    return supabaseKoboDataService.calculateKpiFromKoboData(projectId, kpiId);
   }
 }
 

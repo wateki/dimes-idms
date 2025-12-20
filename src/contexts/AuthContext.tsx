@@ -1,15 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { User } from '@/types/dashboard';
 import { authAPI } from '@/lib/api/auth';
+import type { Session } from '@supabase/supabase-js';
 
 interface AuthContextType {
   user: User | null;
-  token: string | null;
+  session: Session | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<LoginResult>;
   logout: (preserveCurrentUrl?: boolean) => void;
-  refreshToken: () => Promise<boolean>;
   updateProfile: (updates: Partial<User>) => Promise<User>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
@@ -22,95 +22,53 @@ interface LoginResult {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const TOKEN_KEY = 'ics-auth-token';
-const REFRESH_TOKEN_KEY = 'ics-refresh-token';
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(
-    () => localStorage.getItem(TOKEN_KEY)
-  );
+  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Use ref to access current token in event listeners without causing re-renders
-  const tokenRef = useRef<string | null>(token);
-  tokenRef.current = token;
+  // Use ref to access current session in event listeners without causing re-renders
+  const sessionRef = useRef<Session | null>(null);
+  sessionRef.current = session;
 
   // Inactivity timer ref - stores the timeout ID
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
   // Logout ref - will be set after logout function is defined
   const logoutRef = useRef<((preserveCurrentUrl?: boolean) => void) | null>(null);
 
-  const isAuthenticated = !!user && !!token;
-
-  // Debug logging for state changes
-  console.log('AuthContext render - state:', { 
-    hasUser: !!user, 
-    hasToken: !!token, 
-    isLoading, 
-    isAuthenticated 
-  });
+  const isAuthenticated = !!user && !!session;
 
   // Initialize auth state on mount
   useEffect(() => {
     initializeAuth();
+    
+    // Listen to auth state changes
+    const { data: { subscription } } = authAPI.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session?.user?.id);
+      
+      if (event === 'SIGNED_IN' && session) {
+        setSession(session);
+        // Fetch user profile
+        try {
+          const userProfile = await authAPI.getProfile();
+          setUser(userProfile);
+        } catch (error) {
+          console.error('Error fetching user profile after sign in:', error);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setSession(null);
+        setUser(null);
+      } else if (event === 'TOKEN_REFRESHED' && session) {
+        setSession(session);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  // Listen for unauthorized events from API client
-  useEffect(() => {
-    const handleUnauthorized = () => {
-      console.log('AuthContext - unauthorized event received');
-      // When user is unauthorized (e.g., token expired), preserve current URL for redirect
-      clearAuthData();
-      
-      // Optional: Call logout endpoint to invalidate token on server
-      if (tokenRef.current) {
-        authAPI.logout(tokenRef.current).catch(console.error);
-      }
-      
-      // Preserve current URL for redirect after login
-      if (typeof window !== 'undefined') {
-        const currentUrl = window.location.pathname + window.location.search;
-        if (currentUrl !== '/login') {
-          console.log('AuthContext - redirecting to login with next:', currentUrl);
-          window.location.href = `/login?next=${encodeURIComponent(currentUrl)}`;
-        } else {
-          console.log('AuthContext - redirecting to login without next');
-          window.location.href = '/login';
-        }
-      }
-    };
-
-    console.log('AuthContext - setting up unauthorized event listener');
-    window.addEventListener('auth:unauthorized', handleUnauthorized);
-    return () => {
-      console.log('AuthContext - cleaning up unauthorized event listener');
-      window.removeEventListener('auth:unauthorized', handleUnauthorized);
-    };
-  }, []); // Remove token dependency to prevent re-renders
-
-  // Auto-refresh token before expiry
-  useEffect(() => {
-    if (token) {
-      const tokenPayload = parseJWT(token);
-      if (tokenPayload) {
-        const expiryTime = tokenPayload.exp * 1000; // Convert to milliseconds
-        const currentTime = Date.now();
-        const timeToExpiry = expiryTime - currentTime;
-        
-        // Refresh token 5 minutes before expiry
-        const refreshTime = Math.max(timeToExpiry - 5 * 60 * 1000, 0);
-        
-        if (refreshTime > 0) {
-          const refreshTimer = setTimeout(() => {
-            refreshToken();
-          }, refreshTime);
-          
-          return () => clearTimeout(refreshTimer);
-        }
-      }
-    }
-  }, [token]);
+  // Auto-refresh session handling is done by Supabase Auth automatically
 
   // Inactivity detection - auto logout after 1 hour of inactivity
   useEffect(() => {
@@ -178,54 +136,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const initializeAuth = async () => {
     console.log('AuthContext - initializeAuth called');
-    const storedToken = localStorage.getItem(TOKEN_KEY);
-    console.log('AuthContext - storedToken found:', !!storedToken);
     
-    if (storedToken) {
-      try {
-        console.log('AuthContext - verifying token with backend');
-        // Verify token with backend and get user profile
-        const userProfile = await authAPI.getProfile(storedToken);
-        console.log('AuthContext - token verified, setting user and token');
-        setUser(userProfile);
-        setToken(storedToken);
-      } catch (error) {
-        console.error('AuthContext - Token verification failed:', error);
-        clearAuthData();
+    try {
+      // Get current session
+      const currentSession = await authAPI.getSession();
+      console.log('AuthContext - currentSession found:', !!currentSession);
+      
+      if (currentSession) {
+        setSession(currentSession);
+        // Fetch user profile
+        try {
+          const userProfile = await authAPI.getProfile();
+          console.log('AuthContext - user profile loaded, setting user and session');
+          setUser(userProfile);
+        } catch (error) {
+          console.error('AuthContext - Error fetching user profile:', error);
+          // Session exists but profile fetch failed - clear session
+          await authAPI.logout();
+          setSession(null);
+        }
       }
+    } catch (error) {
+      console.error('AuthContext - Error initializing auth:', error);
+    } finally {
+      console.log('AuthContext - setting loading to false');
+      setIsLoading(false);
     }
-    
-    console.log('AuthContext - setting loading to false');
-    setIsLoading(false);
   };
 
   const login = async (email: string, password: string): Promise<LoginResult> => {
     setIsLoading(true);
     
     try {
-      const response = await authAPI.login(email, password);
+      const result = await authAPI.login(email, password);
       
-      if (response.success && response.data) {
-        const { access_token, refresh_token } = response.data;
+      if (result.success && result.data) {
+        const { session: newSession, user: userProfile } = result.data;
         
-        // Store tokens
-        localStorage.setItem(TOKEN_KEY, access_token);
-        localStorage.setItem(REFRESH_TOKEN_KEY, refresh_token);
+        setSession(newSession);
+        setUser(userProfile);
         
-        setToken(access_token);
-        // Immediately fetch full profile (includes roles + permissions) so UI reflects access
-        const profile = await authAPI.getProfile(access_token);
-        setUser(profile);
-        
-        return { success: true, user: profile };
+        return { success: true, user: userProfile };
       } else {
-        return { success: false, error: response.error };
+        return { success: false, error: result.error };
       }
     } catch (error: any) {
       console.error('Login failed:', error);
       return { 
         success: false, 
-        error: error.response?.data?.message || 'Login failed. Please try again.' 
+        error: error.message || 'Login failed. Please try again.' 
       };
     } finally {
       setIsLoading(false);
@@ -239,12 +198,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       inactivityTimerRef.current = null;
     }
 
-    clearAuthData();
+    // Sign out from Supabase
+    authAPI.logout().catch(console.error);
     
-    // Optional: Call logout endpoint to invalidate token on server
-    if (token) {
-      authAPI.logout(token).catch(console.error);
-    }
+    // Clear local state
+    setSession(null);
+    setUser(null);
     
     // If we want to preserve the current URL for redirect after login
     if (preserveCurrentUrl && typeof window !== 'undefined') {
@@ -264,44 +223,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Update logout ref after logout function is defined
   logoutRef.current = logout;
 
-  const refreshToken = async (): Promise<boolean> => {
-    const storedRefreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
-    
-    if (!storedRefreshToken) {
-      logout();
-      return false;
-    }
-    
-    try {
-      const response = await authAPI.refreshToken(storedRefreshToken);
-      
-      if (response.success && response.data) {
-        const { access_token, refresh_token } = response.data;
-        
-        localStorage.setItem(TOKEN_KEY, access_token);
-        localStorage.setItem(REFRESH_TOKEN_KEY, refresh_token);
-        
-        setToken(access_token);
-        
-        return true;
-      } else {
-        logout();
-        return false;
-      }
-    } catch (error) {
-      console.error('Token refresh failed:', error);
-      logout();
-      return false;
-    }
-  };
-
   const updateProfile = async (updates: Partial<User>): Promise<User> => {
-    if (!token) {
-      throw new Error('No authentication token available');
-    }
-    
     try {
-      const updatedUser = await authAPI.updateProfile(updates, token);
+      const updatedUser = await authAPI.updateProfile(updates);
       setUser(updatedUser);
       return updatedUser;
     } catch (error) {
@@ -311,52 +235,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const changePassword = async (currentPassword: string, newPassword: string): Promise<void> => {
-    if (!token) {
-      throw new Error('No authentication token available');
-    }
-    
     try {
-      await authAPI.changePassword(currentPassword, newPassword, token);
+      await authAPI.changePassword(currentPassword, newPassword);
     } catch (error) {
       console.error('Password change failed:', error);
       throw error;
     }
   };
 
-  const clearAuthData = () => {
-    console.log('AuthContext - clearAuthData called');
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
-    setToken(null);
-    setUser(null);
-  };
-
-  const parseJWT = (token: string) => {
-    try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(
-        atob(base64)
-          .split('')
-          .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
-      );
-      return JSON.parse(jsonPayload);
-    } catch (error) {
-      console.error('Failed to parse JWT:', error);
-      return null;
-    }
-  };
-
   return (
     <AuthContext.Provider value={{
       user,
-      token,
+      session,
       isLoading,
       isAuthenticated,
       login,
       logout,
-      refreshToken,
       updateProfile,
       changePassword,
     }}>

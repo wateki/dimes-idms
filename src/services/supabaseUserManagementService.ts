@@ -310,6 +310,7 @@ class SupabaseUserManagementService {
     const { data: newUser, error: userError } = await supabase
       .from('users')
       .insert({
+        id: crypto.randomUUID(),
         email: userData.email,
         firstName: userData.firstName,
         lastName: userData.lastName,
@@ -319,7 +320,7 @@ class SupabaseUserManagementService {
         updatedBy: userProfile.id,
         createdAt: now,
         updatedAt: now,
-      } as Database['public']['Tables']['users']['Insert'])
+      } as unknown as Database['public']['Tables']['users']['Insert'])
       .select()
       .single();
 
@@ -330,6 +331,7 @@ class SupabaseUserManagementService {
     // Assign roles if provided
     if (userData.roleAssignments && userData.roleAssignments.length > 0) {
       const roleInserts = userData.roleAssignments.map(assignment => ({
+        id: crypto.randomUUID(),
         userId: newUser.id,
         roleId: assignment.roleId,
         projectId: assignment.projectId || null,
@@ -337,7 +339,7 @@ class SupabaseUserManagementService {
         isActive: true,
         createdAt: now,
         updatedAt: now,
-      } as Database['public']['Tables']['user_roles']['Insert']));
+      } as unknown as Database['public']['Tables']['user_roles']['Insert']));
 
       const { error: rolesError } = await supabase
         .from('user_roles')
@@ -393,6 +395,7 @@ class SupabaseUserManagementService {
       // Add new role assignments
       const now = new Date().toISOString();
       const roleInserts = userData.roleAssignments.map(assignment => ({
+        id: crypto.randomUUID(),
         userId,
         roleId: assignment.roleId,
         projectId: assignment.projectId || null,
@@ -400,7 +403,7 @@ class SupabaseUserManagementService {
         isActive: true,
         createdAt: now,
         updatedAt: now,
-      } as Database['public']['Tables']['user_roles']['Insert']));
+      } as unknown as Database['public']['Tables']['user_roles']['Insert']));
 
       const { error: rolesError } = await supabase
         .from('user_roles')
@@ -489,13 +492,14 @@ class SupabaseUserManagementService {
     const { data, error } = await supabase
       .from('roles')
       .insert({
+        id: crypto.randomUUID(),
         name: roleData.name,
         description: roleData.description || null,
         level: roleData.level,
         isActive: roleData.isActive ?? true,
         createdAt: now,
         updatedAt: now,
-      } as Database['public']['Tables']['roles']['Insert'])
+      } as unknown as Database['public']['Tables']['roles']['Insert'])
       .select()
       .single();
 
@@ -506,12 +510,13 @@ class SupabaseUserManagementService {
     // Assign permissions if provided
     if (roleData.permissions && roleData.permissions.length > 0) {
       const permissionInserts = roleData.permissions.map(permissionId => ({
+        id: crypto.randomUUID(),
         roleId: data.id,
         permissionId,
         isActive: true,
         createdAt: now,
         updatedAt: now,
-      } as Database['public']['Tables']['role_permissions']['Insert']));
+      } as unknown as Database['public']['Tables']['role_permissions']['Insert']));
 
       await supabase.from('role_permissions').insert(permissionInserts);
     }
@@ -650,12 +655,13 @@ class SupabaseUserManagementService {
     const { error } = await supabase
       .from('user_project_access')
       .upsert({
+        id: crypto.randomUUID(),
         userId,
         projectId,
         accessLevel,
         isActive: true,
         updatedAt: now,
-      } as Database['public']['Tables']['user_project_access']['Insert'], {
+      } as unknown as Database['public']['Tables']['user_project_access']['Insert'], {
         onConflict: 'userId,projectId',
       });
 

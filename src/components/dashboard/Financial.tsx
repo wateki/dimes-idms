@@ -165,7 +165,11 @@ export default function Financial() {
       // Try to load summary regardless of project data (activities might exist without project summary)
       try {
         const summaryData = await financialApi.getFinancialSummary(projectId, selectedYear);
-        setSummary(summaryData);
+        // Convert lastUpdated from string to Date for the component interface
+        setSummary({
+          ...summaryData,
+          lastUpdated: new Date(summaryData.lastUpdated),
+        });
         console.log('📈 Summary data loaded:', summaryData);
       } catch (summaryError) {
         console.log('⚠️ No summary data available for year', selectedYear);
@@ -356,8 +360,8 @@ export default function Financial() {
     totalAnnualBudget: activity.totalAnnualBudget,
     totalAnnualCost: activity.totalAnnualCost,
     variance: activity.variance,
-    notes: activity.notes,
-    lastUpdated: activity.lastUpdated,
+    notes: activity.notes ?? undefined,
+    lastUpdated: new Date(activity.lastUpdated),
     createdBy: '', // Not available in new format
   });
 

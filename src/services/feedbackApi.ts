@@ -1,4 +1,5 @@
 import { supabaseFeedbackService } from './supabaseFeedbackService';
+import type { CreateFeedbackSubmissionRequest } from '../types/feedback';
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -38,7 +39,7 @@ class FeedbackApiService {
     return supabaseFeedbackService.getSubmissionById(id);
   }
 
-  async createSubmission(data: any) {
+  async createSubmission(data: CreateFeedbackSubmissionRequest) {
     return supabaseFeedbackService.createSubmission(data);
   }
 

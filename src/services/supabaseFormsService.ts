@@ -459,11 +459,35 @@ class SupabaseFormsService {
     if (responseError) throw new Error(`Failed to create response: ${responseError.message}`);
 
     // Create question responses
-    const questionResponses = Object.entries(responseData.data).map(([questionId, value]) => ({
-      responseId,
-      questionId,
-      value: value as any,
-    } as Database['public']['Tables']['form_question_responses']['Insert']));
+    // Filter out null/undefined values and ensure all values are valid JSON
+    const questionResponses = Object.entries(responseData.data)
+      .filter(([questionId, value]) => {
+        // Filter out null and undefined - these shouldn't be stored
+        // Keep empty strings, empty arrays, empty objects, 0, false as they are valid responses
+        return value !== null && value !== undefined;
+      })
+      .map(([questionId, value]) => {
+        // Ensure value is a valid JSON-serializable value
+        // The value column is JSON type, so it can accept strings, numbers, booleans, arrays, objects
+        // But NOT null or undefined
+        let jsonValue: any;
+        
+        if (Array.isArray(value)) {
+          jsonValue = value;
+        } else if (typeof value === 'object' && value !== null) {
+          jsonValue = value;
+        } else {
+          // For primitives (string, number, boolean), use as-is
+          jsonValue = value;
+        }
+        
+        return {
+          id: crypto.randomUUID(),
+          responseId,
+          questionId,
+          value: jsonValue,
+        } as unknown as Database['public']['Tables']['form_question_responses']['Insert'];
+      });
 
     if (questionResponses.length > 0) {
       const { error: qrError } = await supabase
@@ -707,11 +731,28 @@ class SupabaseFormsService {
         .eq('responseId', responseId);
 
       // Insert new question responses
-      const questionResponses = Object.entries(updates.data).map(([questionId, value]) => ({
-        responseId,
-        questionId,
-        value: value as any,
-      } as Database['public']['Tables']['form_question_responses']['Insert']));
+      const questionResponses = Object.entries(updates.data)
+        .filter(([questionId, value]) => value !== null && value !== undefined)
+        .map(([questionId, value]) => {
+          // Ensure value is a valid JSON-serializable value
+          let jsonValue: any;
+          
+          if (Array.isArray(value)) {
+            jsonValue = value;
+          } else if (typeof value === 'object' && value !== null) {
+            jsonValue = value;
+          } else {
+            // For primitives (string, number, boolean), use as-is
+            jsonValue = value;
+          }
+          
+          return {
+            id: crypto.randomUUID(),
+            responseId,
+            questionId,
+            value: jsonValue,
+          } as unknown as Database['public']['Tables']['form_question_responses']['Insert'];
+        });
 
       if (questionResponses.length > 0) {
         const { error: qrError } = await supabase

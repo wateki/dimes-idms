@@ -15,12 +15,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { reportWorkflowService } from '@/services/reportWorkflowService';
 import { reportService } from '@/services/reportService';
+import { supabaseUserManagementService } from '@/services/supabaseUserManagementService';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { ReportWorkflowDetail } from './ReportWorkflowDetail';
 import { BulkReviewActions } from './BulkReviewActions';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { apiClient } from '@/lib/api/client';
 
 interface PendingReviewsProps {
   projectId?: string;
@@ -75,11 +75,9 @@ export function PendingReviews({ projectId, refreshTrigger }: PendingReviewsProp
     
     // Load available users for bulk operations
     if (projectId) {
-      apiClient.get<{ users: any[] }>(`/projects/${projectId}/users?limit=100`)
+      supabaseUserManagementService.getProjectUsers(projectId, { limit: 100 })
         .then((response) => {
-          if (response.success && response.data?.users) {
-            setAvailableUsers(response.data.users);
-          }
+          setAvailableUsers(response.users);
         })
         .catch((e) => console.warn('Failed to load users:', e));
     }

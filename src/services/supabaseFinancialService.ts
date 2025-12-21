@@ -118,7 +118,7 @@ class SupabaseFinancialService {
       totalAnnualBudget: data.totalAnnualBudget,
       totalAnnualCost: data.totalAnnualCost,
       variance: data.variance,
-      notes: data.notes || null,
+      notes: data.notes ?? undefined,
       createdAt: data.createdAt,
       lastUpdated: data.lastUpdated,
     };
@@ -140,6 +140,7 @@ class SupabaseFinancialService {
     const { data: financialData, error } = await supabase
       .from('project_financial_data')
       .insert({
+        id: crypto.randomUUID(),
         projectId: data.projectId,
         year: data.year,
         projectName: data.projectName,
@@ -304,6 +305,7 @@ class SupabaseFinancialService {
     const { data: activityFinancial, error } = await supabase
       .from('activity_financial_data')
       .insert({
+        id: crypto.randomUUID(),
         projectFinancialId: projectFinancial!.id,
         activityId: data.activityId,
         activityTitle: data.activityTitle,
@@ -320,7 +322,7 @@ class SupabaseFinancialService {
         createdAt: now,
         updatedAt: now,
         lastUpdated: now,
-      } as Database['public']['Tables']['activity_financial_data']['Insert'])
+      } as unknown as Database['public']['Tables']['activity_financial_data']['Insert'])
       .select()
       .single();
 

@@ -668,7 +668,7 @@ export function FormManagement() {
                             <p className="font-medium break-words">{form.title}</p>
                             <p className="text-sm text-gray-500 break-words">{form.description}</p>
                             <div className="flex flex-wrap gap-1 mt-1">
-                              {form.tags.map((tag) => (
+                              {(form.tags || []).map((tag) => (
                                 <Badge key={tag} variant="outline" className="text-xs">
                                   {tag}
                                 </Badge>
@@ -867,7 +867,7 @@ export function FormManagement() {
                         </div>
                         
                         <div className="flex flex-wrap gap-1">
-                          {form.tags.map((tag) => (
+                          {(form.tags || []).map((tag) => (
                             <Badge key={tag} variant="outline" className="text-xs">
                               {tag}
                             </Badge>

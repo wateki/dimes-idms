@@ -1,7 +1,8 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { Database } from '@/types/supabase';
+import type { Permission } from './userManagementService';
 
-type Permission = Database['public']['Tables']['permissions']['Row'];
+type PermissionRow = Database['public']['Tables']['permissions']['Row'];
 type RolePermission = Database['public']['Tables']['role_permissions']['Row'];
 type UserPermission = Database['public']['Tables']['user_permissions']['Row'];
 
@@ -31,7 +32,16 @@ class SupabasePermissionsService {
       throw new Error(error.message || 'Failed to fetch permissions');
     }
 
-    return data || [];
+    // Convert null to undefined for description and map to Permission interface
+    return (data || []).map((perm: PermissionRow): Permission => ({
+      id: perm.id,
+      name: perm.name,
+      description: perm.description ?? undefined,
+      resource: perm.resource,
+      action: perm.action,
+      scope: perm.scope,
+      isActive: perm.isActive,
+    }));
   }
 
   async getRolePermissions(roleId: string): Promise<Permission[]> {
@@ -47,8 +57,14 @@ class SupabasePermissionsService {
       throw new Error(error.message || 'Failed to fetch role permissions');
     }
 
-    // Extract permissions from the nested structure
-    return (data || []).map((rp: any) => rp.permission).filter(Boolean);
+    // Extract permissions from the nested structure and convert null to undefined for description
+    return (data || [])
+      .map((rp: any) => rp.permission)
+      .filter(Boolean)
+      .map((perm: any) => ({
+        ...perm,
+        description: perm.description ?? undefined,
+      }));
   }
 
   async assignRolePermissions(roleId: string, permissionIds: string[]): Promise<void> {
@@ -81,11 +97,12 @@ class SupabasePermissionsService {
     // Create role permission assignments
     const now = new Date().toISOString();
     const rolePermissions = permissionIds.map(permissionId => ({
+      id: crypto.randomUUID(),
       roleId,
       permissionId,
       isActive: true,
       updatedAt: now,
-    } as Database['public']['Tables']['role_permissions']['Insert']));
+    } as unknown as Database['public']['Tables']['role_permissions']['Insert']));
 
     const { error } = await supabase
       .from('role_permissions')

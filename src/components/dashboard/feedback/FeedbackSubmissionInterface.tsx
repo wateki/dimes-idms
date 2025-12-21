@@ -23,6 +23,7 @@ import { SafetyIncidentForm } from './forms/SafetyIncidentForm';
 import { EmergencyReportForm } from './forms/EmergencyReportForm';
 import { StaffFeedbackForm } from './forms/StaffFeedbackForm';
 import { useFeedback } from '@/contexts/FeedbackContext';
+import type { FeedbackPriority, FeedbackSensitivity, EscalationLevel } from '@/types/feedback';
 
 interface FeedbackSubmissionInterfaceProps {
   projectId: string;
@@ -79,9 +80,9 @@ export function FeedbackSubmissionInterface({ projectId, projectName = "ICS Prog
         formId: form?.id || formMapping[formType] || 'general_feedback_form',
         projectId,
         categoryId: category?.id || categoryMapping[formType] || 'general_feedback',
-        priority: 'MEDIUM',
-        sensitivity: 'INTERNAL',
-        escalationLevel: 'NONE',
+        priority: 'MEDIUM' as FeedbackPriority,
+        sensitivity: 'INTERNAL' as FeedbackSensitivity,
+        escalationLevel: 'NONE' as EscalationLevel,
         data: formData,
         isAnonymous: formData.isAnonymous || false,
         submitterName: formData.submitterName,

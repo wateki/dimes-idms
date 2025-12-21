@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { Database } from '@/types/supabase';
 import { supabaseAuthService } from './supabaseAuthService';
+import type { CreateFeedbackSubmissionRequest } from '@/types/feedback';
 
 type FeedbackForm = Database['public']['Tables']['feedback_forms']['Row'];
 type FeedbackSubmission = Database['public']['Tables']['feedback_submissions']['Row'];
@@ -93,6 +94,7 @@ class SupabaseFeedbackService {
     const { data: form, error } = await supabase
       .from('feedback_forms')
       .insert({
+        id: crypto.randomUUID(),
         title: data.title,
         description: data.description,
         categoryId: data.categoryId,
@@ -244,7 +246,7 @@ class SupabaseFeedbackService {
     };
   }
 
-  async createSubmission(data: any) {
+  async createSubmission(data: CreateFeedbackSubmissionRequest) {
     const now = new Date().toISOString();
     const { data: submission, error } = await supabase
       .from('feedback_submissions')
@@ -265,7 +267,7 @@ class SupabaseFeedbackService {
         status: 'SUBMITTED' as Database['public']['Enums']['FeedbackStatus'],
         submittedAt: now,
         updatedAt: now,
-      } as Database['public']['Tables']['feedback_submissions']['Insert'])
+      } as unknown as Database['public']['Tables']['feedback_submissions']['Insert'])
       .select(`
         *,
         form:feedback_forms(
@@ -280,7 +282,24 @@ class SupabaseFeedbackService {
       throw new Error(error?.message || 'Failed to create feedback submission');
     }
 
-    return submission;
+    // Format submission to include all required fields
+    const formattedSubmission = {
+      ...submission,
+      category: (submission as any).category || null,
+      attachments: Array.isArray((submission as any).attachments) 
+        ? (submission as any).attachments 
+        : [],
+      communications: [],
+      internalNotes: [],
+      statusHistory: [],
+      submittedAt: new Date(submission.submittedAt),
+      updatedAt: new Date(submission.updatedAt),
+      assignedAt: submission.assignedAt ? new Date(submission.assignedAt) : undefined,
+      resolvedAt: submission.resolvedAt ? new Date(submission.resolvedAt) : undefined,
+      closedAt: submission.closedAt ? new Date(submission.closedAt) : undefined,
+    };
+    
+    return formattedSubmission as any; // Type assertion needed due to complex type conversion
   }
 
   async updateSubmissionStatus(id: string, data: { status: string; assignedTo?: string }) {
@@ -328,14 +347,32 @@ class SupabaseFeedbackService {
     await supabase
       .from('feedback_status_history')
       .insert({
+        id: crypto.randomUUID(),
         submissionId: id,
         status: data.status as Database['public']['Enums']['FeedbackStatus'],
         changedBy: userProfile.id,
         changedByName: `${userProfile.firstName} ${userProfile.lastName}`.trim() || userProfile.email,
         createdAt: now,
-      } as Database['public']['Tables']['feedback_status_history']['Insert']);
+      } as unknown as Database['public']['Tables']['feedback_status_history']['Insert']);
 
-    return updated;
+    // Format submission to include all required fields
+    const formattedSubmission = {
+      ...updated,
+      category: null, // Will be populated if needed via getSubmissionById
+      attachments: Array.isArray((updated as any).attachments) 
+        ? (updated as any).attachments 
+        : [],
+      communications: [],
+      internalNotes: [],
+      statusHistory: [],
+      submittedAt: new Date(updated.submittedAt),
+      updatedAt: new Date(updated.updatedAt),
+      assignedAt: updated.assignedAt ? new Date(updated.assignedAt) : undefined,
+      resolvedAt: updated.resolvedAt ? new Date(updated.resolvedAt) : undefined,
+      closedAt: updated.closedAt ? new Date(updated.closedAt) : undefined,
+    };
+    
+    return formattedSubmission as any; // Type assertion needed due to complex type conversion
   }
 
   async deleteSubmission(id: string) {
@@ -386,6 +423,7 @@ class SupabaseFeedbackService {
     const { data: communication, error } = await supabase
       .from('feedback_communications')
       .insert({
+        id: crypto.randomUUID(),
         submissionId,
         content: data.content,
         type: data.type || 'EMAIL' as Database['public']['Enums']['CommunicationType'],
@@ -393,7 +431,7 @@ class SupabaseFeedbackService {
         sentBy: userProfile?.id || null,
         sentTo: data.sentTo || null,
         sentAt: now,
-      } as Database['public']['Tables']['feedback_communications']['Insert'])
+      } as unknown as Database['public']['Tables']['feedback_communications']['Insert'])
       .select()
       .single();
 
@@ -419,13 +457,14 @@ class SupabaseFeedbackService {
     const { data: note, error } = await supabase
       .from('feedback_notes')
       .insert({
+        id: crypto.randomUUID(),
         submissionId,
         content: data.content,
         isInternal: data.isInternal ?? true,
         authorId: userProfile.id,
         authorName: `${userProfile.firstName} ${userProfile.lastName}`.trim() || userProfile.email,
         createdAt: now,
-      } as Database['public']['Tables']['feedback_notes']['Insert'])
+      } as unknown as Database['public']['Tables']['feedback_notes']['Insert'])
       .select()
       .single();
 

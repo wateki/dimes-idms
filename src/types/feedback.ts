@@ -186,6 +186,22 @@ export interface FeedbackAttachment {
   uploadedAt: Date;
 }
 
+export interface CreateFeedbackSubmissionRequest {
+  formId: string;
+  categoryId: string;
+  projectId?: string | null;
+  priority: FeedbackPriority;
+  sensitivity: FeedbackSensitivity;
+  escalationLevel: EscalationLevel;
+  submitterId?: string | null;
+  submitterName?: string | null;
+  submitterEmail?: string | null;
+  stakeholderType?: string | null;
+  isAnonymous?: boolean;
+  data: Record<string, any>; // Form responses
+  attachments?: FeedbackAttachment[];
+}
+
 export interface FeedbackCommunication {
   id: string;
   type: 'EMAIL' | 'SMS' | 'INTERNAL_NOTE' | 'PUBLIC_RESPONSE';

@@ -154,6 +154,7 @@ class SupabaseKoboDataService {
     const { data: newTable, error } = await supabase
       .from('project_kobo_tables')
       .insert({
+        id: crypto.randomUUID(),
         projectId,
         tableName: data.tableName,
         displayName: data.displayName,
@@ -174,7 +175,27 @@ class SupabaseKoboDataService {
     return { data: newTable };
   }
 
-  async getProjectKoboTables(projectId: string): Promise<{ data: ProjectKoboTableWithMappings[] }> {
+  async getProjectKoboTables(projectId: string): Promise<{ data: Array<{
+    id: string;
+    tableName: string;
+    displayName: string;
+    description?: string;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
+    kpiMappings: Array<KoboKpiMapping & {
+      kpi: {
+        id: string;
+        name: string;
+        unit?: string;
+      };
+      projectKoboTable: {
+        id: string;
+        tableName: string;
+        displayName: string;
+      };
+    }>;
+  }> }> {
     const { data, error } = await supabase
       .from('project_kobo_tables')
       .select(`
@@ -193,7 +214,34 @@ class SupabaseKoboDataService {
       throw new Error(error.message || 'Failed to fetch project Kobo tables');
     }
 
-    return { data: (data || []) as ProjectKoboTableWithMappings[] };
+    // Map to convert null to undefined for description
+    return {
+      data: (data || []).map(table => ({
+        ...table,
+        description: table.description ?? undefined,
+        kpiMappings: (table as any).kpiMappings || [],
+      })) as Array<{
+        id: string;
+        tableName: string;
+        displayName: string;
+        description?: string;
+        isActive: boolean;
+        createdAt: string;
+        updatedAt: string;
+        kpiMappings: Array<KoboKpiMapping & {
+          kpi: {
+            id: string;
+            name: string;
+            unit?: string;
+          };
+          projectKoboTable: {
+            id: string;
+            tableName: string;
+            displayName: string;
+          };
+        }>;
+      }>,
+    };
   }
 
   async getProjectKoboTable(projectId: string, tableId: string): Promise<{ data: ProjectKoboTableWithMappings }> {
@@ -347,6 +395,7 @@ class SupabaseKoboDataService {
     const { data: mapping, error } = await supabase
       .from('kobo_kpi_mappings')
       .insert({
+        id: crypto.randomUUID(),
         projectKoboTableId: data.projectKoboTableId,
         kpiId: data.kpiId,
         columnName: data.columnName,
@@ -358,7 +407,7 @@ class SupabaseKoboDataService {
         updatedBy: userProfile.id,
         createdAt: now,
         updatedAt: now,
-      } as Database['public']['Tables']['kobo_kpi_mappings']['Insert'])
+      } as unknown as Database['public']['Tables']['kobo_kpi_mappings']['Insert'])
       .select(`
         *,
         kpi:kpis(id, name, unit),

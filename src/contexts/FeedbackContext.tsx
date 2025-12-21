@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { feedbackApi } from '../services/feedbackApi';
-import { FeedbackForm, FeedbackSubmission, FeedbackCategory } from '../types/feedback';
+import { FeedbackForm, FeedbackSubmission, FeedbackCategory, CreateFeedbackSubmissionRequest } from '../types/feedback';
 
 interface FeedbackContextType {
   // Data
@@ -21,7 +21,7 @@ interface FeedbackContextType {
   refreshAll: () => Promise<void>;
   
   // Form actions
-  createSubmission: (data: any) => Promise<FeedbackSubmission>;
+  createSubmission: (data: CreateFeedbackSubmissionRequest) => Promise<FeedbackSubmission>;
   updateSubmissionStatus: (id: string, status: string, assignedTo?: string) => Promise<FeedbackSubmission>;
   addNote: (submissionId: string, noteData: any) => Promise<any>;
   
@@ -109,7 +109,7 @@ export const FeedbackProvider: React.FC<FeedbackProviderProps> = ({
   }, [refreshForms, refreshSubmissions, refreshCategories]);
 
   // Create submission
-  const createSubmission = async (data: any): Promise<FeedbackSubmission> => {
+  const createSubmission = async (data: CreateFeedbackSubmissionRequest): Promise<FeedbackSubmission> => {
     try {
       const response = await feedbackApi.createSubmission(data);
       const newSubmission = response as FeedbackSubmission;

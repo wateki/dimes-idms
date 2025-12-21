@@ -6,6 +6,27 @@ import type { Project } from '@/types/dashboard';
 type ProjectRow = Database['public']['Tables']['projects']['Row'];
 
 class SupabaseProjectsService {
+  // Helper function to normalize status to database enum values
+  private normalizeProjectStatus(status: string): Database['public']['Enums']['ProjectStatus'] {
+    const statusMap: Record<string, Database['public']['Enums']['ProjectStatus']> = {
+      'planning': 'PLANNING',
+      'active': 'ACTIVE',
+      'completed': 'COMPLETED',
+      'on-hold': 'ON_HOLD',
+      'on_hold': 'ON_HOLD',
+      'archived': 'ARCHIVED',
+      // Also handle uppercase values
+      'PLANNING': 'PLANNING',
+      'ACTIVE': 'ACTIVE',
+      'COMPLETED': 'COMPLETED',
+      'ON_HOLD': 'ON_HOLD',
+      'ARCHIVED': 'ARCHIVED',
+    };
+    
+    const normalized = statusMap[status.toLowerCase()] || statusMap[status] || 'PLANNING';
+    return normalized as Database['public']['Enums']['ProjectStatus'];
+  }
+
   private formatProject(project: ProjectRow): Project {
     return {
       id: project.id,
@@ -84,10 +105,11 @@ class SupabaseProjectsService {
     const { data, error } = await supabase
       .from('projects')
       .insert({
+        id: crypto.randomUUID(),
         name: projectData.name,
         description: projectData.description,
         country: projectData.country,
-        status: projectData.status as Database['public']['Enums']['ProjectStatus'],
+        status: this.normalizeProjectStatus(projectData.status),
         startDate: projectData.startDate.toISOString(),
         endDate: projectData.endDate.toISOString(),
         progress: projectData.progress || 0,
@@ -100,7 +122,7 @@ class SupabaseProjectsService {
         updatedBy: userProfile.id,
         createdAt: now,
         updatedAt: now,
-      } as Database['public']['Tables']['projects']['Insert'])
+      } as unknown as Database['public']['Tables']['projects']['Insert'])
       .select()
       .single();
 
@@ -130,7 +152,7 @@ class SupabaseProjectsService {
     if (updates.name !== undefined) updateData.name = updates.name;
     if (updates.description !== undefined) updateData.description = updates.description;
     if (updates.country !== undefined) updateData.country = updates.country;
-    if (updates.status !== undefined) updateData.status = updates.status as Database['public']['Enums']['ProjectStatus'];
+    if (updates.status !== undefined) updateData.status = this.normalizeProjectStatus(updates.status);
     if (updates.startDate !== undefined) updateData.startDate = updates.startDate.toISOString();
     if (updates.endDate !== undefined) updateData.endDate = updates.endDate.toISOString();
     if (updates.progress !== undefined) updateData.progress = updates.progress;

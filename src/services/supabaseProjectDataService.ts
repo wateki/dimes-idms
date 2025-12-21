@@ -101,6 +101,7 @@ class SupabaseProjectDataService {
     const { data, error } = await supabase
       .from('outcomes')
       .insert({
+        id: crypto.randomUUID(),
         projectId,
         title: outcomeData.title,
         description: outcomeData.description || null,
@@ -113,7 +114,7 @@ class SupabaseProjectDataService {
         updatedBy: userProfile.id,
         createdAt: now,
         updatedAt: now,
-      } as Database['public']['Tables']['outcomes']['Insert'])
+      } as unknown as Database['public']['Tables']['outcomes']['Insert'])
       .select()
       .single();
 
@@ -207,6 +208,7 @@ class SupabaseProjectDataService {
     const { data, error } = await supabase
       .from('activities')
       .insert({
+        id: crypto.randomUUID(),
         projectId,
         outcomeId: activityData.outcomeId,
         title: activityData.title,
@@ -222,7 +224,7 @@ class SupabaseProjectDataService {
         updatedBy: userProfile.id,
         createdAt: now,
         updatedAt: now,
-      } as Database['public']['Tables']['activities']['Insert'])
+      } as unknown as Database['public']['Tables']['activities']['Insert'])
       .select()
       .single();
 
@@ -379,6 +381,7 @@ class SupabaseProjectDataService {
     const { data, error } = await supabase
       .from('kpis')
       .insert({
+        id: crypto.randomUUID(),
         projectId,
         outcomeId: kpiData.outcomeId || null,
         name: kpiData.name,
@@ -393,7 +396,7 @@ class SupabaseProjectDataService {
         updatedBy: userProfile.id,
         createdAt: now,
         updatedAt: now,
-      } as Database['public']['Tables']['kpis']['Insert'])
+      } as unknown as Database['public']['Tables']['kpis']['Insert'])
       .select()
       .single();
 

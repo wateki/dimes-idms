@@ -206,6 +206,7 @@ class SupabaseReportService {
     const { data: report, error: reportError } = await supabase
       .from('reports')
       .insert({
+        id: crypto.randomUUID(),
         projectId,
         title: reportData.title || file.name,
         description: reportData.description || `Uploaded report: ${file.name}`,
@@ -217,7 +218,7 @@ class SupabaseReportService {
         updatedBy: userProfile.id,
         createdAt: now,
         updatedAt: now,
-      } as Database['public']['Tables']['reports']['Insert'])
+      } as unknown as Database['public']['Tables']['reports']['Insert'])
       .select()
       .single();
 

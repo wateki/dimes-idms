@@ -9,6 +9,7 @@ function convertSupabaseFormToForm(supabaseForm: any): Form {
     createdAt: new Date(supabaseForm.createdAt),
     updatedAt: new Date(supabaseForm.updatedAt),
     lastResponseAt: supabaseForm.lastResponseAt ? new Date(supabaseForm.lastResponseAt) : undefined,
+    tags: supabaseForm.tags || [],
   } as Form;
 }
 

@@ -89,8 +89,45 @@ export interface KpiCalculationResult {
 }
 
 class SupabaseKoboDataService {
+  /**
+   * Get current user's organizationId
+   */
+  private async getCurrentUserOrganizationId(): Promise<string> {
+    const currentUser = await supabaseAuthService.getCurrentUser();
+    if (!currentUser) {
+      throw new Error('Not authenticated');
+    }
+
+    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User is not associated with an organization');
+    }
+
+    return userProfile.organizationId;
+  }
+
+  /**
+   * Verify project belongs to user's organization
+   */
+  private async verifyProjectOwnership(projectId: string): Promise<void> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    const { data, error } = await supabase
+      .from('projects')
+      .select('id, organizationid')
+      .eq('id', projectId)
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (error || !data) {
+      throw new Error('Project not found or access denied');
+    }
+  }
+
   // Available Kobo Tables - query from kobo_asset_tracking table
   async getAvailableKoboTables(projectId: string): Promise<{ data: AvailableKoboTable[] }> {
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(projectId);
     // Query the kobo_asset_tracking table (if it exists in Supabase)
     // Note: This table might be in a different schema or need to be created
     const { data, error } = await supabase
@@ -106,11 +143,13 @@ class SupabaseKoboDataService {
       throw new Error(error.message || 'Failed to fetch available Kobo tables');
     }
 
-    // Filter out tables already assigned to this project
+    // Filter out tables already assigned to this project (filtered by organization)
+    const organizationId = await this.getCurrentUserOrganizationId();
     const { data: assignedTables } = await supabase
       .from('project_kobo_tables')
       .select('tableName')
-      .eq('projectId', projectId);
+      .eq('projectId', projectId)
+      .eq('organizationid', organizationId); // Filter by organization
 
     const assignedTableNames = (assignedTables || []).map(t => t.tableName);
     const koboData = (data || []) as unknown as AvailableKoboTable[];
@@ -128,22 +167,26 @@ class SupabaseKoboDataService {
     description?: string;
     isActive?: boolean;
   }) {
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(projectId);
+    
     const currentUser = await supabaseAuthService.getCurrentUser();
     if (!currentUser) {
       throw new Error('Not authenticated');
     }
 
     const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
-      throw new Error('User profile not found');
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User profile not found or user is not associated with an organization');
     }
 
-    // Check if table already exists for this project
+    // Check if table already exists for this project (within organization)
     const { data: existing } = await supabase
       .from('project_kobo_tables')
       .select('id')
       .eq('projectId', projectId)
       .eq('tableName', data.tableName)
+      .eq('organizationid', userProfile.organizationId) // Check within organization
       .single();
 
     if (existing) {
@@ -160,6 +203,7 @@ class SupabaseKoboDataService {
         displayName: data.displayName,
         description: data.description || null,
         isActive: data.isActive ?? true,
+        organizationId: userProfile.organizationId, // Multi-tenant: Set organizationId
         createdBy: userProfile.id,
         updatedBy: userProfile.id,
         createdAt: now,
@@ -196,6 +240,11 @@ class SupabaseKoboDataService {
       };
     }>;
   }> }> {
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(projectId);
+    
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { data, error } = await supabase
       .from('project_kobo_tables')
       .select(`
@@ -207,6 +256,7 @@ class SupabaseKoboDataService {
         )
       `)
       .eq('projectId', projectId)
+      .eq('organizationid', organizationId) // Filter by organization
       .eq('isActive', true)
       .order('createdAt', { ascending: false });
 
@@ -245,6 +295,11 @@ class SupabaseKoboDataService {
   }
 
   async getProjectKoboTable(projectId: string, tableId: string): Promise<{ data: ProjectKoboTableWithMappings }> {
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(projectId);
+    
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { data, error } = await supabase
       .from('project_kobo_tables')
       .select(`
@@ -257,10 +312,11 @@ class SupabaseKoboDataService {
       `)
       .eq('id', tableId)
       .eq('projectId', projectId)
+      .eq('organizationid', organizationId) // Ensure ownership
       .single();
 
     if (error || !data) {
-      throw new Error(error?.message || 'Kobo table not found');
+      throw new Error(error?.message || 'Kobo table not found or access denied');
     }
 
     return { data: data as ProjectKoboTableWithMappings };
@@ -275,18 +331,18 @@ class SupabaseKoboDataService {
       isActive: boolean;
     }>
   ) {
+    // Multi-tenant: Verify ownership (getProjectKoboTable already verifies)
+    await this.getProjectKoboTable(projectId, tableId);
+    
     const currentUser = await supabaseAuthService.getCurrentUser();
     if (!currentUser) {
       throw new Error('Not authenticated');
     }
 
     const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
-      throw new Error('User profile not found');
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User profile not found or user is not associated with an organization');
     }
-
-    // Verify table exists
-    await this.getProjectKoboTable(projectId, tableId);
 
     const updateData: any = {
       updatedBy: userProfile.id,
@@ -297,11 +353,13 @@ class SupabaseKoboDataService {
     if (data.description !== undefined) updateData.description = data.description || null;
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
 
+    // Multi-tenant: Ensure ownership
     const { data: updated, error } = await supabase
       .from('project_kobo_tables')
       .update(updateData)
       .eq('id', tableId)
       .eq('projectId', projectId)
+      .eq('organizationid', userProfile.organizationId) // Ensure ownership
       .select()
       .single();
 
@@ -313,21 +371,25 @@ class SupabaseKoboDataService {
   }
 
   async deleteProjectKoboTable(projectId: string, tableId: string) {
-    // Verify table exists
+    // Multi-tenant: Verify ownership (getProjectKoboTable already verifies)
     await this.getProjectKoboTable(projectId, tableId);
+    
+    const organizationId = await this.getCurrentUserOrganizationId();
 
-    // Delete all KPI mappings first
+    // Delete all KPI mappings first (filtered by organization)
     await supabase
       .from('kobo_kpi_mappings')
       .delete()
-      .eq('projectKoboTableId', tableId);
+      .eq('projectKoboTableId', tableId)
+      .eq('organizationid', organizationId); // Filter by organization
 
-    // Delete the table
+    // Delete the table (ensure ownership)
     const { error } = await supabase
       .from('project_kobo_tables')
       .delete()
       .eq('id', tableId)
-      .eq('projectId', projectId);
+      .eq('projectId', projectId)
+      .eq('organizationid', organizationId); // Ensure ownership
 
     if (error) {
       throw new Error(error.message || 'Failed to delete project Kobo table');
@@ -344,47 +406,53 @@ class SupabaseKoboDataService {
     timeFilterValue?: number;
     isActive?: boolean;
   }) {
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(projectId);
+    
     const currentUser = await supabaseAuthService.getCurrentUser();
     if (!currentUser) {
       throw new Error('Not authenticated');
     }
 
     const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
-      throw new Error('User profile not found');
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User profile not found or user is not associated with an organization');
     }
-
-    // Verify the Kobo table belongs to the project
-    const { data: koboTable } = await supabase
+    
+    // Verify table belongs to project and organization
+    const { data: table, error: tableError } = await supabase
       .from('project_kobo_tables')
-      .select('id')
+      .select('id, projectId, organizationid')
       .eq('id', data.projectKoboTableId)
       .eq('projectId', projectId)
+      .eq('organizationid', userProfile.organizationId)
       .single();
 
-    if (!koboTable) {
-      throw new Error('Kobo table not found for this project');
+    if (tableError || !table) {
+      throw new Error('Kobo table not found or access denied');
     }
-
-    // Verify the KPI belongs to the project
-    const { data: kpi } = await supabase
+    
+    // Verify KPI belongs to project and organization
+    const { data: kpi, error: kpiError } = await supabase
       .from('kpis')
-      .select('id')
+      .select('id, projectId, organizationid')
       .eq('id', data.kpiId)
       .eq('projectId', projectId)
+      .eq('organizationid', userProfile.organizationId)
       .single();
 
-    if (!kpi) {
-      throw new Error('KPI not found for this project');
+    if (kpiError || !kpi) {
+      throw new Error('KPI not found or access denied');
     }
 
-    // Check if mapping already exists
+    // Check if mapping already exists (within organization)
     const { data: existing } = await supabase
       .from('kobo_kpi_mappings')
       .select('id')
       .eq('projectKoboTableId', data.projectKoboTableId)
       .eq('kpiId', data.kpiId)
       .eq('columnName', data.columnName)
+      .eq('organizationid', userProfile.organizationId) // Check within organization
       .single();
 
     if (existing) {
@@ -403,6 +471,7 @@ class SupabaseKoboDataService {
         timeFilterField: data.timeFilterField || null,
         timeFilterValue: data.timeFilterValue || null,
         isActive: data.isActive ?? true,
+        organizationId: userProfile.organizationId, // Multi-tenant: Set organizationId
         createdBy: userProfile.id,
         updatedBy: userProfile.id,
         createdAt: now,
@@ -423,6 +492,11 @@ class SupabaseKoboDataService {
   }
 
   async getKoboKpiMappings(projectId: string, tableId?: string): Promise<{ data: KoboKpiMappingWithDetails[] }> {
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(projectId);
+    
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     let query = supabase
       .from('kobo_kpi_mappings')
       .select(`
@@ -430,16 +504,18 @@ class SupabaseKoboDataService {
         kpi:kpis(id, name, unit),
         projectKoboTable:project_kobo_tables!kobo_kpi_mappings_projectKoboTableId_fkey(id, tableName, displayName)
       `)
-      .eq('isActive', true);
+      .eq('isActive', true)
+      .eq('organizationid', organizationId); // Filter by organization
 
     if (tableId) {
       query = query.eq('projectKoboTableId', tableId);
     } else {
-      // Filter by project through the table relationship
+      // Filter by project through the table relationship (filtered by organization)
       const { data: tables } = await supabase
         .from('project_kobo_tables')
         .select('id')
-        .eq('projectId', projectId);
+        .eq('projectId', projectId)
+        .eq('organizationid', organizationId); // Filter by organization
 
       if (tables && tables.length > 0) {
         query = query.in('projectKoboTableId', tables.map(t => t.id));
@@ -468,28 +544,32 @@ class SupabaseKoboDataService {
       isActive: boolean;
     }>
   ) {
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(projectId);
+    
     const currentUser = await supabaseAuthService.getCurrentUser();
     if (!currentUser) {
       throw new Error('Not authenticated');
     }
 
     const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
-      throw new Error('User profile not found');
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User profile not found or user is not associated with an organization');
     }
 
-    // Verify the mapping belongs to the project
-    const { data: mapping } = await supabase
+    // Verify the mapping belongs to the project and organization
+    const { data: mapping, error: mappingError } = await supabase
       .from('kobo_kpi_mappings')
       .select(`
         *,
-        projectKoboTable:project_kobo_tables!kobo_kpi_mappings_projectKoboTableId_fkey(projectId)
+        projectKoboTable:project_kobo_tables!kobo_kpi_mappings_projectKoboTableId_fkey(projectId, organizationId)
       `)
       .eq('id', mappingId)
+      .eq('organizationid', userProfile.organizationId) // Ensure ownership
       .single();
 
-    if (!mapping || (mapping as any).projectKoboTable?.projectId !== projectId) {
-      throw new Error('Kobo KPI mapping not found');
+    if (mappingError || !mapping || (mapping as any).projectKoboTable?.projectId !== projectId) {
+      throw new Error('Kobo KPI mapping not found or access denied');
     }
 
     const updateData: any = {
@@ -503,10 +583,12 @@ class SupabaseKoboDataService {
     if (data.timeFilterValue !== undefined) updateData.timeFilterValue = data.timeFilterValue || null;
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
 
+    // Multi-tenant: Ensure ownership
     const { data: updated, error } = await supabase
       .from('kobo_kpi_mappings')
       .update(updateData)
       .eq('id', mappingId)
+      .eq('organizationid', userProfile.organizationId) // Ensure ownership
       .select(`
         *,
         kpi:kpis(id, name, unit),
@@ -522,24 +604,32 @@ class SupabaseKoboDataService {
   }
 
   async deleteKoboKpiMapping(projectId: string, mappingId: string) {
-    // Verify the mapping belongs to the project
-    const { data: mapping } = await supabase
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(projectId);
+    
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // Verify the mapping belongs to the project and organization
+    const { data: mapping, error: mappingError } = await supabase
       .from('kobo_kpi_mappings')
       .select(`
         *,
-        projectKoboTable:project_kobo_tables!kobo_kpi_mappings_projectKoboTableId_fkey(projectId)
+        projectKoboTable:project_kobo_tables!kobo_kpi_mappings_projectKoboTableId_fkey(projectId, organizationId)
       `)
       .eq('id', mappingId)
+      .eq('organizationid', organizationId) // Ensure ownership
       .single();
 
-    if (!mapping || (mapping as any).projectKoboTable?.projectId !== projectId) {
-      throw new Error('Kobo KPI mapping not found');
+    if (mappingError || !mapping || (mapping as any).projectKoboTable?.projectId !== projectId) {
+      throw new Error('Kobo KPI mapping not found or access denied');
     }
 
+    // Multi-tenant: Ensure ownership
     const { error } = await supabase
       .from('kobo_kpi_mappings')
       .delete()
-      .eq('id', mappingId);
+      .eq('id', mappingId)
+      .eq('organizationid', organizationId); // Ensure ownership
 
     if (error) {
       throw new Error(error.message || 'Failed to delete Kobo KPI mapping');

@@ -10,8 +10,51 @@ type FeedbackNote = Database['public']['Tables']['feedback_notes']['Row'];
 type FeedbackCommunication = Database['public']['Tables']['feedback_communications']['Row'];
 
 class SupabaseFeedbackService {
+  /**
+   * Get current user's organizationId
+   */
+  private async getCurrentUserOrganizationId(): Promise<string> {
+    const currentUser = await supabaseAuthService.getCurrentUser();
+    if (!currentUser) {
+      throw new Error('Not authenticated');
+    }
+
+    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User is not associated with an organization');
+    }
+
+    return userProfile.organizationId;
+  }
+
+  /**
+   * Verify project belongs to user's organization
+   */
+  private async verifyProjectOwnership(projectId: string): Promise<void> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    const { data, error } = await supabase
+      .from('projects')
+      .select('id, organizationid')
+      .eq('id', projectId)
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (error || !data) {
+      throw new Error('Project not found or access denied');
+    }
+  }
+
   // Forms
   async getForms(projectId?: string) {
+    // Multi-tenant: Filter by organizationId
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // If projectId is provided, verify ownership
+    if (projectId) {
+      await this.verifyProjectOwnership(projectId);
+    }
+    
     let query = supabase
       .from('feedback_forms')
       .select(`
@@ -22,7 +65,8 @@ class SupabaseFeedbackService {
           questions:feedback_questions(*)
         )
       `)
-      .eq('isActive', true);
+      .eq('isActive', true)
+      .eq('organizationid', organizationId); // Filter by organization
 
     if (projectId) {
       query = query.eq('projectId', projectId);
@@ -45,6 +89,9 @@ class SupabaseFeedbackService {
   }
 
   async getFormById(id: string) {
+    // Multi-tenant: Filter by organizationId
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { data, error } = await supabase
       .from('feedback_forms')
       .select(`
@@ -60,10 +107,11 @@ class SupabaseFeedbackService {
         )
       `)
       .eq('id', id)
+      .eq('organizationid', organizationId) // Ensure ownership
       .single();
 
     if (error || !data) {
-      throw new Error(error?.message || 'Feedback form not found');
+      throw new Error(error?.message || 'Feedback form not found or access denied');
     }
 
     // Format sections with ordered questions
@@ -86,8 +134,13 @@ class SupabaseFeedbackService {
     }
 
     const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
-      throw new Error('User profile not found');
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User profile not found or user is not associated with an organization');
+    }
+
+    // Multi-tenant: Verify project ownership if projectId is provided
+    if (data.projectId) {
+      await this.verifyProjectOwnership(data.projectId);
     }
 
     const now = new Date().toISOString();
@@ -98,6 +151,7 @@ class SupabaseFeedbackService {
         title: data.title,
         description: data.description,
         categoryId: data.categoryId,
+        organizationid: userProfile.organizationId, // Multi-tenant: Set organizationId (database column is lowercase)
         projectId: data.projectId || null,
         isActive: data.isActive ?? true,
         allowAnonymous: data.allowAnonymous ?? false,
@@ -118,6 +172,14 @@ class SupabaseFeedbackService {
   }
 
   async updateForm(id: string, data: any) {
+    // Multi-tenant: Verify ownership first
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // If projectId is being updated, verify ownership
+    if (data.projectId !== undefined && data.projectId) {
+      await this.verifyProjectOwnership(data.projectId);
+    }
+    
     const updateData: any = {
       updatedAt: new Date().toISOString(),
     };
@@ -131,33 +193,47 @@ class SupabaseFeedbackService {
     if (data.requireAuthentication !== undefined) updateData.requireAuthentication = data.requireAuthentication;
     if (data.settings !== undefined) updateData.settings = data.settings;
 
+    // Multi-tenant: Ensure ownership
     const { data: updated, error } = await supabase
       .from('feedback_forms')
       .update(updateData)
       .eq('id', id)
+      .eq('organizationid', organizationId) // Ensure ownership
       .select()
       .single();
 
     if (error || !updated) {
-      throw new Error(error?.message || 'Failed to update feedback form');
+      throw new Error(error?.message || 'Failed to update feedback form or access denied');
     }
 
     return updated;
   }
 
   async deleteForm(id: string) {
+    // Multi-tenant: Verify ownership
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { error } = await supabase
       .from('feedback_forms')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('organizationid', organizationId); // Ensure ownership
 
     if (error) {
-      throw new Error(error.message || 'Failed to delete feedback form');
+      throw new Error(error.message || 'Failed to delete feedback form or access denied');
     }
   }
 
   // Submissions
   async getSubmissions(projectId?: string, formId?: string) {
+    // Multi-tenant: Filter by organizationId
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // If projectId is provided, verify ownership
+    if (projectId) {
+      await this.verifyProjectOwnership(projectId);
+    }
+    
     let query = supabase
       .from('feedback_submissions')
       .select(`
@@ -170,7 +246,8 @@ class SupabaseFeedbackService {
         communications:feedback_communications(*),
         notes:feedback_notes(*),
         statusHistory:feedback_status_history(*)
-      `);
+      `)
+      .eq('organizationid', organizationId); // Filter by organization
 
     if (projectId) {
       query = query.eq('projectId', projectId);
@@ -201,6 +278,9 @@ class SupabaseFeedbackService {
   }
 
   async getSubmissionById(id: string) {
+    // Multi-tenant: Filter by organizationId
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { data, error } = await supabase
       .from('feedback_submissions')
       .select(`
@@ -219,10 +299,11 @@ class SupabaseFeedbackService {
         statusHistory:feedback_status_history(*)
       `)
       .eq('id', id)
+      .eq('organizationid', organizationId) // Ensure ownership
       .single();
 
     if (error || !data) {
-      throw new Error(error?.message || 'Feedback submission not found');
+      throw new Error(error?.message || 'Feedback submission not found or access denied');
     }
 
     return {
@@ -247,13 +328,36 @@ class SupabaseFeedbackService {
   }
 
   async createSubmission(data: CreateFeedbackSubmissionRequest) {
+    // Multi-tenant: Get organizationId from form
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // Verify form belongs to user's organization
+    const { data: form, error: formError } = await supabase
+      .from('feedback_forms')
+      .select('id, organizationid, projectId')
+      .eq('id', data.formId)
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (formError || !form) {
+      throw new Error('Feedback form not found or access denied');
+    }
+    
+    // If projectId is provided, verify it matches form's projectId or verify ownership
+    if (data.projectId && form.projectId && data.projectId !== form.projectId) {
+      throw new Error('Project ID mismatch');
+    }
+    if (data.projectId) {
+      await this.verifyProjectOwnership(data.projectId);
+    }
+    
     const now = new Date().toISOString();
     const { data: submission, error } = await supabase
       .from('feedback_submissions')
       .insert({
         formId: data.formId,
         categoryId: data.categoryId,
-        projectId: data.projectId || null,
+        projectId: data.projectId || form.projectId || null,
         priority: data.priority as Database['public']['Enums']['FeedbackPriority'],
         sensitivity: data.sensitivity as Database['public']['Enums']['FeedbackSensitivity'],
         escalationLevel: data.escalationLevel as Database['public']['Enums']['EscalationLevel'],
@@ -265,6 +369,7 @@ class SupabaseFeedbackService {
         data: data.data,
         attachments: data.attachments || [],
         status: 'SUBMITTED' as Database['public']['Enums']['FeedbackStatus'],
+        organizationid: organizationId, // Multi-tenant: Set organizationId (database column is lowercase)
         submittedAt: now,
         updatedAt: now,
       } as unknown as Database['public']['Tables']['feedback_submissions']['Insert'])
@@ -303,14 +408,17 @@ class SupabaseFeedbackService {
   }
 
   async updateSubmissionStatus(id: string, data: { status: string; assignedTo?: string }) {
+    // Multi-tenant: Verify ownership first
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const currentUser = await supabaseAuthService.getCurrentUser();
     if (!currentUser) {
       throw new Error('Not authenticated');
     }
 
     const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
-      throw new Error('User profile not found');
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User profile not found or user is not associated with an organization');
     }
 
     const now = new Date().toISOString();
@@ -332,15 +440,17 @@ class SupabaseFeedbackService {
       updateData.closedAt = now;
     }
 
+    // Multi-tenant: Ensure ownership
     const { data: updated, error } = await supabase
       .from('feedback_submissions')
       .update(updateData)
       .eq('id', id)
+      .eq('organizationid', organizationId) // Ensure ownership
       .select()
       .single();
 
     if (error || !updated) {
-      throw new Error(error?.message || 'Failed to update submission status');
+      throw new Error(error?.message || 'Failed to update submission status or access denied');
     }
 
     // Create status history entry
@@ -350,6 +460,7 @@ class SupabaseFeedbackService {
         id: crypto.randomUUID(),
         submissionId: id,
         status: data.status as Database['public']['Enums']['FeedbackStatus'],
+        organizationid: organizationId, // Multi-tenant: Set organizationId (database column is lowercase)
         changedBy: userProfile.id,
         changedByName: `${userProfile.firstName} ${userProfile.lastName}`.trim() || userProfile.email,
         createdAt: now,
@@ -376,21 +487,29 @@ class SupabaseFeedbackService {
   }
 
   async deleteSubmission(id: string) {
+    // Multi-tenant: Verify ownership
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { error } = await supabase
       .from('feedback_submissions')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('organizationid', organizationId); // Ensure ownership
 
     if (error) {
-      throw new Error(error.message || 'Failed to delete feedback submission');
+      throw new Error(error.message || 'Failed to delete feedback submission or access denied');
     }
   }
 
   // Categories
   async getCategories() {
+    // Multi-tenant: Filter by organizationId
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { data, error } = await supabase
       .from('feedback_categories')
       .select('*')
+      .eq('organizationid', organizationId) // Filter by organization
       .order('name', { ascending: true });
 
     if (error) {
@@ -401,14 +520,18 @@ class SupabaseFeedbackService {
   }
 
   async getCategoryById(id: string) {
+    // Multi-tenant: Filter by organizationId
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { data, error } = await supabase
       .from('feedback_categories')
       .select('*')
       .eq('id', id)
+      .eq('organizationid', organizationId) // Ensure ownership
       .single();
 
     if (error || !data) {
-      throw new Error(error?.message || 'Feedback category not found');
+      throw new Error(error?.message || 'Feedback category not found or access denied');
     }
 
     return data;
@@ -416,6 +539,20 @@ class SupabaseFeedbackService {
 
   // Communications and Notes
   async addCommunication(submissionId: string, data: any) {
+    // Multi-tenant: Verify submission belongs to user's organization
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    const { data: submission, error: submissionError } = await supabase
+      .from('feedback_submissions')
+      .select('id, organizationid')
+      .eq('id', submissionId)
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (submissionError || !submission) {
+      throw new Error('Feedback submission not found or access denied');
+    }
+    
     const currentUser = await supabaseAuthService.getCurrentUser();
     const userProfile = currentUser ? await supabaseAuthService.getUserProfile(currentUser.id) : null;
 
@@ -428,6 +565,7 @@ class SupabaseFeedbackService {
         content: data.content,
         type: data.type || 'EMAIL' as Database['public']['Enums']['CommunicationType'],
         direction: data.direction as Database['public']['Enums']['CommunicationDirection'],
+        organizationid: organizationId, // Multi-tenant: Set organizationId (database column is lowercase)
         sentBy: userProfile?.id || null,
         sentTo: data.sentTo || null,
         sentAt: now,
@@ -443,14 +581,28 @@ class SupabaseFeedbackService {
   }
 
   async addNote(submissionId: string, data: any) {
+    // Multi-tenant: Verify submission belongs to user's organization
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    const { data: submission, error: submissionError } = await supabase
+      .from('feedback_submissions')
+      .select('id, organizationid')
+      .eq('id', submissionId)
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (submissionError || !submission) {
+      throw new Error('Feedback submission not found or access denied');
+    }
+    
     const currentUser = await supabaseAuthService.getCurrentUser();
     if (!currentUser) {
       throw new Error('Not authenticated');
     }
 
     const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
-      throw new Error('User profile not found');
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User profile not found or user is not associated with an organization');
     }
 
     const now = new Date().toISOString();
@@ -461,6 +613,7 @@ class SupabaseFeedbackService {
         submissionId,
         content: data.content,
         isInternal: data.isInternal ?? true,
+        organizationid: organizationId, // Multi-tenant: Set organizationId (database column is lowercase)
         authorId: userProfile.id,
         authorName: `${userProfile.firstName} ${userProfile.lastName}`.trim() || userProfile.email,
         createdAt: now,
@@ -477,9 +630,18 @@ class SupabaseFeedbackService {
 
   // Analytics
   async getAnalytics(projectId?: string, formId?: string) {
+    // Multi-tenant: Filter by organizationId
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // If projectId is provided, verify ownership
+    if (projectId) {
+      await this.verifyProjectOwnership(projectId);
+    }
+    
     let query = supabase
       .from('feedback_submissions')
-      .select('status, priority, categoryId, formId, submittedAt');
+      .select('status, priority, categoryId, formId, submittedAt')
+      .eq('organizationid', organizationId); // Filter by organization
 
     if (projectId) {
       query = query.eq('projectId', projectId);
@@ -515,18 +677,35 @@ class SupabaseFeedbackService {
   }
 
   async getFormAnalytics(formId: string) {
+    // Multi-tenant: Verify form belongs to user's organization
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // First verify form ownership
+    const { data: form, error: formError } = await supabase
+      .from('feedback_forms')
+      .select('id, organizationid')
+      .eq('id', formId)
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (formError || !form) {
+      throw new Error('Feedback form not found or access denied');
+    }
+    
     const { data, error } = await supabase
       .from('form_analytics')
       .select('*')
       .eq('formId', formId)
+      .eq('organizationid', organizationId) // Filter by organization
       .single();
 
     if (error) {
-      // If analytics don't exist, return basic stats
+      // If analytics don't exist, return basic stats (filtered by organization)
       const { data: submissions } = await supabase
         .from('feedback_submissions')
         .select('id, submittedAt')
-        .eq('formId', formId);
+        .eq('formId', formId)
+        .eq('organizationid', organizationId); // Filter by organization
 
       return {
         formId,

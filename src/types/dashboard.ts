@@ -7,6 +7,7 @@ export interface User {
   lastLoginAt?: string;
   createdAt: string;
   updatedAt: string;
+  organizationId: string; // Multi-tenant: user belongs to an organization
   roles: UserRole[];
   projectAccess: ProjectAccess[];
   permissions: string[];

@@ -15,6 +15,7 @@ export const Login: React.FC<LoginProps> = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [hasUserInteracted, setHasUserInteracted] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { login, isAuthenticated, isLoading } = useAuth();
@@ -58,6 +59,12 @@ export const Login: React.FC<LoginProps> = () => {
     e.preventDefault();
     setError('');
 
+    // Prevent auto-login if user hasn't explicitly interacted with the form
+    // This prevents browser autofill from triggering automatic login
+    if (!hasUserInteracted) {
+      return;
+    }
+
     if (!email || !password) {
       setError('Please enter both email and password.');
       return;
@@ -81,6 +88,7 @@ export const Login: React.FC<LoginProps> = () => {
   const handleDemoLogin = (demoEmail: string, demoPassword: string) => {
     setEmail(demoEmail);
     setPassword(demoPassword);
+    setHasUserInteracted(true);
   };
 
   // Demo credentials for testing
@@ -110,9 +118,14 @@ export const Login: React.FC<LoginProps> = () => {
                     type="email"
                     placeholder="Enter your email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setHasUserInteracted(true);
+                    }}
+                    onFocus={() => setHasUserInteracted(true)}
                     className="pl-10"
                     required
+                    autoComplete="email"
                   />
                 </div>
               </div>
@@ -126,9 +139,14 @@ export const Login: React.FC<LoginProps> = () => {
                     type={showPassword ? 'text' : 'password'}
                     placeholder="Enter your password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setHasUserInteracted(true);
+                    }}
+                    onFocus={() => setHasUserInteracted(true)}
                     className="pl-10 pr-10"
                     required
+                    autoComplete="current-password"
                   />
                   <Button
                     type="button"
@@ -155,7 +173,8 @@ export const Login: React.FC<LoginProps> = () => {
               <Button
                 type="submit"
                 className="w-full"
-                disabled={isLoading}
+                disabled={isLoading || !hasUserInteracted}
+                onClick={() => setHasUserInteracted(true)}
               >
                 {isLoading ? (
                   <>

@@ -38,6 +38,41 @@ export interface ReportListResponse {
 }
 
 class SupabaseReportService {
+  /**
+   * Get current user's organizationId
+   */
+  private async getCurrentUserOrganizationId(): Promise<string> {
+    const currentUser = await supabaseAuthService.getCurrentUser();
+    if (!currentUser) {
+      throw new Error('Not authenticated');
+    }
+
+    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User is not associated with an organization');
+    }
+
+    return userProfile.organizationId;
+  }
+
+  /**
+   * Verify project belongs to user's organization
+   */
+  private async verifyProjectOwnership(projectId: string): Promise<void> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    const { data, error } = await supabase
+      .from('projects')
+      .select('id, organizationid')
+      .eq('id', projectId)
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (error || !data) {
+      throw new Error('Project not found or access denied');
+    }
+  }
+
   private formatReport(report: Report): ReportFile {
     return {
       id: report.id,
@@ -52,10 +87,16 @@ class SupabaseReportService {
   }
 
   async getReports(projectId: string): Promise<ReportListResponse> {
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(projectId);
+    
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { data, error } = await supabase
       .from('reports')
       .select('*')
       .eq('projectId', projectId)
+      .eq('organizationid', organizationId) // Filter by organization
       .order('createdAt', { ascending: false });
 
     if (error) {
@@ -69,15 +110,21 @@ class SupabaseReportService {
   }
 
   async getReport(projectId: string, reportId: string): Promise<ReportFile> {
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(projectId);
+    
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { data, error } = await supabase
       .from('reports')
       .select('*')
       .eq('id', reportId)
       .eq('projectId', projectId)
+      .eq('organizationid', organizationId) // Ensure ownership
       .single();
 
     if (error || !data) {
-      throw new Error(error?.message || 'Report not found');
+      throw new Error(error?.message || 'Report not found or access denied');
     }
 
     return this.formatReport(data);
@@ -88,14 +135,17 @@ class SupabaseReportService {
     reportId: string,
     updateData: { title?: string; description?: string; category?: string }
   ): Promise<ReportFile> {
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(projectId);
+    
     const currentUser = await supabaseAuthService.getCurrentUser();
     if (!currentUser) {
       throw new Error('Not authenticated');
     }
 
     const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
-      throw new Error('User profile not found');
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User profile not found or user is not associated with an organization');
     }
 
     const updatePayload: any = {
@@ -107,16 +157,18 @@ class SupabaseReportService {
     if (updateData.description !== undefined) updatePayload.description = updateData.description;
     // Note: category is not directly in reports table, it's in report_workflows
 
+    // Multi-tenant: Ensure ownership
     const { data, error } = await supabase
       .from('reports')
       .update(updatePayload)
       .eq('id', reportId)
       .eq('projectId', projectId)
+      .eq('organizationid', userProfile.organizationId) // Ensure ownership
       .select()
       .single();
 
     if (error || !data) {
-      throw new Error(error?.message || 'Failed to update report');
+      throw new Error(error?.message || 'Failed to update report or access denied');
     }
 
     return this.formatReport(data);
@@ -138,15 +190,19 @@ class SupabaseReportService {
       }
     }
 
+    // Multi-tenant: Ensure ownership (getReport already verified)
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     // Delete report record from database
     const { error } = await supabase
       .from('reports')
       .delete()
       .eq('id', reportId)
-      .eq('projectId', projectId);
+      .eq('projectId', projectId)
+      .eq('organizationid', organizationId); // Ensure ownership
 
     if (error) {
-      throw new Error(error.message || 'Failed to delete report');
+      throw new Error(error.message || 'Failed to delete report or access denied');
     }
   }
 
@@ -156,14 +212,17 @@ class SupabaseReportService {
     file: File,
     reportData: ReportUploadData
   ): Promise<ReportUploadResponse> {
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(projectId);
+    
     const currentUser = await supabaseAuthService.getCurrentUser();
     if (!currentUser) {
       throw new Error('Not authenticated');
     }
 
     const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
-      throw new Error('User profile not found');
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User profile not found or user is not associated with an organization');
     }
 
     // Generate filename
@@ -214,6 +273,7 @@ class SupabaseReportService {
         fileUrl: storagePath, // Store the storage path
         fileSize: file.size.toString(),
         status: 'DRAFT' as Database['public']['Enums']['ReportStatus'],
+        organizationId: userProfile.organizationId, // Multi-tenant: Set organizationId
         createdBy: userProfile.id,
         updatedBy: userProfile.id,
         createdAt: now,

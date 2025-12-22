@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation, useParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { OrganizationProvider } from '@/contexts/OrganizationContext';
 import { DashboardProvider } from '@/contexts/DashboardContext';
 import { FormProvider } from '@/contexts/FormContext';
 import { ReportProvider } from '@/contexts/ReportContext';
@@ -21,6 +22,12 @@ import { Media } from '@/components/dashboard/Media';
 import Financial from '@/components/dashboard/Financial';
 import { UserManagement } from '@/components/dashboard/UserManagement';
 import { Settings } from '@/components/dashboard/Settings';
+import { OrganizationDashboard } from '@/components/dashboard/organization/OrganizationDashboard';
+import { OrganizationSettings } from '@/components/dashboard/organization/OrganizationSettings';
+import { OrganizationTeamManagement } from '@/components/dashboard/organization/OrganizationTeamManagement';
+import { OrganizationSubscription } from '@/components/dashboard/organization/OrganizationSubscription';
+import { OrganizationUsage } from '@/components/dashboard/organization/OrganizationUsage';
+import { OrganizationAuditLogs } from '@/components/dashboard/organization/OrganizationAuditLogs';
 import { Activities } from '@/components/dashboard/Activities';
 import { Subactivities } from '@/components/dashboard/Subactivities';
 import { ProjectCreationWizard } from '@/components/dashboard/ProjectCreationWizard';
@@ -120,9 +127,11 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        <NotificationProvider>
-          <AppWithNotifications />
-        </NotificationProvider>
+        <OrganizationProvider>
+          <NotificationProvider>
+            <AppWithNotifications />
+          </NotificationProvider>
+        </OrganizationProvider>
       </AuthProvider>
     </Router>
   );
@@ -217,6 +226,15 @@ function AppWithNotifications() {
                           </Route>
                           <Route path="admin/settings" element={<ProtectedRoute roles={['global-admin']} />}> 
                             <Route index element={<Settings />} />
+                          </Route>
+                          {/* Organization Admin routes */}
+                          <Route path="organization" element={<ProtectedRoute roles={['global-admin']} />}>
+                            <Route index element={<OrganizationDashboard />} />
+                            <Route path="settings" element={<OrganizationSettings />} />
+                            <Route path="team" element={<OrganizationTeamManagement />} />
+                            <Route path="subscription" element={<OrganizationSubscription />} />
+                            <Route path="usage" element={<OrganizationUsage />} />
+                            <Route path="audit-logs" element={<OrganizationAuditLogs />} />
                           </Route>
                         </Route>
                       </Route>

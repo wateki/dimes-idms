@@ -125,12 +125,19 @@ export function UserManagement() {
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (window.confirm('Are you sure you want to delete this user?')) {
+    const userToDelete = users.find(u => u.id === userId);
+    const userName = userToDelete ? `${userToDelete.firstName} ${userToDelete.lastName}` : 'this user';
+    
+    if (window.confirm(`Are you sure you want to delete ${userName}? This will deactivate their account and remove their access.`)) {
       try {
         await userManagementService.deleteUser(userId);
         loadUsers(); // Refresh the list
-      } catch (error) {
+        // Show success message
+        alert(`User ${userName} has been successfully deleted.`);
+      } catch (error: any) {
         console.error('Failed to delete user:', error);
+        // Show error message
+        alert(`Failed to delete user: ${error.message || 'An unexpected error occurred'}`);
       }
     }
   };

@@ -55,12 +55,33 @@ export interface StrategicPlan {
 }
 
 class SupabaseStrategicPlanService {
+  /**
+   * Get current user's organizationId
+   */
+  private async getCurrentUserOrganizationId(): Promise<string> {
+    const currentUser = await supabaseAuthService.getCurrentUser();
+    if (!currentUser) {
+      throw new Error('Not authenticated');
+    }
+
+    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User is not associated with an organization');
+    }
+
+    return userProfile.organizationId;
+  }
+
   private async formatStrategicPlan(plan: StrategicPlanRow): Promise<StrategicPlan> {
-    // Fetch related goals, subgoals, KPIs, and activity links
+    // Multi-tenant: Filter by organizationId
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // Fetch related goals, subgoals, KPIs, and activity links (filtered by organization)
     const { data: goals } = await supabase
       .from('strategic_goals')
       .select('*')
       .eq('strategicPlanId', plan.id)
+      .eq('organizationid', organizationId) // Filter by organization
       .order('order', { ascending: true });
 
     const formattedGoals: StrategicGoal[] = [];
@@ -71,24 +92,27 @@ class SupabaseStrategicPlanService {
           .from('strategic_subgoals')
           .select('*')
           .eq('strategicGoalId', goal.id)
+          .eq('organizationid', organizationId) // Filter by organization
           .order('order', { ascending: true });
 
         const formattedSubgoals: StrategicSubGoal[] = [];
 
         if (subgoals) {
           for (const subgoal of subgoals) {
-            // Get KPI
+            // Get KPI (filtered by organization)
             const { data: kpiData } = await supabase
               .from('strategic_kpis')
               .select('*')
               .eq('strategicSubGoalId', subgoal.id)
+              .eq('organizationid', organizationId) // Filter by organization
               .single();
 
-            // Get activity links
+            // Get activity links (filtered by organization)
             const { data: activityLinks } = await supabase
               .from('strategic_activity_links')
               .select('*')
-              .eq('strategicSubGoalId', subgoal.id);
+              .eq('strategicSubGoalId', subgoal.id)
+              .eq('organizationid', organizationId); // Filter by organization
 
             const kpi: StrategicKPI = kpiData ? {
               currentValue: kpiData.currentValue,
@@ -157,8 +181,8 @@ class SupabaseStrategicPlanService {
     }
 
     const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
-      throw new Error('User profile not found');
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User profile not found or user is not associated with an organization');
     }
 
     const now = new Date().toISOString();
@@ -176,6 +200,7 @@ class SupabaseStrategicPlanService {
         startYear: startYear || currentYear,
         endYear: endYear || currentYear + 4,
         isActive: false,
+        organizationid: userProfile.organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
         createdBy: userProfile.id,
         updatedBy: userProfile.id,
         createdAt: now,
@@ -203,6 +228,7 @@ class SupabaseStrategicPlanService {
           priority: goal.priority.toUpperCase() as Database['public']['Enums']['StrategicPriority'],
           targetOutcome: goal.targetOutcome || null,
           order: goalIndex,
+          organizationid: userProfile.organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
           createdBy: userProfile.id,
           updatedBy: userProfile.id,
           createdAt: now,
@@ -230,6 +256,7 @@ class SupabaseStrategicPlanService {
             updatedBy: userProfile.id,
             createdAt: now,
             updatedAt: now,
+            organizationid: userProfile.organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
           });
 
         if (subGoalError) {
@@ -250,6 +277,7 @@ class SupabaseStrategicPlanService {
               type: subGoal.kpi.type,
               createdBy: userProfile.id,
               updatedBy: userProfile.id,
+              organizationid: userProfile.organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
               createdAt: now,
               updatedAt: now,
             });
@@ -275,6 +303,7 @@ class SupabaseStrategicPlanService {
               status: activityLink.status.toUpperCase().replace('-', '_') as Database['public']['Enums']['ActivityLinkStatus'],
               createdBy: userProfile.id,
               updatedBy: userProfile.id,
+              organizationid: userProfile.organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
               createdAt: now,
               updatedAt: now,
             });
@@ -295,32 +324,37 @@ class SupabaseStrategicPlanService {
     startYear?: number,
     endYear?: number
   ): Promise<StrategicPlan> {
+    // Multi-tenant: Verify ownership first
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const currentUser = await supabaseAuthService.getCurrentUser();
     if (!currentUser) {
       throw new Error('Not authenticated');
     }
 
     const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
-      throw new Error('User profile not found');
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User profile not found or user is not associated with an organization');
     }
 
-    // Get existing plan
-    const { data: existingPlan } = await supabase
+    // Get existing plan (verify ownership)
+    const { data: existingPlan, error: planError } = await supabase
       .from('strategic_plans')
-      .select('id')
+      .select('id, organizationid')
       .eq('id', id)
+      .eq('organizationid', organizationId) // Ensure ownership
       .single();
 
-    if (!existingPlan) {
-      throw new Error('Strategic plan not found');
+    if (planError || !existingPlan) {
+      throw new Error('Strategic plan not found or access denied');
     }
 
-    // Delete existing goals and related data (cascade will handle subgoals, KPIs, links)
+    // Delete existing goals and related data (filtered by organization)
     await supabase
       .from('strategic_goals')
       .delete()
-      .eq('strategicPlanId', id);
+      .eq('strategicPlanId', id)
+      .eq('organizationid', organizationId); // Filter by organization
 
     // Update plan
     const now = new Date().toISOString();
@@ -332,15 +366,17 @@ class SupabaseStrategicPlanService {
     if (startYear !== undefined) updateData.startYear = startYear;
     if (endYear !== undefined) updateData.endYear = endYear;
 
-    const { data: plan, error: planError } = await supabase
+    // Multi-tenant: Ensure ownership
+    const { data: updatedPlan, error: updatedPlanError } = await supabase
       .from('strategic_plans')
       .update(updateData)
       .eq('id', id)
+      .eq('organizationid', organizationId) // Ensure ownership
       .select()
       .single();
 
-    if (planError || !plan) {
-      throw new Error(planError?.message || 'Failed to update strategic plan');
+    if (updatedPlanError || !updatedPlan) {
+      throw new Error(updatedPlanError?.message || 'Failed to update strategic plan');
     }
 
     // Recreate goals, subgoals, KPIs, and activity links (same logic as create)
@@ -358,6 +394,7 @@ class SupabaseStrategicPlanService {
           priority: goal.priority.toUpperCase() as Database['public']['Enums']['StrategicPriority'],
           targetOutcome: goal.targetOutcome || null,
           order: goalIndex,
+          organizationid: organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
           createdBy: userProfile.id,
           updatedBy: userProfile.id,
           createdAt: now,
@@ -381,6 +418,7 @@ class SupabaseStrategicPlanService {
             title: subGoal.title,
             description: subGoal.description || null,
             order: subGoalIndex,
+            organizationid: organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
             createdBy: userProfile.id,
             updatedBy: userProfile.id,
             createdAt: now,
@@ -403,6 +441,7 @@ class SupabaseStrategicPlanService {
               targetValue: subGoal.kpi.targetValue,
               unit: subGoal.kpi.unit,
               type: subGoal.kpi.type,
+              organizationid: organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
               createdBy: userProfile.id,
               updatedBy: userProfile.id,
               createdAt: now,
@@ -416,6 +455,18 @@ class SupabaseStrategicPlanService {
 
         // Create activity links
         for (const activityLink of subGoal.activityLinks) {
+          // Multi-tenant: Verify project belongs to user's organization
+          const { data: project, error: projectError } = await supabase
+            .from('projects')
+            .select('id, organizationid')
+            .eq('id', activityLink.projectId)
+            .eq('organizationid', organizationId)
+            .single();
+
+          if (projectError || !project) {
+            throw new Error(`Project ${activityLink.projectId} not found or access denied`);
+          }
+          
           const linkId = crypto.randomUUID();
           const { error: linkError } = await supabase
             .from('strategic_activity_links')
@@ -428,6 +479,7 @@ class SupabaseStrategicPlanService {
               activityTitle: activityLink.activityTitle,
               contribution: activityLink.contribution,
               status: activityLink.status.toUpperCase().replace('-', '_') as Database['public']['Enums']['ActivityLinkStatus'],
+              organizationid: organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
               createdBy: userProfile.id,
               updatedBy: userProfile.id,
               createdAt: now,
@@ -441,13 +493,17 @@ class SupabaseStrategicPlanService {
       }
     }
 
-    return this.formatStrategicPlan(plan);
+    return this.formatStrategicPlan(updatedPlan);
   }
 
   async getStrategicPlans(): Promise<StrategicPlan[]> {
+    // Multi-tenant: Filter by organizationId
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { data, error } = await supabase
       .from('strategic_plans')
       .select('*')
+      .eq('organizationid', organizationId) // Filter by organization
       .order('createdAt', { ascending: false });
 
     if (error) {
@@ -463,10 +519,14 @@ class SupabaseStrategicPlanService {
   }
 
   async getActiveStrategicPlan(): Promise<StrategicPlan | null> {
+    // Multi-tenant: Filter by organizationId
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { data, error } = await supabase
       .from('strategic_plans')
       .select('*')
       .eq('isActive', true)
+      .eq('organizationid', organizationId) // Filter by organization
       .single();
 
     if (error) {
@@ -484,37 +544,45 @@ class SupabaseStrategicPlanService {
   }
 
   async getStrategicPlan(id: string): Promise<StrategicPlan> {
+    // Multi-tenant: Filter by organizationId
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { data, error } = await supabase
       .from('strategic_plans')
       .select('*')
       .eq('id', id)
+      .eq('organizationid', organizationId) // Ensure ownership
       .single();
 
     if (error || !data) {
-      throw new Error(error?.message || 'Strategic plan not found');
+      throw new Error(error?.message || 'Strategic plan not found or access denied');
     }
 
     return this.formatStrategicPlan(data);
   }
 
   async activateStrategicPlan(id: string): Promise<StrategicPlan> {
+    // Multi-tenant: Verify ownership first
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const currentUser = await supabaseAuthService.getCurrentUser();
     if (!currentUser) {
       throw new Error('Not authenticated');
     }
 
     const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
-      throw new Error('User profile not found');
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User profile not found or user is not associated with an organization');
     }
 
-    // Deactivate all other plans
+    // Deactivate all other plans (within organization)
     await supabase
       .from('strategic_plans')
       .update({ isActive: false, updatedBy: userProfile.id, updatedAt: new Date().toISOString() })
+      .eq('organizationid', organizationId) // Filter by organization
       .neq('id', id);
 
-    // Activate this plan
+    // Activate this plan (ensure ownership)
     const { data, error } = await supabase
       .from('strategic_plans')
       .update({
@@ -523,6 +591,7 @@ class SupabaseStrategicPlanService {
         updatedAt: new Date().toISOString(),
       })
       .eq('id', id)
+      .eq('organizationid', organizationId) // Ensure ownership
       .select()
       .single();
 
@@ -534,9 +603,13 @@ class SupabaseStrategicPlanService {
   }
 
   async getStrategicPlansByYearRange(startYear: number, endYear: number): Promise<StrategicPlan[]> {
+    // Multi-tenant: Filter by organizationId
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { data, error } = await supabase
       .from('strategic_plans')
       .select('*')
+      .eq('organizationid', organizationId) // Filter by organization
       .gte('startYear', startYear)
       .lte('endYear', endYear)
       .order('createdAt', { ascending: false });
@@ -554,20 +627,37 @@ class SupabaseStrategicPlanService {
   }
 
   async deleteStrategicPlan(id: string): Promise<void> {
-    // Delete goals (cascade will handle subgoals, KPIs, links)
+    // Multi-tenant: Verify ownership first
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // Verify plan belongs to user's organization
+    const { data: plan, error: planError } = await supabase
+      .from('strategic_plans')
+      .select('id, organizationid')
+      .eq('id', id)
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (planError || !plan) {
+      throw new Error('Strategic plan not found or access denied');
+    }
+    
+    // Delete goals (filtered by organization)
     await supabase
       .from('strategic_goals')
       .delete()
-      .eq('strategicPlanId', id);
+      .eq('strategicPlanId', id)
+      .eq('organizationid', organizationId); // Filter by organization
 
-    // Delete plan
+    // Delete plan (ensure ownership)
     const { error } = await supabase
       .from('strategic_plans')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('organizationid', organizationId); // Ensure ownership
 
     if (error) {
-      throw new Error(error.message || 'Failed to delete strategic plan');
+      throw new Error(error.message || 'Failed to delete strategic plan or access denied');
     }
   }
 }

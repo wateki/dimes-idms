@@ -1,17 +1,39 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { Database } from '@/types/supabase';
 import type { Permission } from './userManagementService';
+import { supabaseAuthService } from './supabaseAuthService';
 
 type PermissionRow = Database['public']['Tables']['permissions']['Row'];
 type RolePermission = Database['public']['Tables']['role_permissions']['Row'];
 type UserPermission = Database['public']['Tables']['user_permissions']['Row'];
 
 class SupabasePermissionsService {
+  /**
+   * Get current user's organizationId
+   */
+  private async getCurrentUserOrganizationId(): Promise<string> {
+    const currentUser = await supabaseAuthService.getCurrentUser();
+    if (!currentUser) {
+      throw new Error('Not authenticated');
+    }
+
+    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User is not associated with an organization');
+    }
+
+    return userProfile.organizationId;
+  }
+
   async getAllPermissions(params: { resource?: string; scope?: string; action?: string } = {}): Promise<Permission[]> {
+    // Multi-tenant: Filter by organizationId
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     let query = supabase
       .from('permissions')
       .select('*')
-      .eq('isActive', true);
+      .eq('isActive', true)
+      .eq('organizationid', organizationId); // Filter by organization
 
     if (params.resource) {
       query = query.eq('resource', params.resource);
@@ -45,6 +67,21 @@ class SupabasePermissionsService {
   }
 
   async getRolePermissions(roleId: string): Promise<Permission[]> {
+    // Multi-tenant: Verify role belongs to user's organization
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // Verify role belongs to organization
+    const { data: role, error: roleError } = await supabase
+      .from('roles')
+      .select('id, organizationid')
+      .eq('id', roleId)
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (roleError || !role) {
+      throw new Error('Role not found or access denied');
+    }
+    
     const { data, error } = await supabase
       .from('role_permissions')
       .select(`
@@ -68,23 +105,28 @@ class SupabasePermissionsService {
   }
 
   async assignRolePermissions(roleId: string, permissionIds: string[]): Promise<void> {
-    // Verify role exists
+    // Multi-tenant: Verify ownership
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // Verify role exists and belongs to organization
     const { data: role, error: roleError } = await supabase
       .from('roles')
-      .select('id')
+      .select('id, organizationid')
       .eq('id', roleId)
+      .eq('organizationid', organizationId) // Ensure ownership
       .single();
 
     if (roleError || !role) {
-      throw new Error('Role not found');
+      throw new Error('Role not found or access denied');
     }
 
-    // Verify permissions exist
+    // Verify permissions exist and belong to organization
     const { data: permissions, error: permError } = await supabase
       .from('permissions')
       .select('id')
       .in('id', permissionIds)
-      .eq('isActive', true);
+      .eq('isActive', true)
+      .eq('organizationid', organizationId); // Filter by organization
 
     if (permError) {
       throw new Error(permError.message || 'Failed to verify permissions');

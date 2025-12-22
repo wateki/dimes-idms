@@ -283,6 +283,7 @@ class SupabaseAuthService {
         lastLoginAt: user.lastLoginAt || undefined,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
+        organizationId: (user as any).organizationid, // Multi-tenant: include organizationId (database column is lowercase)
         roles: transformedRoles,
         projectAccess: transformedProjectAccess,
         permissions: Array.from(allPermissions),

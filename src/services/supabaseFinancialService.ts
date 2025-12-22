@@ -91,6 +91,41 @@ export interface FinancialSummary {
 }
 
 class SupabaseFinancialService {
+  /**
+   * Get current user's organizationId
+   */
+  private async getCurrentUserOrganizationId(): Promise<string> {
+    const currentUser = await supabaseAuthService.getCurrentUser();
+    if (!currentUser) {
+      throw new Error('Not authenticated');
+    }
+
+    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User is not associated with an organization');
+    }
+
+    return userProfile.organizationId;
+  }
+
+  /**
+   * Verify project belongs to user's organization
+   */
+  private async verifyProjectOwnership(projectId: string): Promise<void> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    const { data, error } = await supabase
+      .from('projects')
+      .select('id, organizationid')
+      .eq('id', projectId)
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (error || !data) {
+      throw new Error('Project not found or access denied');
+    }
+  }
+
   private formatProjectFinancialData(data: ProjectFinancialDataRow): ProjectFinancialData {
     return {
       id: data.id,
@@ -126,14 +161,17 @@ class SupabaseFinancialService {
 
   // Project Financial Data
   async createProjectFinancialData(data: CreateProjectFinancialDataDto): Promise<ProjectFinancialData> {
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(data.projectId);
+    
     const currentUser = await supabaseAuthService.getCurrentUser();
     if (!currentUser) {
       throw new Error('Not authenticated');
     }
 
     const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
-      throw new Error('User profile not found');
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User profile not found or user is not associated with an organization');
     }
 
     const now = new Date().toISOString();
@@ -147,6 +185,7 @@ class SupabaseFinancialService {
         totalBudget: data.totalBudget || 0,
         totalSpent: 0,
         totalVariance: data.totalBudget || 0,
+        organizationid: userProfile.organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
         createdBy: userProfile.id,
         createdAt: now,
         updatedAt: now,
@@ -163,10 +202,16 @@ class SupabaseFinancialService {
   }
 
   async getProjectFinancialData(projectId: string, year?: number): Promise<ProjectFinancialData[]> {
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(projectId);
+    
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     let query = supabase
       .from('project_financial_data')
       .select('*')
-      .eq('projectId', projectId);
+      .eq('projectId', projectId)
+      .eq('organizationid', organizationId); // Filter by organization
 
     if (year) {
       query = query.eq('year', year);
@@ -182,20 +227,29 @@ class SupabaseFinancialService {
   }
 
   async getProjectFinancialDataById(id: string): Promise<ProjectFinancialData> {
+    // Multi-tenant: Filter by organizationId
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { data, error } = await supabase
       .from('project_financial_data')
       .select('*')
       .eq('id', id)
+      .eq('organizationid', organizationId) // Ensure ownership
       .single();
 
     if (error || !data) {
-      throw new Error(error?.message || 'Project financial data not found');
+      throw new Error(error?.message || 'Project financial data not found or access denied');
     }
 
     return this.formatProjectFinancialData(data as any);
   }
 
   async updateProjectFinancialData(id: string, data: UpdateProjectFinancialDataDto): Promise<ProjectFinancialData> {
+    // Multi-tenant: Verify ownership (getProjectFinancialDataById already checks organizationId)
+    const existing = await this.getProjectFinancialDataById(id);
+    
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const updateData: any = {
       updatedAt: new Date().toISOString(),
       lastUpdated: new Date().toISOString(),
@@ -205,32 +259,39 @@ class SupabaseFinancialService {
     if (data.totalBudget !== undefined) {
       updateData.totalBudget = data.totalBudget;
       // Recalculate variance
-      const existing = await this.getProjectFinancialDataById(id);
       updateData.totalVariance = data.totalBudget - existing.totalSpent;
     }
 
+    // Multi-tenant: Ensure ownership
     const { data: updated, error } = await supabase
       .from('project_financial_data')
       .update(updateData)
       .eq('id', id)
+      .eq('organizationid', organizationId) // Ensure ownership
       .select()
       .single();
 
     if (error || !updated) {
-      throw new Error(error?.message || 'Failed to update project financial data');
+      throw new Error(error?.message || 'Failed to update project financial data or access denied');
     }
 
     return this.formatProjectFinancialData(updated as any);
   }
 
   async deleteProjectFinancialData(id: string): Promise<{ message: string }> {
+    // Multi-tenant: Verify ownership first
+    await this.getProjectFinancialDataById(id); // This already checks organizationId
+    
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { error } = await supabase
       .from('project_financial_data')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('organizationid', organizationId); // Ensure ownership
 
     if (error) {
-      throw new Error(error.message || 'Failed to delete project financial data');
+      throw new Error(error.message || 'Failed to delete project financial data or access denied');
     }
 
     return { message: 'Project financial data deleted successfully' };
@@ -244,27 +305,33 @@ class SupabaseFinancialService {
     }
 
     const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
-      throw new Error('User profile not found');
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User profile not found or user is not associated with an organization');
     }
 
-    // Get or create project financial data
-    const { data: activity } = await supabase
+    // Multi-tenant: Verify activity belongs to user's organization
+    const organizationId = userProfile.organizationId;
+    const { data: activity, error: activityError } = await supabase
       .from('activities')
-      .select('projectId')
+      .select('projectId, organizationid')
       .eq('id', data.activityId)
+      .eq('organizationid', organizationId) // Verify ownership (lowercase column)
       .single();
 
-    if (!activity) {
-      throw new Error('Activity not found');
+    if (activityError || !activity) {
+      throw new Error('Activity not found or access denied');
     }
+    
+    // Verify project ownership
+    await this.verifyProjectOwnership(activity.projectId);
 
-    // Find or create project financial data
+    // Find or create project financial data (filtered by organization)
     let { data: projectFinancial } = await supabase
       .from('project_financial_data')
       .select('*')
       .eq('projectId', activity.projectId)
       .eq('year', data.year)
+      .eq('organizationid', organizationId) // Filter by organization
       .single();
 
     if (!projectFinancial) {
@@ -273,7 +340,12 @@ class SupabaseFinancialService {
         .from('projects')
         .select('name')
         .eq('id', activity.projectId)
+        .eq('organizationid', organizationId) // Verify ownership
         .single();
+
+      if (!project) {
+        throw new Error('Project not found or access denied');
+      }
 
       const now = new Date().toISOString();
       const { data: created } = await supabase
@@ -282,10 +354,11 @@ class SupabaseFinancialService {
           id: crypto.randomUUID(),
           projectId: activity.projectId,
           year: data.year,
-          projectName: project?.name || 'Unknown Project',
+          projectName: project.name || 'Unknown Project',
           totalBudget: 0,
           totalSpent: 0,
           totalVariance: 0,
+          organizationid: organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
           createdBy: userProfile.id,
           createdAt: now,
           updatedAt: now,
@@ -318,6 +391,7 @@ class SupabaseFinancialService {
         totalAnnualCost,
         variance,
         notes: data.notes || null,
+        organizationid: organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
         createdBy: userProfile.id,
         createdAt: now,
         updatedAt: now,
@@ -330,11 +404,12 @@ class SupabaseFinancialService {
       throw new Error(error?.message || 'Failed to create activity financial data');
     }
 
-    // Update project financial totals
+    // Update project financial totals (filtered by organization)
     const { data: allActivities } = await supabase
       .from('activity_financial_data')
       .select('totalAnnualCost, totalAnnualBudget')
-      .eq('projectFinancialId', projectFinancial!.id);
+      .eq('projectFinancialId', projectFinancial!.id)
+      .eq('organizationid', organizationId); // Filter by organization
 
     const totalSpent = (allActivities || []).reduce((sum, a) => sum + (a.totalAnnualCost || 0), 0);
     const totalBudget = (allActivities || []).reduce((sum, a) => sum + (a.totalAnnualBudget || 0), 0);
@@ -348,16 +423,33 @@ class SupabaseFinancialService {
         lastUpdated: now,
         updatedAt: now,
       })
-      .eq('id', projectFinancial!.id);
+      .eq('id', projectFinancial!.id)
+      .eq('organizationid', organizationId); // Ensure ownership
 
     return this.formatActivityFinancialData(activityFinancial as any);
   }
 
   async getActivityFinancialData(activityId: string, year?: number): Promise<ActivityFinancialData[]> {
+    // Multi-tenant: Verify activity belongs to user's organization
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // First verify activity ownership
+    const { data: activity, error: activityError } = await supabase
+      .from('activities')
+      .select('id, organizationid')
+      .eq('id', activityId)
+      .eq('organizationid', organizationId) // Verify ownership (lowercase)
+      .single();
+
+    if (activityError || !activity) {
+      throw new Error('Activity not found or access denied');
+    }
+    
     let query = supabase
       .from('activity_financial_data')
       .select('*')
-      .eq('activityId', activityId);
+      .eq('activityId', activityId)
+      .eq('organizationid', organizationId); // Filter by organization
 
     if (year) {
       query = query.eq('year', year);
@@ -373,15 +465,19 @@ class SupabaseFinancialService {
   }
 
   async updateActivityFinancialData(id: string, data: UpdateActivityFinancialDataDto): Promise<ActivityFinancialData> {
+    // Multi-tenant: Verify ownership
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     // Get existing data to calculate new totals
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from('activity_financial_data')
       .select('*')
       .eq('id', id)
+        .eq('organizationid', organizationId) // Ensure ownership
       .single();
 
-    if (!existing) {
-      throw new Error('Activity financial data not found');
+    if (existingError || !existing) {
+      throw new Error('Activity financial data not found or access denied');
     }
 
     const q1Cost = data.q1Cost !== undefined ? data.q1Cost : existing.q1Cost;
@@ -409,29 +505,33 @@ class SupabaseFinancialService {
     if (data.activityTitle !== undefined) updateData.activityTitle = data.activityTitle;
     if (data.notes !== undefined) updateData.notes = data.notes || null;
 
+    // Multi-tenant: Ensure ownership
     const { data: updated, error } = await supabase
       .from('activity_financial_data')
       .update(updateData)
       .eq('id', id)
+      .eq('organizationid', organizationId) // Ensure ownership
       .select()
       .single();
 
     if (error || !updated) {
-      throw new Error(error?.message || 'Failed to update activity financial data');
+      throw new Error(error?.message || 'Failed to update activity financial data or access denied');
     }
 
-    // Update project financial totals
+    // Update project financial totals (filtered by organization)
     const { data: projectFinancial } = await supabase
       .from('activity_financial_data')
       .select('projectFinancialId')
       .eq('id', id)
+      .eq('organizationid', organizationId) // Ensure ownership
       .single();
 
     if (projectFinancial) {
       const { data: allActivities } = await supabase
         .from('activity_financial_data')
         .select('totalAnnualCost, totalAnnualBudget')
-        .eq('projectFinancialId', projectFinancial.projectFinancialId);
+        .eq('projectFinancialId', projectFinancial.projectFinancialId)
+        .eq('organizationid', organizationId); // Filter by organization
 
       const totalSpent = (allActivities || []).reduce((sum, a) => sum + (a.totalAnnualCost || 0), 0);
       const totalBudget = (allActivities || []).reduce((sum, a) => sum + (a.totalAnnualBudget || 0), 0);
@@ -445,35 +545,46 @@ class SupabaseFinancialService {
           lastUpdated: now,
           updatedAt: now,
         })
-        .eq('id', projectFinancial.projectFinancialId);
+        .eq('id', projectFinancial.projectFinancialId)
+        .eq('organizationid', organizationId); // Ensure ownership
     }
 
     return this.formatActivityFinancialData(updated as any);
   }
 
   async deleteActivityFinancialData(id: string): Promise<{ message: string }> {
+    // Multi-tenant: Verify ownership
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     // Get project financial ID before deleting
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from('activity_financial_data')
       .select('projectFinancialId')
       .eq('id', id)
+      .eq('organizationid', organizationId) // Ensure ownership
       .single();
+
+    if (existingError || !existing) {
+      throw new Error('Activity financial data not found or access denied');
+    }
 
     const { error } = await supabase
       .from('activity_financial_data')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('organizationid', organizationId); // Ensure ownership
 
     if (error) {
-      throw new Error(error.message || 'Failed to delete activity financial data');
+      throw new Error(error.message || 'Failed to delete activity financial data or access denied');
     }
 
-    // Update project financial totals
+    // Update project financial totals (filtered by organization)
     if (existing) {
       const { data: allActivities } = await supabase
         .from('activity_financial_data')
         .select('totalAnnualCost, totalAnnualBudget')
-        .eq('projectFinancialId', existing.projectFinancialId);
+        .eq('projectFinancialId', existing.projectFinancialId)
+        .eq('organizationid', organizationId); // Filter by organization
 
       const totalSpent = (allActivities || []).reduce((sum, a) => sum + (a.totalAnnualCost || 0), 0);
       const totalBudget = (allActivities || []).reduce((sum, a) => sum + (a.totalAnnualBudget || 0), 0);
@@ -488,7 +599,8 @@ class SupabaseFinancialService {
           lastUpdated: now,
           updatedAt: now,
         })
-        .eq('id', existing.projectFinancialId);
+        .eq('id', existing.projectFinancialId)
+        .eq('organizationid', organizationId); // Ensure ownership
     }
 
     return { message: 'Activity financial data deleted successfully' };
@@ -496,21 +608,28 @@ class SupabaseFinancialService {
 
   // Financial Summary
   async getFinancialSummary(projectId: string, year: number): Promise<FinancialSummary> {
-    const { data: projectFinancial } = await supabase
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(projectId);
+    
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    const { data: projectFinancial, error: projectFinancialError } = await supabase
       .from('project_financial_data')
       .select('*')
       .eq('projectId', projectId)
       .eq('year', year)
+      .eq('organizationid', organizationId) // Filter by organization
       .single();
 
-    if (!projectFinancial) {
+    if (projectFinancialError || !projectFinancial) {
       throw new Error('Project financial data not found for this year');
     }
 
     const { data: activities } = await supabase
       .from('activity_financial_data')
       .select('q1Cost, q2Cost, q3Cost, q4Cost, totalAnnualBudget')
-      .eq('projectFinancialId', projectFinancial.id);
+      .eq('projectFinancialId', projectFinancial.id)
+      .eq('organizationid', organizationId); // Filter by organization
 
     const q1Spent = (activities || []).reduce((sum, a) => sum + (a.q1Cost || 0), 0);
     const q2Spent = (activities || []).reduce((sum, a) => sum + (a.q2Cost || 0), 0);
@@ -556,10 +675,16 @@ class SupabaseFinancialService {
   }
 
   async getProjectFinancialYears(projectId: string): Promise<{ years: number[] }> {
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(projectId);
+    
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { data, error } = await supabase
       .from('project_financial_data')
       .select('year')
       .eq('projectId', projectId)
+        .eq('organizationid', organizationId) // Filter by organization
       .order('year', { ascending: false });
 
     if (error) {

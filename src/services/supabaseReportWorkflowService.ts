@@ -29,6 +29,41 @@ export interface WorkflowListResponse {
 }
 
 class SupabaseReportWorkflowService {
+  /**
+   * Get current user's organizationId
+   */
+  private async getCurrentUserOrganizationId(): Promise<string> {
+    const currentUser = await supabaseAuthService.getCurrentUser();
+    if (!currentUser) {
+      throw new Error('Not authenticated');
+    }
+
+    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User is not associated with an organization');
+    }
+
+    return userProfile.organizationId;
+  }
+
+  /**
+   * Verify project belongs to user's organization
+   */
+  private async verifyProjectOwnership(projectId: string): Promise<void> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    const { data, error } = await supabase
+      .from('projects')
+      .select('id, organizationid')
+      .eq('id', projectId)
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (error || !data) {
+      throw new Error('Project not found or access denied');
+    }
+  }
+
   private formatWorkflowSummary(workflow: ReportWorkflow, steps?: ReportApprovalStep[]): WorkflowReportSummary {
     return {
       id: workflow.id,
@@ -49,23 +84,32 @@ class SupabaseReportWorkflowService {
   }
 
   async getPendingReviews(projectId?: string): Promise<WorkflowListResponse> {
+    // Multi-tenant: Filter by organizationId
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // If projectId is provided, verify ownership
+    if (projectId) {
+      await this.verifyProjectOwnership(projectId);
+    }
+    
     const currentUser = await supabaseAuthService.getCurrentUser();
     if (!currentUser) {
       throw new Error('Not authenticated');
     }
 
     const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
-      throw new Error('User profile not found');
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User profile not found or user is not associated with an organization');
     }
 
-    // Get workflows with pending approval steps for current user
+    // Get workflows with pending approval steps for current user (filtered by organization)
     let query = supabase
       .from('report_workflows')
       .select(`
         *,
         approvalSteps:report_approval_steps(*)
       `)
+      .eq('organizationid', organizationId) // Filter by organization
       .or('status.eq.PENDING,status.eq.IN_REVIEW,status.eq.CHANGES_REQUESTED');
 
     if (projectId) {
@@ -94,6 +138,14 @@ class SupabaseReportWorkflowService {
   }
 
   async getMyReports(projectId?: string, status?: string): Promise<WorkflowListResponse> {
+    // Multi-tenant: Filter by organizationId
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // If projectId is provided, verify ownership
+    if (projectId) {
+      await this.verifyProjectOwnership(projectId);
+    }
+    
     const currentUser = await supabaseAuthService.getCurrentUser();
     if (!currentUser) {
       throw new Error('Not authenticated');
@@ -110,7 +162,8 @@ class SupabaseReportWorkflowService {
         *,
         approvalSteps:report_approval_steps(*)
       `)
-      .eq('submittedBy', userProfile.id);
+      .eq('submittedBy', userProfile.id)
+      .eq('organizationid', organizationId); // Filter by organization
 
     if (projectId) {
       query = query.eq('projectId', projectId);
@@ -134,6 +187,9 @@ class SupabaseReportWorkflowService {
   }
 
   async getReportById(reportId: string): Promise<WorkflowReportSummary> {
+    // Multi-tenant: Filter by organizationId
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { data: workflow, error } = await supabase
       .from('report_workflows')
       .select(`
@@ -141,27 +197,32 @@ class SupabaseReportWorkflowService {
         approvalSteps:report_approval_steps(*)
       `)
       .eq('id', reportId)
+      .eq('organizationid', organizationId) // Ensure ownership
       .single();
 
     if (error || !workflow) {
-      throw new Error(error?.message || 'Report workflow not found');
+      throw new Error(error?.message || 'Report workflow not found or access denied');
     }
 
     return this.formatWorkflowSummary(workflow, (workflow as any).approvalSteps);
   }
 
   async getByFile(fileReportId: string): Promise<WorkflowReportSummary> {
-    // Find workflow that contains this file ID
+    // Multi-tenant: Filter by organizationId
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // Find workflow that contains this file ID (filtered by organization)
     const { data: workflows, error } = await supabase
       .from('report_workflows')
       .select(`
         *,
         approvalSteps:report_approval_steps(*)
       `)
-      .contains('fileIds', [fileReportId]);
+      .contains('fileIds', [fileReportId])
+      .eq('organizationid', organizationId); // Filter by organization
 
     if (error || !workflows || workflows.length === 0) {
-      throw new Error(error?.message || 'Workflow not found for this file');
+      throw new Error(error?.message || 'Workflow not found for this file or access denied');
     }
 
     return this.formatWorkflowSummary(workflows[0], (workflows[0] as any).approvalSteps);
@@ -184,7 +245,10 @@ class SupabaseReportWorkflowService {
       throw new Error('User profile not found');
     }
 
-    // Get workflow and approval steps
+    // Multi-tenant: Verify ownership
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // Get workflow and approval steps (filtered by organization)
     const { data: workflow, error: workflowError } = await supabase
       .from('report_workflows')
       .select(`
@@ -192,10 +256,11 @@ class SupabaseReportWorkflowService {
         approvalSteps:report_approval_steps(*)
       `)
       .eq('id', reportId)
+      .eq('organizationid', organizationId) // Ensure ownership
       .single();
 
     if (workflowError || !workflow) {
-      throw new Error(workflowError?.message || 'Report workflow not found');
+      throw new Error(workflowError?.message || 'Report workflow not found or access denied');
     }
 
     const steps = (workflow as any).approvalSteps as ReportApprovalStep[];
@@ -214,7 +279,7 @@ class SupabaseReportWorkflowService {
       throw new Error('You must wait for prior approvals before taking action');
     }
 
-    // Update approval step
+    // Update approval step (ensure ownership)
     const now = new Date().toISOString();
     const { error: stepError } = await supabase
       .from('report_approval_steps')
@@ -226,7 +291,8 @@ class SupabaseReportWorkflowService {
         completedAt: now,
         updatedAt: now,
       })
-      .eq('id', userStep.id);
+      .eq('id', userStep.id)
+      .eq('organizationid', organizationId); // Ensure ownership
 
     if (stepError) {
       throw new Error(stepError.message || 'Failed to update approval step');
@@ -264,10 +330,12 @@ class SupabaseReportWorkflowService {
       updateData.completedAt = now;
     }
 
+    // Multi-tenant: Ensure ownership
     const { data: updatedWorkflow, error: updateError } = await supabase
       .from('report_workflows')
       .update(updateData)
       .eq('id', reportId)
+      .eq('organizationid', organizationId) // Ensure ownership
       .select(`
         *,
         approvalSteps:report_approval_steps(*)
@@ -287,23 +355,39 @@ class SupabaseReportWorkflowService {
     isInternal?: boolean,
     replyToCommentId?: string
   ): Promise<void> {
+    // Multi-tenant: Verify workflow belongs to user's organization
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // Verify workflow ownership
+    const { data: workflow, error: workflowError } = await supabase
+      .from('report_workflows')
+      .select('id, organizationid')
+      .eq('id', reportId)
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (workflowError || !workflow) {
+      throw new Error('Report workflow not found or access denied');
+    }
+    
     const currentUser = await supabaseAuthService.getCurrentUser();
     if (!currentUser) {
       throw new Error('Not authenticated');
     }
 
     const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
-      throw new Error('User profile not found');
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User profile not found or user is not associated with an organization');
     }
 
-    // Calculate thread depth if this is a reply
+    // Calculate thread depth if this is a reply (filtered by organization)
     let threadDepth = 0;
     if (replyToCommentId) {
       const { data: parentComment } = await supabase
         .from('report_comments')
         .select('threadDepth')
         .eq('id', replyToCommentId)
+        .eq('organizationid', organizationId) // Ensure ownership
         .single();
 
       if (parentComment) {
@@ -324,6 +408,7 @@ class SupabaseReportWorkflowService {
         isInternal: isInternal || false,
         parentCommentId: replyToCommentId || null,
         threadDepth,
+        organizationid: organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
         createdAt: now,
         updatedAt: now,
       });
@@ -360,7 +445,8 @@ class SupabaseReportWorkflowService {
       updateData.fileIds = fileIds;
     }
 
-    // Reset all approval steps
+    // Reset all approval steps (filtered by organization)
+    const organizationId = await this.getCurrentUserOrganizationId();
     await supabase
       .from('report_approval_steps')
       .update({
@@ -371,12 +457,15 @@ class SupabaseReportWorkflowService {
         reasoning: null,
         updatedAt: now,
       })
-      .eq('reportWorkflowId', reportId);
+      .eq('reportWorkflowId', reportId)
+      .eq('organizationid', organizationId); // Filter by organization
 
+    // Multi-tenant: Ensure ownership
     const { data: updated, error } = await supabase
       .from('report_workflows')
       .update(updateData)
       .eq('id', reportId)
+      .eq('organizationid', organizationId) // Ensure ownership
       .select(`
         *,
         approvalSteps:report_approval_steps(*)
@@ -384,14 +473,30 @@ class SupabaseReportWorkflowService {
       .single();
 
     if (error || !updated) {
-      throw new Error(error?.message || 'Failed to resubmit workflow');
+      throw new Error(error?.message || 'Failed to resubmit workflow or access denied');
     }
 
     return this.formatWorkflowSummary(updated, (updated as any).approvalSteps);
   }
 
   async cancelWorkflow(reportId: string, reason?: string): Promise<WorkflowReportSummary> {
+    // Multi-tenant: Verify ownership first
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // Verify workflow ownership
+    const { data: workflow, error: workflowError } = await supabase
+      .from('report_workflows')
+      .select('id, organizationid')
+      .eq('id', reportId)
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (workflowError || !workflow) {
+      throw new Error('Report workflow not found or access denied');
+    }
+    
     const now = new Date().toISOString();
+    // Multi-tenant: Ensure ownership
     const { data: updated, error } = await supabase
       .from('report_workflows')
       .update({
@@ -401,6 +506,7 @@ class SupabaseReportWorkflowService {
         updatedAt: now,
       })
       .eq('id', reportId)
+      .eq('organizationid', organizationId) // Ensure ownership
       .select(`
         *,
         approvalSteps:report_approval_steps(*)
@@ -419,17 +525,50 @@ class SupabaseReportWorkflowService {
   }
 
   async delegateReview(stepId: string, delegateToUserId: string, reason: string): Promise<void> {
+    // Multi-tenant: Verify ownership
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // Verify step belongs to organization
+    const { data: step, error: stepError } = await supabase
+      .from('report_approval_steps')
+      .select('id, organizationid, reviewerId')
+      .eq('id', stepId)
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (stepError || !step) {
+      throw new Error('Approval step not found or access denied');
+    }
+    
+    // Verify delegate user belongs to same organization
+    const { data: delegateUser, error: userError } = await supabase
+      .from('users')
+      .select('id, organizationid')
+      .eq('id', delegateToUserId)
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (userError || !delegateUser) {
+      throw new Error('Delegate user not found or access denied');
+    }
+    
     const currentUser = await supabaseAuthService.getCurrentUser();
     if (!currentUser) {
       throw new Error('Not authenticated');
     }
 
     const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
-      throw new Error('User profile not found');
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User profile not found or user is not associated with an organization');
+    }
+
+    // Verify current user is the reviewer
+    if (step.reviewerId !== userProfile.id) {
+      throw new Error('You are not authorized to delegate this review step');
     }
 
     const now = new Date().toISOString();
+    // Multi-tenant: Ensure ownership
     const { error } = await supabase
       .from('report_approval_steps')
       .update({
@@ -440,7 +579,8 @@ class SupabaseReportWorkflowService {
         delegationReason: reason,
         updatedAt: now,
       })
-      .eq('id', stepId);
+      .eq('id', stepId)
+      .eq('organizationid', organizationId); // Ensure ownership
 
     if (error) {
       throw new Error(error.message || 'Failed to delegate review');
@@ -452,22 +592,38 @@ class SupabaseReportWorkflowService {
     escalationReason: string,
     escalateToUserId: string
   ): Promise<WorkflowReportSummary> {
+    // Multi-tenant: Verify ownership (getReportById already verifies)
+    const workflow = await this.getReportById(reportId);
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // Verify escalateTo user belongs to same organization
+    const { data: escalateToUser, error: userError } = await supabase
+      .from('users')
+      .select('id, organizationid')
+      .eq('id', escalateToUserId)
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (userError || !escalateToUser) {
+      throw new Error('Escalate to user not found or access denied');
+    }
+    
     const currentUser = await supabaseAuthService.getCurrentUser();
     if (!currentUser) {
       throw new Error('Not authenticated');
     }
 
     const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
-      throw new Error('User profile not found');
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User profile not found or user is not associated with an organization');
     }
 
-    // Create a new approval step for escalation
-    const workflow = await this.getReportById(reportId);
+    // Create a new approval step for escalation (filtered by organization)
     const { data: steps } = await supabase
       .from('report_approval_steps')
       .select('stepOrder')
       .eq('reportWorkflowId', reportId)
+      .eq('organizationid', organizationId) // Filter by organization
       .order('stepOrder', { ascending: false })
       .limit(1)
       .single();
@@ -492,12 +648,13 @@ class SupabaseReportWorkflowService {
         escalationReason,
         escalatedBy: userProfile.id,
         escalatedAt: now,
+        organizationid: organizationId, // Multi-tenant: Set organizationId
         createdBy: userProfile.id,
         createdAt: now,
         updatedAt: now,
       });
 
-    // Update workflow
+    // Update workflow (ensure ownership)
     const { data: updated, error } = await supabase
       .from('report_workflows')
       .update({
@@ -506,6 +663,7 @@ class SupabaseReportWorkflowService {
         updatedAt: now,
       })
       .eq('id', reportId)
+      .eq('organizationid', organizationId) // Ensure ownership
       .select(`
         *,
         approvalSteps:report_approval_steps(*)
@@ -520,13 +678,30 @@ class SupabaseReportWorkflowService {
   }
 
   async setStepDueDate(stepId: string, dueDate: Date): Promise<void> {
+    // Multi-tenant: Verify ownership
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // Verify step belongs to organization
+    const { data: step, error: stepError } = await supabase
+      .from('report_approval_steps')
+      .select('id, organizationid')
+      .eq('id', stepId)
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (stepError || !step) {
+      throw new Error('Approval step not found or access denied');
+    }
+    
+    // Multi-tenant: Ensure ownership
     const { error } = await supabase
       .from('report_approval_steps')
       .update({
         dueDate: dueDate.toISOString(),
         updatedAt: new Date().toISOString(),
       })
-      .eq('id', stepId);
+      .eq('id', stepId)
+      .eq('organizationid', organizationId); // Ensure ownership
 
     if (error) {
       throw new Error(error.message || 'Failed to set due date');
@@ -540,6 +715,21 @@ class SupabaseReportWorkflowService {
     reason?: string,
     details?: string
   ): Promise<WorkflowReportSummary> {
+    // Multi-tenant: Verify ownership first
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // Verify workflow ownership
+    const { data: workflow, error: workflowError } = await supabase
+      .from('report_workflows')
+      .select('id, organizationid')
+      .eq('id', reportId)
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (workflowError || !workflow) {
+      throw new Error('Report workflow not found or access denied');
+    }
+    
     const updateData: any = {
       status: status as Database['public']['Enums']['WorkflowStatus'],
       updatedAt: new Date().toISOString(),
@@ -551,10 +741,12 @@ class SupabaseReportWorkflowService {
       updateData.completedAt = new Date().toISOString();
     }
 
+    // Multi-tenant: Ensure ownership
     const { data: updated, error } = await supabase
       .from('report_workflows')
       .update(updateData)
       .eq('id', reportId)
+      .eq('organizationid', organizationId) // Ensure ownership
       .select(`
         *,
         approvalSteps:report_approval_steps(*)
@@ -573,6 +765,22 @@ class SupabaseReportWorkflowService {
   }
 
   async startReview(stepId: string): Promise<void> {
+    // Multi-tenant: Verify ownership
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // Verify step belongs to organization
+    const { data: step, error: stepError } = await supabase
+      .from('report_approval_steps')
+      .select('id, organizationid')
+      .eq('id', stepId)
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (stepError || !step) {
+      throw new Error('Approval step not found or access denied');
+    }
+    
+    // Multi-tenant: Ensure ownership
     const { error } = await supabase
       .from('report_approval_steps')
       .update({
@@ -580,7 +788,8 @@ class SupabaseReportWorkflowService {
         lastViewedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       })
-      .eq('id', stepId);
+      .eq('id', stepId)
+      .eq('organizationid', organizationId); // Ensure ownership
 
     if (error) {
       throw new Error(error.message || 'Failed to start review tracking');
@@ -626,12 +835,20 @@ class SupabaseReportWorkflowService {
       throw new Error('User profile not found');
     }
 
-    // Get current file IDs from workflow
-    const { data: currentWorkflow } = await supabase
+    // Multi-tenant: Verify ownership (getReportById already verifies)
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // Get current file IDs from workflow (filtered by organization)
+    const { data: currentWorkflow, error: workflowError } = await supabase
       .from('report_workflows')
-      .select('fileIds')
+      .select('fileIds, organizationid')
       .eq('id', reportId)
+      .eq('organizationid', organizationId) // Ensure ownership
       .single();
+
+    if (workflowError || !currentWorkflow) {
+      throw new Error('Report workflow not found or access denied');
+    }
 
     const now = new Date().toISOString();
     const versionId = crypto.randomUUID();
@@ -643,19 +860,21 @@ class SupabaseReportWorkflowService {
         versionNumber: newVersion,
         fileIds: currentWorkflow?.fileIds || [],
         checkpointNote,
+        organizationid: organizationId, // Multi-tenant: Set organizationId
         submittedBy: userProfile.id,
         submittedAt: now,
         createdAt: now,
       });
 
-    // Update workflow version
+    // Update workflow version (ensure ownership)
     await supabase
       .from('report_workflows')
       .update({
         currentVersion: newVersion,
         updatedAt: now,
       })
-      .eq('id', reportId);
+      .eq('id', reportId)
+      .eq('organizationid', organizationId); // Ensure ownership
 
     return { versionNumber: newVersion, checkpointNote };
   }
@@ -675,18 +894,23 @@ class SupabaseReportWorkflowService {
       throw new Error('User profile not found');
     }
 
-    // Get the step to return to
-    const { data: targetStep } = await supabase
+    // Multi-tenant: Verify workflow ownership first
+    const workflow = await this.getReportById(reportId);
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // Get the step to return to (filtered by organization)
+    const { data: targetStep, error: stepError } = await supabase
       .from('report_approval_steps')
-      .select('stepOrder')
+      .select('stepOrder, organizationid')
       .eq('id', returnToStepId)
+      .eq('organizationid', organizationId) // Ensure ownership
       .single();
 
-    if (!targetStep) {
-      throw new Error('Target step not found');
+    if (stepError || !targetStep) {
+      throw new Error('Target step not found or access denied');
     }
 
-    // Reset all steps after the target step
+    // Reset all steps after the target step (filtered by organization)
     const now = new Date().toISOString();
     await supabase
       .from('report_approval_steps')
@@ -703,6 +927,7 @@ class SupabaseReportWorkflowService {
         updatedAt: now,
       })
       .eq('reportWorkflowId', reportId)
+      .eq('organizationid', organizationId) // Filter by organization
       .gt('stepOrder', targetStep.stepOrder);
 
     // Update workflow status
@@ -734,10 +959,15 @@ class SupabaseReportWorkflowService {
     approvedWeight: number;
     requiredWeight: number;
   }> {
+    // Multi-tenant: Verify workflow ownership first
+    await this.getReportById(reportId); // This verifies ownership
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { data: steps } = await supabase
       .from('report_approval_steps')
       .select('approvalWeight, isCompleted, isRequired')
-      .eq('reportWorkflowId', reportId);
+      .eq('reportWorkflowId', reportId)
+      .eq('organizationid', organizationId); // Filter by organization
 
     const totalWeight = (steps || []).reduce((sum, s) => sum + (s.approvalWeight || 0), 0);
     const approvedWeight = (steps || [])
@@ -794,23 +1024,52 @@ class SupabaseReportWorkflowService {
     reassignToUserId: string,
     reason?: string
   ): Promise<{ success: number; failed: number; errors: string[] }> {
-    // Get all pending steps for these workflows
+    // Multi-tenant: Verify ownership
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // Verify reassignTo user belongs to same organization
+    const { data: reassignToUser, error: userError } = await supabase
+      .from('users')
+      .select('id, organizationid')
+      .eq('id', reassignToUserId)
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (userError || !reassignToUser) {
+      throw new Error('Reassign to user not found or access denied');
+    }
+    
+    // Verify all workflows belong to organization
+    const { data: workflows, error: workflowsError } = await supabase
+      .from('report_workflows')
+      .select('id, organizationid')
+      .in('id', reportIds)
+      .eq('organizationid', organizationId);
+
+    if (workflowsError || !workflows || workflows.length !== reportIds.length) {
+      throw new Error('One or more workflows not found or access denied');
+    }
+    
+    // Get all pending steps for these workflows (filtered by organization)
     const { data: steps } = await supabase
       .from('report_approval_steps')
       .select('id, reportWorkflowId')
       .in('reportWorkflowId', reportIds)
+      .eq('organizationid', organizationId) // Filter by organization
       .eq('isCompleted', false);
 
     const stepIds = (steps || []).map(s => s.id);
     const now = new Date().toISOString();
 
+    // Multi-tenant: Ensure ownership
     const { error } = await supabase
       .from('report_approval_steps')
       .update({
         reviewerId: reassignToUserId,
         updatedAt: now,
       })
-      .in('id', stepIds);
+      .in('id', stepIds)
+      .eq('organizationid', organizationId); // Filter by organization
 
     if (error) {
       return { success: 0, failed: reportIds.length, errors: [error.message] };
@@ -840,13 +1099,22 @@ class SupabaseReportWorkflowService {
       }>;
     }>;
   }> {
-    // First get workflows if projectId is specified
+    // Multi-tenant: Filter by organizationId
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // If projectId is provided, verify ownership
+    if (projectId) {
+      await this.verifyProjectOwnership(projectId);
+    }
+    
+    // First get workflows if projectId is specified (filtered by organization)
     let workflowIds: string[] | undefined;
     if (projectId) {
       const { data: workflows } = await supabase
         .from('report_workflows')
         .select('id')
-        .eq('projectId', projectId);
+        .eq('projectId', projectId)
+        .eq('organizationid', organizationId); // Filter by organization
       workflowIds = workflows?.map(w => w.id);
       if (!workflowIds || workflowIds.length === 0) {
         return { reviewers: [] };
@@ -859,7 +1127,8 @@ class SupabaseReportWorkflowService {
         *,
         workflow:report_workflows(*)
       `)
-      .eq('isCompleted', false);
+      .eq('isCompleted', false)
+      .eq('organizationid', organizationId); // Multi-tenant: Filter by organization
 
     if (reviewerId) {
       stepsQuery = stepsQuery.eq('reviewerId', reviewerId);
@@ -914,12 +1183,13 @@ class SupabaseReportWorkflowService {
       });
     });
 
-    // Fetch reviewer names
+    // Fetch reviewer names (filtered by organization)
     const reviewerIds = Array.from(reviewerMap.keys());
     const { data: users } = await supabase
       .from('users')
       .select('id, firstName, lastName, email')
-      .in('id', reviewerIds);
+      .in('id', reviewerIds)
+      .eq('organizationid', organizationId); // Multi-tenant: Filter by organization
 
     const reviewers = Array.from(reviewerMap.values()).map(reviewer => {
       const user = users?.find(u => u.id === reviewer.reviewerId);

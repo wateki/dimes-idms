@@ -1,7 +1,7 @@
 import React from 'react';
 import { Sidebar, Menu, MenuItem, SubMenu } from 'react-pro-sidebar';
 import { Link, useLocation } from 'react-router-dom';
-import { Target, Activity, Users, Settings, Folder, Circle, CheckCircle2, Flag, FileText, Plus, ClipboardList, X, DollarSign, MessageSquare, Database, BookOpen, Edit3, Archive, RotateCcw } from 'lucide-react';
+import { Target, Activity, Users, Settings, Folder, Circle, CheckCircle2, Flag, FileText, Plus, ClipboardList, X, DollarSign, MessageSquare, Database, BookOpen, Edit3, Archive, RotateCcw, Building2, CreditCard, BarChart3, FileSearch } from 'lucide-react';
 import { useDashboard } from '@/contexts/DashboardContext';
 import { useProjects } from '@/contexts/ProjectsContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -462,6 +462,58 @@ export function ProSidebar() {
                   );
                 })()}
               </SubMenu>
+              
+              {/* Organization Admin section - Only for global admins */}
+              {isAdmin() && (
+                <SubMenu 
+                  label="Organization" 
+                  icon={<Building2 className="h-4 w-4" />}
+                  className="text-sm"
+                >
+                  <MenuItem 
+                    component={<Link to="/dashboard/organization" onClick={handleCloseSidebar} />}
+                    className="text-sm"
+                    icon={<BarChart3 className="h-4 w-4" />}
+                  >
+                    Dashboard
+                  </MenuItem>
+                  <MenuItem 
+                    component={<Link to="/dashboard/organization/settings" onClick={handleCloseSidebar} />}
+                    className="text-sm"
+                    icon={<Settings className="h-4 w-4" />}
+                  >
+                    Settings
+                  </MenuItem>
+                  <MenuItem 
+                    component={<Link to="/dashboard/organization/team" onClick={handleCloseSidebar} />}
+                    className="text-sm"
+                    icon={<Users className="h-4 w-4" />}
+                  >
+                    Team Management
+                  </MenuItem>
+                  <MenuItem 
+                    component={<Link to="/dashboard/organization/subscription" onClick={handleCloseSidebar} />}
+                    className="text-sm"
+                    icon={<CreditCard className="h-4 w-4" />}
+                  >
+                    Subscription & Billing
+                  </MenuItem>
+                  <MenuItem 
+                    component={<Link to="/dashboard/organization/usage" onClick={handleCloseSidebar} />}
+                    className="text-sm"
+                    icon={<Database className="h-4 w-4" />}
+                  >
+                    Usage & Limits
+                  </MenuItem>
+                  <MenuItem 
+                    component={<Link to="/dashboard/organization/audit-logs" onClick={handleCloseSidebar} />}
+                    className="text-sm"
+                    icon={<FileSearch className="h-4 w-4" />}
+                  >
+                    Audit Logs
+                  </MenuItem>
+                </SubMenu>
+              )}
               
               {/* Admin section - Check for user management permissions */}
               {(permissionManager.canManageUsers('global') || isRegionalCoordinator()) && (

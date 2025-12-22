@@ -49,10 +49,31 @@ class SupabaseProjectsService {
     };
   }
 
+  /**
+   * Get current user's organizationId
+   */
+  private async getCurrentUserOrganizationId(): Promise<string> {
+    const currentUser = await supabaseAuthService.getCurrentUser();
+    if (!currentUser) {
+      throw new Error('Not authenticated');
+    }
+
+    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User is not associated with an organization');
+    }
+
+    return userProfile.organizationId;
+  }
+
   async getAllProjects(): Promise<Project[]> {
+    // Multi-tenant: Filter by organizationId
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { data, error } = await supabase
       .from('projects')
       .select('*')
+      .eq('organizationid', organizationId) // Filter by organization
       .order('createdAt', { ascending: false });
 
     if (error) {
@@ -63,10 +84,14 @@ class SupabaseProjectsService {
   }
 
   async getProjectById(id: string): Promise<Project> {
+    // Multi-tenant: Filter by organizationId
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { data, error } = await supabase
       .from('projects')
       .select('*')
       .eq('id', id)
+      .eq('organizationid', organizationId) // Ensure project belongs to user's organization
       .single();
 
     if (error || !data) {
@@ -77,10 +102,14 @@ class SupabaseProjectsService {
   }
 
   async getProjectsByCountry(country: string): Promise<Project[]> {
+    // Multi-tenant: Filter by organizationId
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { data, error } = await supabase
       .from('projects')
       .select('*')
       .eq('country', country)
+      .eq('organizationid', organizationId) // Filter by organization
       .order('createdAt', { ascending: false });
 
     if (error) {
@@ -97,8 +126,8 @@ class SupabaseProjectsService {
     }
 
     const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
-      throw new Error('User profile not found');
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User profile not found or user is not associated with an organization');
     }
 
     const now = new Date().toISOString();
@@ -118,6 +147,7 @@ class SupabaseProjectsService {
         backgroundInformation: projectData.backgroundInformation || null,
         mapData: projectData.mapData || null,
         theoryOfChange: projectData.theoryOfChange || null,
+        organizationId: userProfile.organizationId, // Multi-tenant: Set organizationId
         createdBy: userProfile.id,
         updatedBy: userProfile.id,
         createdAt: now,
@@ -140,8 +170,8 @@ class SupabaseProjectsService {
     }
 
     const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
-      throw new Error('User profile not found');
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User profile not found or user is not associated with an organization');
     }
 
     const updateData: any = {
@@ -162,28 +192,34 @@ class SupabaseProjectsService {
     if (updates.mapData !== undefined) updateData.mapData = updates.mapData || null;
     if (updates.theoryOfChange !== undefined) updateData.theoryOfChange = updates.theoryOfChange || null;
 
+    // Multi-tenant: Ensure project belongs to user's organization before updating
     const { data, error } = await supabase
       .from('projects')
       .update(updateData)
       .eq('id', id)
+      .eq('organizationid', userProfile.organizationId) // Ensure project belongs to user's organization
       .select()
       .single();
 
     if (error || !data) {
-      throw new Error(error?.message || 'Failed to update project');
+      throw new Error(error?.message || 'Project not found or access denied');
     }
 
     return this.formatProject(data);
   }
 
   async deleteProject(id: string): Promise<{ success: boolean; message: string }> {
+    // Multi-tenant: Ensure project belongs to user's organization before deleting
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { error } = await supabase
       .from('projects')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('organizationid', organizationId); // Ensure project belongs to user's organization
 
     if (error) {
-      throw new Error(error.message || 'Failed to delete project');
+      throw new Error(error.message || 'Failed to delete project or access denied');
     }
 
     return { success: true, message: 'Project deleted successfully' };

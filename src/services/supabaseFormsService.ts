@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { Database } from '@/types/supabase';
+import { supabaseAuthService } from './supabaseAuthService';
 
 type Form = Database['public']['Tables']['forms']['Row'];
 type FormInsert = Database['public']['Tables']['forms']['Insert'];
@@ -30,6 +31,41 @@ type FormResponseWithAttachments = FormResponse & {
 };
 
 class SupabaseFormsService {
+  /**
+   * Get current user's organizationId
+   */
+  private async getCurrentUserOrganizationId(): Promise<string> {
+    const currentUser = await supabaseAuthService.getCurrentUser();
+    if (!currentUser) {
+      throw new Error('Not authenticated');
+    }
+
+    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
+    if (!userProfile || !userProfile.organizationId) {
+      throw new Error('User is not associated with an organization');
+    }
+
+    return userProfile.organizationId;
+  }
+
+  /**
+   * Verify project belongs to user's organization
+   */
+  private async verifyProjectOwnership(projectId: string): Promise<void> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    const { data, error } = await supabase
+      .from('projects')
+      .select('id, organizationid')
+      .eq('id', projectId)
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (error || !data) {
+      throw new Error('Project not found or access denied');
+    }
+  }
+
   // ========================================
   // FORM MANAGEMENT
   // ========================================
@@ -43,6 +79,11 @@ class SupabaseFormsService {
     sections?: any[];
     settings?: any;
   }, createdBy: string): Promise<FormWithSections> {
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(projectId);
+    
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     // Create form
     const { data: form, error: formError } = await supabase
       .from('forms')
@@ -55,6 +96,7 @@ class SupabaseFormsService {
         tags: formData.tags || null,
         category: formData.category || null,
         settings: formData.settings || {},
+        organizationid: organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
         createdBy,
         updatedAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
@@ -150,6 +192,11 @@ class SupabaseFormsService {
   }
 
   async getProjectForms(projectId: string): Promise<FormWithSections[]> {
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(projectId);
+    
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { data: forms, error } = await supabase
       .from('forms')
       .select(`
@@ -160,6 +207,7 @@ class SupabaseFormsService {
         )
       `)
       .eq('projectId', projectId)
+      .eq('organizationid', organizationId) // Filter by organization
       .order('createdAt', { ascending: false });
 
     if (error) throw new Error(`Failed to fetch forms: ${error.message}`);
@@ -175,6 +223,11 @@ class SupabaseFormsService {
   }
 
   async getForm(projectId: string, formId: string): Promise<FormWithSections> {
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(projectId);
+    
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { data: form, error } = await supabase
       .from('forms')
       .select(`
@@ -186,6 +239,7 @@ class SupabaseFormsService {
       `)
       .eq('id', formId)
       .eq('projectId', projectId)
+      .eq('organizationid', organizationId) // Ensure ownership
       .single();
 
     if (error) throw new Error(`Failed to fetch form: ${error.message}`);
@@ -220,11 +274,17 @@ class SupabaseFormsService {
     if (updates.category !== undefined) formUpdate.category = updates.category;
     if (updates.settings !== undefined) formUpdate.settings = updates.settings;
 
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(projectId);
+    
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { error: updateError } = await supabase
       .from('forms')
       .update(formUpdate)
       .eq('id', formId)
-      .eq('projectId', projectId);
+      .eq('projectId', projectId)
+      .eq('organizationid', organizationId); // Ensure ownership
 
     if (updateError) throw new Error(`Failed to update form: ${updateError.message}`);
 
@@ -259,12 +319,18 @@ class SupabaseFormsService {
   }
 
   async deleteForm(projectId: string, formId: string): Promise<void> {
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(projectId);
+    
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     // Delete form (cascade should handle sections and questions)
     const { error } = await supabase
       .from('forms')
       .delete()
       .eq('id', formId)
-      .eq('projectId', projectId);
+      .eq('projectId', projectId)
+      .eq('organizationid', organizationId); // Ensure ownership
 
     if (error) throw new Error(`Failed to delete form: ${error.message}`);
   }
@@ -426,14 +492,23 @@ class SupabaseFormsService {
     source?: string;
     data: Record<string, any>;
   }): Promise<FormResponseWithAttachments> {
-    // Get form version
+    // Multi-tenant: Verify form belongs to user's organization
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // Get form version and verify ownership
     const { data: form, error: formError } = await supabase
       .from('forms')
-      .select('version, responseCount')
+      .select('version, responseCount, projectId, organizationid')
       .eq('id', responseData.formId)
+      .eq('organizationid', organizationId) // Verify ownership
       .single();
 
-    if (formError) throw new Error(`Failed to fetch form: ${formError.message}`);
+    if (formError || !form) throw new Error(`Failed to fetch form or access denied: ${formError?.message}`);
+    
+    // Verify project ownership
+    if (form.projectId) {
+      await this.verifyProjectOwnership(form.projectId);
+    }
 
     const responseId = crypto.randomUUID();
 
@@ -450,6 +525,7 @@ class SupabaseFormsService {
         ipAddress: responseData.ipAddress || null,
         userAgent: responseData.userAgent || null,
         source: responseData.source || null,
+        organizationid: organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
         startedAt: new Date().toISOString(),
         submittedAt: responseData.isComplete ? new Date().toISOString() : null,
       })
@@ -535,6 +611,11 @@ class SupabaseFormsService {
     totalPages: number;
     stats: { totalAll: number; totalComplete: number; totalIncomplete: number };
   }> {
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(projectId);
+    
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const page = options?.page || 1;
     const limit = options?.limit || 100;
     const skip = (page - 1) * limit;
@@ -547,7 +628,8 @@ class SupabaseFormsService {
         attachments:media_attachments(*),
         questionResponses:form_question_responses(*)
       `, { count: 'exact' })
-      .eq('formId', formId);
+      .eq('formId', formId)
+      .eq('organizationid', organizationId); // Filter by organization
 
     // Apply status filter
     if (options?.status === 'complete') {
@@ -568,22 +650,25 @@ class SupabaseFormsService {
 
     if (error) throw new Error(`Failed to fetch responses: ${error.message}`);
 
-    // Get stats
+    // Get stats (filtered by organization)
     const { count: totalAll } = await supabase
       .from('form_responses')
       .select('*', { count: 'exact', head: true })
-      .eq('formId', formId);
+      .eq('formId', formId)
+      .eq('organizationid', organizationId); // Filter by organization
 
     const { count: totalComplete } = await supabase
       .from('form_responses')
       .select('*', { count: 'exact', head: true })
       .eq('formId', formId)
+      .eq('organizationid', organizationId) // Filter by organization
       .eq('isComplete', true);
 
     const { count: totalIncomplete } = await supabase
       .from('form_responses')
       .select('*', { count: 'exact', head: true })
       .eq('formId', formId)
+      .eq('organizationid', organizationId) // Filter by organization
       .eq('isComplete', false);
 
     return {
@@ -664,6 +749,11 @@ class SupabaseFormsService {
   }
 
   async getFormResponse(projectId: string, formId: string, responseId: string): Promise<FormResponseWithAttachments> {
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(projectId);
+    
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { data: response, error } = await supabase
       .from('form_responses')
       .select(`
@@ -673,6 +763,7 @@ class SupabaseFormsService {
       `)
       .eq('id', responseId)
       .eq('formId', formId)
+      .eq('organizationid', organizationId) // Ensure ownership
       .single();
 
     if (error) throw new Error(`Failed to fetch response: ${error.message}`);
@@ -702,6 +793,11 @@ class SupabaseFormsService {
       data?: Record<string, any>;
     }
   ): Promise<FormResponseWithAttachments> {
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(projectId);
+    
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const updateData: FormResponseUpdate = {};
     if (updates.respondentEmail !== undefined) updateData.respondentEmail = updates.respondentEmail;
     if (updates.isComplete !== undefined) {
@@ -717,7 +813,8 @@ class SupabaseFormsService {
         .from('form_responses')
         .update(updateData)
         .eq('id', responseId)
-        .eq('formId', formId);
+        .eq('formId', formId)
+        .eq('organizationid', organizationId); // Ensure ownership
 
       if (updateError) throw new Error(`Failed to update response: ${updateError.message}`);
     }
@@ -768,11 +865,17 @@ class SupabaseFormsService {
   }
 
   async deleteFormResponse(projectId: string, formId: string, responseId: string): Promise<void> {
+    // Multi-tenant: Verify project ownership first
+    await this.verifyProjectOwnership(projectId);
+    
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { error } = await supabase
       .from('form_responses')
       .delete()
       .eq('id', responseId)
-      .eq('formId', formId);
+      .eq('formId', formId)
+      .eq('organizationid', organizationId); // Ensure ownership
 
     if (error) throw new Error(`Failed to delete response: ${error.message}`);
   }

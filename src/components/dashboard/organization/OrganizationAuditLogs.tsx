@@ -229,4 +229,3 @@ export function OrganizationAuditLogs() {
     </div>
   );
 }
-

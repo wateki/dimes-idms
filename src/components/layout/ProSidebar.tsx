@@ -473,9 +473,9 @@ export function ProSidebar() {
                   <MenuItem 
                     component={<Link to="/dashboard/organization" onClick={handleCloseSidebar} />}
                     className="text-sm"
-                    icon={<BarChart3 className="h-4 w-4" />}
+                    icon={<Database className="h-4 w-4" />}
                   >
-                    Dashboard
+                    Usage & Limits
                   </MenuItem>
                   <MenuItem 
                     component={<Link to="/dashboard/organization/settings" onClick={handleCloseSidebar} />}
@@ -497,13 +497,6 @@ export function ProSidebar() {
                     icon={<CreditCard className="h-4 w-4" />}
                   >
                     Subscription & Billing
-                  </MenuItem>
-                  <MenuItem 
-                    component={<Link to="/dashboard/organization/usage" onClick={handleCloseSidebar} />}
-                    className="text-sm"
-                    icon={<Database className="h-4 w-4" />}
-                  >
-                    Usage & Limits
                   </MenuItem>
                   <MenuItem 
                     component={<Link to="/dashboard/organization/audit-logs" onClick={handleCloseSidebar} />}

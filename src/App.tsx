@@ -22,7 +22,6 @@ import { Media } from '@/components/dashboard/Media';
 import Financial from '@/components/dashboard/Financial';
 import { UserManagement } from '@/components/dashboard/UserManagement';
 import { Settings } from '@/components/dashboard/Settings';
-import { OrganizationDashboard } from '@/components/dashboard/organization/OrganizationDashboard';
 import { OrganizationSettings } from '@/components/dashboard/organization/OrganizationSettings';
 import { OrganizationTeamManagement } from '@/components/dashboard/organization/OrganizationTeamManagement';
 import { OrganizationSubscription } from '@/components/dashboard/organization/OrganizationSubscription';
@@ -229,7 +228,7 @@ function AppWithNotifications() {
                           </Route>
                           {/* Organization Admin routes */}
                           <Route path="organization" element={<ProtectedRoute roles={['global-admin']} />}>
-                            <Route index element={<OrganizationDashboard />} />
+                            <Route index element={<OrganizationUsage />} />
                             <Route path="settings" element={<OrganizationSettings />} />
                             <Route path="team" element={<OrganizationTeamManagement />} />
                             <Route path="subscription" element={<OrganizationSubscription />} />

@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabaseClient';
 import { supabaseAuthService } from './supabaseAuthService';
+import { paystackService } from './paystackService';
 import type { Database } from '@/types/supabase';
 import type { Organization } from '@/contexts/OrganizationContext';
 
@@ -175,12 +176,12 @@ class SupabaseOrganizationService {
     const { count: totalProjects } = await supabase
       .from('projects')
       .select('*', { count: 'exact', head: true })
-      .eq('organizationId', orgId);
+      .eq('organizationid', orgId);
 
     const { count: activeProjects } = await supabase
       .from('projects')
       .select('*', { count: 'exact', head: true })
-      .eq('organizationId', orgId)
+      .eq('organizationid', orgId)
       .neq('status', 'ARCHIVED');
 
     // Get form counts
@@ -243,6 +244,287 @@ class SupabaseOrganizationService {
           : 0,
       },
     };
+  }
+
+  /**
+   * Initialize subscription payment
+   */
+  async initializeSubscriptionPayment(
+    planCode: string,
+    email: string,
+    amount: number,
+    metadata?: Record<string, any>
+  ): Promise<{ authorization_url: string; access_code: string; reference: string }> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    return await paystackService.initializeSubscription({
+      organizationId,
+      planCode,
+      email,
+      amount,
+      metadata,
+    });
+  }
+
+  /**
+   * Get subscription details
+   */
+  async getSubscription(): Promise<any> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // Get subscription from database
+    const { data: subscription, error } = await supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (error || !subscription) {
+      return null;
+    }
+
+    // If we have a Paystack subscription code, get details from Paystack
+    const paystackCode = (subscription as any).paystacksubscriptioncode;
+    if (paystackCode) {
+      try {
+        const paystackSubscription = await paystackService.getSubscription(paystackCode);
+        return {
+          ...subscription,
+          paystackDetails: paystackSubscription,
+        };
+      } catch (error) {
+        console.error('Failed to fetch Paystack subscription details:', error);
+        return subscription;
+      }
+    }
+
+    return subscription;
+  }
+
+  /**
+   * Get subscription management link
+   */
+  async getSubscriptionManagementLink(): Promise<string | null> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    const { data: subscription } = await supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (!subscription) {
+      return null;
+    }
+
+    const paystackCode = (subscription as any).paystacksubscriptioncode;
+    if (!paystackCode) {
+      return null;
+    }
+
+    try {
+      const result = await paystackService.getSubscriptionLink(paystackCode);
+      return result.link;
+    } catch (error) {
+      console.error('Failed to get subscription management link:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Cancel subscription
+   */
+  async cancelSubscription(token?: string): Promise<void> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    const { data: subscription } = await supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (!subscription) {
+      throw new Error('No active subscription found');
+    }
+
+    const paystackCode = (subscription as any).paystacksubscriptioncode;
+    if (!paystackCode) {
+      throw new Error('No Paystack subscription found');
+    }
+
+    await paystackService.cancelSubscription(paystackCode, token);
+  }
+
+  /**
+   * Get billing history (invoices and payments)
+   */
+  async getBillingHistory(): Promise<Array<{
+    id: string;
+    invoiceCode: string | null;
+    transactionReference: string | null;
+    amount: number | null;
+    paid: boolean | null;
+    paidAt: string | null;
+    periodStart: string | null;
+    periodEnd: string | null;
+    createdAt: string | null;
+  }>> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    const { data, error } = await supabase
+      .from('subscription_usage')
+      .select('id, invoicecode, transactionreference, amount, paid, paidat, periodStart, periodEnd, createdAt')
+      .eq('organizationid', organizationId)
+      .order('createdAt', { ascending: false })
+      .limit(50);
+
+    if (error) {
+      throw new Error(error.message || 'Failed to fetch billing history');
+    }
+
+    return (data || []).map((item: any) => ({
+      id: item.id,
+      invoiceCode: item.invoicecode,
+      transactionReference: item.transactionreference,
+      amount: item.amount,
+      paid: item.paid,
+      paidAt: item.paidat,
+      periodStart: item.periodStart,
+      periodEnd: item.periodEnd,
+      createdAt: item.createdAt,
+    }));
+  }
+
+  /**
+   * Get most recent invoice for the organization
+   * Fetches from Paystack subscription API
+   */
+  async getMostRecentInvoice(): Promise<any | null> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    const { data: subscription, error } = await supabase
+      .from('subscriptions')
+      .select('paystacksubscriptioncode')
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (error || !subscription) {
+      return null;
+    }
+
+    const paystackCode = (subscription as any)?.paystacksubscriptioncode;
+    if (!paystackCode) {
+      return null;
+    }
+
+    try {
+      const paystackSubscription = await paystackService.getSubscription(paystackCode);
+      
+      // Paystack subscription includes most_recent_invoice
+      return (paystackSubscription as any).most_recent_invoice || null;
+    } catch (error) {
+      console.error('Failed to fetch most recent invoice:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get invoice details by invoice code
+   * Note: Paystack doesn't have a direct invoice API endpoint,
+   * but invoice details are available through subscription API
+   */
+  async getInvoiceDetails(invoiceCode: string): Promise<any | null> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // First check our database
+    const { data: invoiceRecord, error: invoiceError } = await supabase
+      .from('subscription_usage')
+      .select('*')
+      .eq('organizationid', organizationId)
+      .eq('invoicecode', invoiceCode)
+      .single();
+
+    if (invoiceError || !invoiceRecord) {
+      return null;
+    }
+
+    // Try to get additional details from Paystack subscription
+    const { data: subscription, error: subError } = await supabase
+      .from('subscriptions')
+      .select('paystacksubscriptioncode')
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (subError || !subscription) {
+      return invoiceRecord;
+    }
+
+    const paystackCode = (subscription as any).paystacksubscriptioncode;
+    if (paystackCode) {
+      try {
+        const paystackSubscription = await paystackService.getSubscription(paystackCode);
+        
+        // Check if this invoice is in the subscription's invoice history
+        const invoices = (paystackSubscription as any).invoices || [];
+        const invoicesHistory = (paystackSubscription as any).invoices_history || [];
+        const allInvoices = [...invoices, ...invoicesHistory];
+        
+        const paystackInvoice = allInvoices.find(
+          (inv: any) => inv.invoice_code === invoiceCode
+        );
+
+        if (paystackInvoice) {
+          return {
+            ...invoiceRecord,
+            paystackDetails: paystackInvoice,
+          };
+        }
+      } catch (error) {
+        console.error('Failed to fetch invoice details from Paystack:', error);
+      }
+    }
+
+    return invoiceRecord;
+  }
+
+  /**
+   * Get failed invoices for the organization
+   */
+  async getFailedInvoices(): Promise<Array<{
+    id: string;
+    invoiceCode: string | null;
+    transactionReference: string | null;
+    amount: number | null;
+    paid: boolean | null;
+    paidAt: string | null;
+    periodStart: string | null;
+    periodEnd: string | null;
+    createdAt: string | null;
+  }>> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    const { data, error } = await supabase
+      .from('subscription_usage')
+      .select('id, invoicecode, transactionreference, amount, paid, paidat, periodStart, periodEnd, createdAt')
+      .eq('organizationid', organizationId)
+      .eq('paid', false)
+      .not('invoicecode', 'is', null)
+      .order('createdAt', { ascending: false });
+
+    if (error) {
+      throw new Error(error.message || 'Failed to fetch failed invoices');
+    }
+
+    return (data || []).map((item: any) => ({
+      id: item.id,
+      invoiceCode: item.invoicecode,
+      transactionReference: item.transactionreference,
+      amount: item.amount,
+      paid: item.paid,
+      paidAt: item.paidat,
+      periodStart: item.periodStart,
+      periodEnd: item.periodEnd,
+      createdAt: item.createdAt,
+    }));
   }
 }
 

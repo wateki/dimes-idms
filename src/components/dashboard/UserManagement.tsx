@@ -168,10 +168,10 @@ export function UserManagement() {
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Users className="h-8 w-8" />
-            User Management
+            Team Management
           </h1>
           <p className="text-muted-foreground">
-            Manage users, roles, and permissions across the organization
+            Manage team members, roles, and permissions across the organization
           </p>
         </div>
         {activeTab === 'users' ? (

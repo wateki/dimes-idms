@@ -498,13 +498,7 @@ export function ProSidebar() {
                   >
                     Subscription & Billing
                   </MenuItem>
-                  <MenuItem 
-                    component={<Link to="/dashboard/organization/audit-logs" onClick={handleCloseSidebar} />}
-                    className="text-sm"
-                    icon={<FileSearch className="h-4 w-4" />}
-                  >
-                    Audit Logs
-                  </MenuItem>
+                
                 </SubMenu>
               )}
               

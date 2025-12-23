@@ -38,6 +38,7 @@ interface UpdateSubscriptionRequest {
   subscriptionCode: string;
   planCode?: string;
   authorizationCode?: string;
+  immediate?: boolean; // If true, switch immediately. If false (default), switch at next billing cycle
 }
 
 interface CancelSubscriptionRequest {
@@ -260,6 +261,9 @@ async function handleInitializeSubscription(
   console.log("[PaystackBilling] Initializing subscription:", {
     organizationId,
     planCode,
+    planCodeType: typeof planCode,
+    planCodeLength: planCode?.length,
+    planCodeExact: JSON.stringify(planCode), // Log exact value to catch any encoding issues
     email,
     amount,
     hasMetadata: !!metadata,
@@ -319,9 +323,11 @@ async function handleInitializeSubscription(
   console.log("[PaystackBilling] Paystack request data:", {
     email,
     plan: planCode,
+    planExact: JSON.stringify(transactionData.plan), // Log exact plan value being sent
     currency: transactionData.currency,
     hasAmount: !!transactionData.amount,
     amount: transactionData.amount,
+    fullRequestBody: JSON.stringify(transactionData), // Log full request for debugging
   });
 
   try {
@@ -341,11 +347,17 @@ async function handleInitializeSubscription(
         status: data.status,
         message: data.message,
         planCode,
+        planCodeLength: planCode?.length,
+        planCodeReceived: planCode, // Log exactly what we received
         email,
         organizationId,
+        paystackResponse: data, // Log full Paystack response for debugging
       });
       return new Response(
-        JSON.stringify({ error: data.message || "Failed to initialize subscription" }),
+        JSON.stringify({ 
+          error: data.message || "Failed to initialize subscription",
+          planCode: planCode, // Include plan code in error response for debugging
+        }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -376,70 +388,245 @@ async function handleInitializeSubscription(
   }
 }
 
-// Update subscription
+// Switch subscription plan (create new subscription + disable old)
+// Note: Paystack doesn't have a direct PUT endpoint to update subscriptions
+// The correct approach is to create a new subscription with the new plan and disable the old one
 async function handleUpdateSubscription(
   body: UpdateSubscriptionRequest,
   paystackSecretKey: string,
   supabase: any,
   userId: string
 ) {
-  const { subscriptionCode, planCode, authorizationCode } = body;
+  const { subscriptionCode, planCode, authorizationCode, immediate = false } = body;
 
-  // Get subscription from database to verify ownership
-  const { data: subscription, error: subError } = await supabase
+  if (!planCode) {
+    return new Response(
+      JSON.stringify({ error: "Plan code is required to switch subscription" }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  // Get existing subscription from database to verify ownership and get customer details
+  const { data: existingSubscription, error: subError } = await supabase
     .from("subscriptions")
-    .select("organizationid")
+    .select("organizationid, paystackcustomercode, tier")
     .eq("paystacksubscriptioncode", subscriptionCode)
     .single();
 
-  if (subError || !subscription) {
+  if (subError || !existingSubscription) {
     return new Response(
       JSON.stringify({ error: "Subscription not found" }),
       { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 
-  const paystackUpdateData: any = {};
-  if (planCode) paystackUpdateData.plan = planCode;
-  if (authorizationCode) paystackUpdateData.authorization = authorizationCode;
-
-  const response = await fetch(`https://api.paystack.co/subscription/${subscriptionCode}`, {
-    method: "PUT",
+  // Get subscription details from Paystack to get customer code and authorization
+  const getSubResponse = await fetch(`https://api.paystack.co/subscription/${subscriptionCode}`, {
+    method: "GET",
     headers: {
       "Authorization": `Bearer ${paystackSecretKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(paystackUpdateData),
   });
 
-  const data = await response.json();
+  const getSubData = await getSubResponse.json();
 
-  if (!data.status) {
+  if (!getSubData.status || !getSubData.data) {
     return new Response(
-      JSON.stringify({ error: data.message || "Failed to update subscription" }),
+      JSON.stringify({ error: getSubData.message || "Failed to fetch subscription details" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 
-  // Update subscription in database
-  const dbUpdateData: any = {
-    status: data.data.status,
-    nextpaymentdate: data.data.next_payment_date,
-    updatedat: new Date().toISOString(),
-  };
-  
-  if (planCode) {
-    dbUpdateData.paystackplancode = planCode;
-    dbUpdateData.tier = planCode.includes('FREE') ? 'free' : planCode.includes('BASIC') ? 'basic' : planCode.includes('PRO') ? 'pro' : 'enterprise';
+  const paystackSubscription = getSubData.data;
+  const customerCode = paystackSubscription.customer?.customer_code || paystackSubscription.customer_code;
+  const authCode = authorizationCode || paystackSubscription.authorization?.authorization_code;
+
+  if (!customerCode) {
+    return new Response(
+      JSON.stringify({ error: "Customer code not found in subscription" }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
-  
-  await supabase
-    .from("subscriptions")
-    .update(dbUpdateData)
-    .eq("paystacksubscriptioncode", subscriptionCode);
+
+  if (!authCode) {
+    return new Response(
+      JSON.stringify({ error: "Authorization code not found. Customer needs to add a payment method." }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  // Helper function to map plan code to tier
+  const getTierFromPlanCode = (code: string): string => {
+    if (code.includes('FREE') || code === 'PLN_FREE') return 'free';
+    // Monthly plans
+    if (code.includes('5jjsgz1ivndtnxp')) return 'basic';
+    if (code.includes('a7qqm2p4q9ejdpt')) return 'professional';
+    if (code.includes('9jsfo4c1d35od5q')) return 'enterprise';
+    // Annual plans
+    if (code.includes('f5n4d3g6x7cb3or')) return 'basic';      // Basic annual: PLN_f5n4d3g6x7cb3or
+    if (code.includes('zekf4yw2rvdy957')) return 'professional'; // Professional annual: PLN_zekf4yw2rvdy957
+    if (code.includes('2w2w7d02awcarg9')) return 'enterprise';   // Enterprise annual: PLN_2w2w7d02awcarg9
+    // Fallback for other plan codes
+    if (code.includes('BASIC')) return 'basic';
+    if (code.includes('PRO') || code.includes('PROFESSIONAL')) return 'professional';
+    return 'free';
+  };
+
+  const newTier = getTierFromPlanCode(planCode);
+  const organizationId = existingSubscription.organizationid;
+  const currentTier = existingSubscription.tier;
+
+  // Create new subscription with new plan
+  const createSubData: any = {
+    customer: customerCode,
+    plan: planCode,
+    authorization: authCode,
+  };
+
+  if (immediate) {
+    // Immediate switch: start new subscription now
+    createSubData.start_date = new Date().toISOString();
+  } else {
+    // Deferred switch: start new subscription at next billing cycle
+    // This preserves current usage and billing until the switch happens
+    const startDate = paystackSubscription.next_payment_date 
+      ? new Date(paystackSubscription.next_payment_date).toISOString()
+      : new Date().toISOString();
+    createSubData.start_date = startDate;
+  }
+
+  const createResponse = await fetch("https://api.paystack.co/subscription", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${paystackSecretKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(createSubData),
+  });
+
+  const createData = await createResponse.json();
+
+  if (!createData.status) {
+    return new Response(
+      JSON.stringify({ error: createData.message || "Failed to create new subscription" }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  // Handle old subscription based on immediate flag
+  if (immediate) {
+    // Immediate switch: disable old subscription now
+    const emailToken = paystackSubscription.email_token;
+    
+    if (!emailToken) {
+      return new Response(
+        JSON.stringify({ error: "Email token not found for subscription, cannot disable old subscription" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const disablePayload = {
+      code: subscriptionCode,
+      token: emailToken,
+    };
+
+    const disableResponse = await fetch("https://api.paystack.co/subscription/disable", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${paystackSecretKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(disablePayload),
+    });
+
+    const disableData = await disableResponse.json();
+
+    if (!disableData.status) {
+      console.error("[PaystackBilling] Failed to disable old subscription:", disableData.message);
+      return new Response(
+        JSON.stringify({ 
+          error: `Failed to disable old subscription: ${disableData.message}. New subscription created but old one may still be active.` 
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Mark old subscription as cancelled in database
+    await supabase
+      .from("subscriptions")
+      .update({
+        status: "cancelled",
+        updatedat: new Date().toISOString(),
+      })
+      .eq("paystacksubscriptioncode", subscriptionCode);
+
+    // Update organization tier immediately
+    const { error: orgError } = await supabase
+      .from("organizations")
+      .update({
+        subscriptionTier: newTier,
+        updatedAt: new Date().toISOString(),
+      })
+      .eq("id", organizationId);
+
+    if (orgError) {
+      console.error("[PaystackBilling] Failed to update organization tier:", orgError);
+    }
+  } else {
+    // Deferred switch: mark old subscription to cancel at period end
+    // Keep it active until the new subscription starts
+    await supabase
+      .from("subscriptions")
+      .update({
+        status: "non-renewing", // Mark as non-renewing but keep active
+        updatedat: new Date().toISOString(),
+      })
+      .eq("paystacksubscriptioncode", subscriptionCode);
+
+    // DON'T update organization tier yet - it will be updated when the new subscription starts
+    // The webhook will handle the tier transition when the new subscription becomes active
+  }
+
+  // Handle database record based on immediate flag
+  if (immediate) {
+    // Immediate switch: update existing subscription record with new subscription details
+    const { error: updateError } = await supabase
+      .from("subscriptions")
+      .update({
+        paystacksubscriptioncode: createData.data.subscription_code,
+        paystackplancode: planCode,
+        paystackcustomercode: customerCode,
+        status: createData.data.status,
+        amount: createData.data.amount,
+        nextpaymentdate: createData.data.next_payment_date,
+        tier: newTier,
+        updatedat: new Date().toISOString(),
+      } as any)
+      .eq("organizationid", organizationId);
+
+    if (updateError) {
+      console.error("[PaystackBilling] Failed to update subscription record:", updateError);
+      // Continue anyway - the webhook will handle it
+    }
+  } else {
+    // Deferred switch: DON'T create a new subscription record yet
+    // The old subscription is marked as "non-renewing" and will remain active
+    // The webhook will update the existing record when the new subscription becomes active
+    console.log("[PaystackWebhook] Deferred switch - subscription record will be updated by webhook when new subscription becomes active");
+  }
 
   return new Response(
-    JSON.stringify({ success: true, data: data.data }),
+    JSON.stringify({
+      success: true,
+      data: createData.data,
+      message: immediate 
+        ? "Subscription plan switched successfully. Changes are effective immediately."
+        : `Subscription plan switch scheduled. Your current plan (${currentTier}) will remain active until ${paystackSubscription.next_payment_date || 'the next billing cycle'}, when your new plan (${newTier}) will begin.`,
+      nextBillingCycle: paystackSubscription.next_payment_date,
+      currentTier: currentTier,
+      newTier: newTier,
+    }),
     { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
   );
 }
@@ -467,16 +654,39 @@ async function handleCancelSubscription(
     );
   }
 
+  // Get subscription details from Paystack to get email_token if not provided
+  // According to Paystack docs, disable requires both code and token (email_token)
+  let emailToken = token;
+  if (!emailToken) {
+    const getSubResponse = await fetch(`https://api.paystack.co/subscription/${subscriptionCode}`, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${paystackSecretKey}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    const getSubData = await getSubResponse.json();
+    if (getSubData.status && getSubData.data?.email_token) {
+      emailToken = getSubData.data.email_token;
+    }
+  }
+
+  const disablePayload: any = {
+    code: subscriptionCode,
+  };
+
+  if (emailToken) {
+    disablePayload.token = emailToken;
+  }
+
   const response = await fetch(`https://api.paystack.co/subscription/disable`, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${paystackSecretKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      code: subscriptionCode,
-      token,
-    }),
+    body: JSON.stringify(disablePayload),
   });
 
   const data = await response.json();

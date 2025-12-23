@@ -331,6 +331,39 @@ class SupabaseOrganizationService {
   }
 
   /**
+   * Switch subscription plan (for users with active subscriptions)
+   */
+  async switchSubscriptionPlan(planCode: string, immediate: boolean = false): Promise<void> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    const { data: subscription, error } = await supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('organizationid', organizationId)
+      .single();
+
+    if (error || !subscription) {
+      throw new Error('No active subscription found');
+    }
+
+    const paystackCode = (subscription as any).paystacksubscriptioncode;
+    if (!paystackCode) {
+      throw new Error('No Paystack subscription code found');
+    }
+
+    // Update subscription plan using Paystack API
+    // By default, immediate=false means the switch happens at the next billing cycle
+    await paystackService.updateSubscription({
+      subscriptionCode: paystackCode,
+      planCode: planCode,
+      immediate: immediate,
+    });
+
+    // Refresh organization data to get updated subscription info
+    await this.getOrganization(organizationId);
+  }
+
+  /**
    * Cancel subscription
    */
   async cancelSubscription(token?: string): Promise<void> {

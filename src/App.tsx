@@ -25,6 +25,7 @@ import { Settings } from '@/components/dashboard/Settings';
 import { OrganizationSettings } from '@/components/dashboard/organization/OrganizationSettings';
 import { OrganizationTeamManagement } from '@/components/dashboard/organization/OrganizationTeamManagement';
 import { OrganizationSubscription } from '@/components/dashboard/organization/OrganizationSubscription';
+import { PlansPricing } from '@/components/dashboard/organization/PlansPricing';
 import { OrganizationUsage } from '@/components/dashboard/organization/OrganizationUsage';
 import { OrganizationAuditLogs } from '@/components/dashboard/organization/OrganizationAuditLogs';
 import { Activities } from '@/components/dashboard/Activities';
@@ -46,7 +47,7 @@ import { Toaster as ShadToaster } from '@/components/ui/toaster';
 import { createEnhancedPermissionManager } from '@/lib/permissions';
 
 function ProtectedRoute({ roles }: { roles?: string[] }) {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading, isRefreshing } = useAuth();
   const location = useLocation();
 
   // Define public routes where auth checks should not apply
@@ -60,7 +61,7 @@ function ProtectedRoute({ roles }: { roles?: string[] }) {
     );
   };
   
-  console.log('ProtectedRoute - authentication state:', { isAuthenticated, isLoading, user: !!user });
+  console.log('ProtectedRoute - authentication state:', { isAuthenticated, isLoading, isRefreshing, user: !!user });
   console.log('ProtectedRoute - current location:', location.pathname + location.search);
 
   // Skip auth checks entirely for public routes
@@ -68,8 +69,9 @@ function ProtectedRoute({ roles }: { roles?: string[] }) {
     return <Outlet />;
   }
   
-  if (isLoading) {
-    console.log('ProtectedRoute - still loading, showing spinner');
+  // Show loading spinner if initializing or refreshing session
+  if (isLoading || isRefreshing) {
+    console.log('ProtectedRoute - still loading or refreshing, showing spinner');
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -232,6 +234,7 @@ function AppWithNotifications() {
                             <Route path="settings" element={<OrganizationSettings />} />
                             <Route path="team" element={<OrganizationTeamManagement />} />
                             <Route path="subscription" element={<OrganizationSubscription />} />
+                            <Route path="plans" element={<PlansPricing />} />
                             <Route path="usage" element={<OrganizationUsage />} />
                             <Route path="audit-logs" element={<OrganizationAuditLogs />} />
                           </Route>

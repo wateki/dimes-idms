@@ -29,6 +29,7 @@ export interface UpdateSubscriptionRequest {
   subscriptionCode: string;
   planCode?: string;
   authorizationCode?: string;
+  immediate?: boolean; // If true, switch immediately. If false (default), switch at next billing cycle
 }
 
 export interface PaystackPlan {

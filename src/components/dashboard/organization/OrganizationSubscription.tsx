@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabaseOrganizationService } from '@/services/supabaseOrganizationService';
@@ -26,6 +27,7 @@ import {
 } from '@/components/ui/dialog';
 
 export function OrganizationSubscription() {
+  const navigate = useNavigate();
   const { organization, loading: orgLoading, refreshOrganization } = useOrganization();
   const { user } = useAuth();
   const { showSuccess, showError } = useNotification();
@@ -33,7 +35,6 @@ export function OrganizationSubscription() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [manageLink, setManageLink] = useState<string | null>(null);
-  const [isUpgradeDialogOpen, setIsUpgradeDialogOpen] = useState(false);
 
   const formatDate = (dateString: string | null | undefined): string => {
     if (!dateString) return 'N/A';
@@ -68,67 +69,6 @@ export function OrganizationSubscription() {
     }
   };
 
-  const handleInitializeSubscription = async (planCode: string) => {
-    if (!user?.email) {
-      console.error('[Subscription] User email not found');
-      showError('User email not found');
-      return;
-    }
-
-    if (!organization?.id) {
-      console.error('[Subscription] Organization ID not found');
-      showError('Organization ID not found');
-      return;
-    }
-
-    // Get amount for the plan code
-    const amount = planAmounts[planCode];
-    if (amount === undefined) {
-      console.error('[Subscription] Invalid plan code:', planCode);
-      showError('Invalid plan selected');
-      return;
-    }
-
-    try {
-      setProcessing(true);
-      console.log('[Subscription] Initializing subscription payment:', {
-        planCode,
-        amount,
-        amountInKES: amount / 100,
-        email: user.email,
-        organizationId: organization.id,
-      });
-
-      const result = await supabaseOrganizationService.initializeSubscriptionPayment(
-        planCode,
-        user.email,
-        amount,
-        { organizationId: organization.id }
-      );
-
-      console.log('[Subscription] Payment initialization successful:', {
-        authorization_url: result.authorization_url,
-        access_code: result.access_code,
-        reference: result.reference,
-      });
-      
-      // Redirect to Paystack payment page
-      window.location.href = result.authorization_url;
-    } catch (error: any) {
-      console.error('[Subscription] Failed to initialize subscription:', {
-        error,
-        message: error?.message,
-        stack: error?.stack,
-        planCode,
-        amount,
-        email: user?.email,
-        organizationId: organization?.id,
-      });
-      showError(error?.message || 'Failed to initialize subscription payment');
-    } finally {
-      setProcessing(false);
-    }
-  };
 
   const handleManageSubscription = () => {
     if (manageLink) {
@@ -203,90 +143,6 @@ export function OrganizationSubscription() {
   const isSubscriptionActive = organization.subscriptionStatus === 'active' || organization.subscriptionStatus === 'trialing';
   const canUpgrade = !isSubscriptionActive || organization.subscriptionTier === 'free';
 
-  // Plan code to amount mapping (amounts in cents for KES)
-  // These match the actual Paystack plans
-  const planAmounts: Record<string, number> = {
-    'PLN_FREE': 0,                    // Free plan (local only, not in Paystack)
-    'PLN_5jjsgzlivndtnxp': 700000,   // Basic Plan: KSh 7,000 = 700,000 cents
-    'PLN_a7qqm2p4q9ejdpt': 3599900,  // Professional Plan: KSh 35,999 = 3,599,900 cents
-    'PLN_9jsfo4c1d350d5q': 9599900,  // Enterprise Plan: KSh 95,999 = 9,599,900 cents
-  };
-
-  // Plan definitions matching Paystack plans
-  const plans = [
-    {
-      code: 'PLN_FREE',
-      name: 'Free',
-      price: 'KSh 0',
-      period: 'month',
-      amount: planAmounts['PLN_FREE'],
-      maxUsers: 5,
-      maxProjects: 3,
-      features: [
-        'Up to 5 users',
-        'Up to 3 projects',
-        'Unlimited forms and reports',
-        'Email support',
-        'Basic features',
-      ],
-      isCurrent: organization.subscriptionTier === 'free',
-    },
-    {
-      code: 'PLN_5jjsgzlivndtnxp',
-      name: 'Basic',
-      price: 'KSh 7,000',
-      period: 'month',
-      amount: planAmounts['PLN_5jjsgzlivndtnxp'],
-      maxUsers: 20,
-      maxProjects: 10,
-      features: [
-        'Up to 20 users',
-        'Up to 10 projects',
-        'Unlimited forms and reports',
-        'Priority support',
-        'Advanced features',
-      ],
-      isCurrent: organization.subscriptionTier === 'basic',
-    },
-    {
-      code: 'PLN_a7qqm2p4q9ejdpt',
-      name: 'Professional',
-      price: 'KSh 35,999',
-      period: 'month',
-      amount: planAmounts['PLN_a7qqm2p4q9ejdpt'],
-      maxUsers: 50,
-      maxProjects: 25,
-      features: [
-        'Up to 50 users',
-        'Up to 25 projects',
-        'Unlimited forms and reports',
-        'Priority support',
-        'Advanced analytics',
-        'Custom integrations',
-      ],
-      isCurrent: organization.subscriptionTier === 'professional' || organization.subscriptionTier === 'pro',
-    },
-    {
-      code: 'PLN_9jsfo4c1d350d5q',
-      name: 'Enterprise',
-      price: 'KSh 95,999',
-      period: 'month',
-      amount: planAmounts['PLN_9jsfo4c1d350d5q'],
-      maxUsers: -1, // Unlimited
-      maxProjects: -1, // Unlimited
-      features: [
-        'Unlimited users',
-        'Unlimited projects',
-        'Unlimited forms and reports',
-        'Dedicated support',
-        'Advanced analytics',
-        'Custom integrations',
-        'SLA guarantee',
-        'Custom training',
-      ],
-      isCurrent: organization.subscriptionTier === 'enterprise',
-    },
-  ];
 
   return (
     <div className="p-6 space-y-6">
@@ -320,9 +176,17 @@ export function OrganizationSubscription() {
               )}
             </div>
             <div className="flex flex-col items-end gap-2">
+              {/* Always allow viewing plans, even when already on an active plan */}
+              <Button 
+                onClick={() => navigate('/dashboard/organization/plans')}
+                variant="outline"
+                size="sm"
+              >
+                View plans
+              </Button>
               {canUpgrade && (
                 <Button 
-                  onClick={() => setIsUpgradeDialogOpen(true)}
+                  onClick={() => navigate('/dashboard/organization/plans')}
                   className="bg-teal-600 hover:bg-teal-700 text-white"
                 >
                   <ArrowUp className="h-4 w-4 mr-2" />
@@ -362,89 +226,6 @@ export function OrganizationSubscription() {
 
       {/* Billing History */}
       <BillingHistoryCard />
-
-      {/* Upgrade Plans Dialog */}
-      <Dialog open={isUpgradeDialogOpen} onOpenChange={setIsUpgradeDialogOpen}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-3xl">Plans and Pricing</DialogTitle>
-            <DialogDescription className="text-lg">
-              Choose the perfect plan for your organization
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
-            {plans.map((plan) => {
-              // Professional plan is the popular one
-              const isPopular = plan.code === 'PLN_a7qqm2p4q9ejdpt';
-              const isFree = plan.code === 'PLN_FREE';
-              // Only show current badge for paid plans, not for Free
-              const showCurrentBadge = plan.isCurrent && !isFree;
-              return (
-                <Card 
-                  key={plan.code} 
-                  className={`relative ${
-                    isPopular 
-                      ? 'ring-2 ring-teal-500 border-teal-500 shadow-lg' 
-                      : plan.isCurrent && !isFree
-                        ? 'ring-2 ring-primary' 
-                        : ''
-                  }`}
-                >
-                  {showCurrentBadge && (
-                    <Badge className="absolute top-4 right-4" variant="default">
-                      CURRENT
-                    </Badge>
-                  )}
-                  {isPopular && (
-                    <Badge className="absolute top-4 right-4 bg-pink-500" variant="default">
-                      POPULAR
-                    </Badge>
-                  )}
-                  <CardHeader>
-                    <CardTitle className="text-2xl">{plan.name}</CardTitle>
-                    <div className="mt-2">
-                      <span className="text-3xl font-bold">{plan.price}</span>
-                      <span className="text-muted-foreground">/{plan.period}</span>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-3 mb-6">
-                      {plan.features.map((feature, index) => (
-                        <li key={index} className="flex items-start">
-                          <Check className="h-5 w-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                          <span className="text-sm">{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    {plan.isCurrent ? (
-                      <Button disabled variant="outline" className="w-full">
-                        Current Plan
-                      </Button>
-                    ) : (
-                      <Button
-                        onClick={() => {
-                          handleInitializeSubscription(plan.code);
-                          setIsUpgradeDialogOpen(false);
-                        }}
-                        className={`w-full ${
-                          isPopular 
-                            ? 'bg-teal-600 hover:bg-teal-700 text-white' 
-                            : ''
-                        }`}
-                        variant={isPopular ? 'default' : 'outline'}
-                        disabled={processing}
-                      >
-                        {processing ? 'Processing...' : 'Select Plan'}
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -506,6 +287,44 @@ function BillingHistoryCard() {
       showError('Failed to load invoice details');
     } finally {
       setLoadingDetails(false);
+    }
+  };
+
+  // Helper function to get plan name from plan code
+  const getPlanName = (planCode: string | null | undefined): string => {
+    if (!planCode) return 'N/A';
+    
+    if (planCode.includes('FREE') || planCode === 'PLN_FREE') return 'Free';
+    if (planCode.includes('5jjsgz1ivndtnxp')) return 'Basic';
+    if (planCode.includes('a7qqm2p4q9ejdpt')) return 'Professional';
+    if (planCode.includes('9jsfo4c1d35od5q')) return 'Enterprise';
+    
+    // Try to get from Paystack details if available
+    return planCode;
+  };
+
+  // Helper function to get plan price from plan code
+  const getPlanPrice = (planCode: string | null | undefined): string => {
+    if (!planCode) return 'N/A';
+    
+    if (planCode.includes('FREE') || planCode === 'PLN_FREE') return 'KSh 0';
+    if (planCode.includes('5jjsgz1ivndtnxp')) return 'KSh 7,000';
+    if (planCode.includes('a7qqm2p4q9ejdpt')) return 'KSh 35,999';
+    if (planCode.includes('9jsfo4c1d35od5q')) return 'KSh 95,999';
+    
+    return 'N/A';
+  };
+
+  const handleCardClick = (item: (typeof billingHistory)[number]) => {
+    if (item.invoiceCode) {
+      // Load full invoice details from backend + Paystack
+      loadInvoiceDetails(item.invoiceCode);
+    } else {
+      // Fallback: show basic transaction info only
+      setInvoiceDetails({
+        ...item,
+      });
+      setSelectedInvoice(item.transactionReference || item.id);
     }
   };
 
@@ -717,6 +536,149 @@ function BillingHistoryCard() {
     URL.revokeObjectURL(url);
   };
 
+  const downloadEntry = () => {
+    if (!invoiceDetails) return;
+
+    const entry = invoiceDetails as any;
+
+    const formatAmountLocal = (amount: number | null): string => {
+      if (!amount) return 'N/A';
+      const kes = amount / 100;
+      return `KSh ${kes.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    };
+
+    const formatDateLocal = (dateString: string | null | undefined): string => {
+      if (!dateString) return 'N/A';
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    };
+
+    const formatDateTimeLocal = (dateString: string | null | undefined): string => {
+      if (!dateString) return 'N/A';
+      return new Date(dateString).toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    };
+
+    const code = entry.invoiceCode || entry.transactionReference || selectedInvoice || 'N/A';
+    const isInvoice = !!entry.invoiceCode;
+    const statusLabel = entry.paid ? 'Paid' : isInvoice ? 'Failed' : 'Pending';
+    
+    // Get plan information
+    const planCode = entry.paystackDetails?.subscription?.plan?.plan_code ||
+                     entry.paystackDetails?.plan?.plan_code ||
+                     organization?.subscriptionTier;
+    const planName = getPlanName(planCode);
+    const planPrice = getPlanPrice(planCode);
+
+    const html = `
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>${isInvoice ? 'Invoice' : 'Transaction'} ${code}</title>
+    <style>
+      body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 24px; color: #0f172a; }
+      h1 { font-size: 22px; margin-bottom: 8px; }
+      .meta { font-size: 12px; color: #6b7280; margin-bottom: 16px; }
+      .section { margin-top: 16px; }
+      .label { font-size: 12px; color: #6b7280; }
+      .value { font-size: 14px; font-weight: 500; margin-top: 2px; }
+    </style>
+  </head>
+  <body>
+    <h1>${isInvoice ? 'Invoice' : 'Transaction'} Details</h1>
+    <div class="meta">
+      <div>${organization?.name || 'Organization'}</div>
+      <div>Generated: ${new Date().toLocaleString()}</div>
+    </div>
+
+    <div class="section">
+      <div class="label">Code</div>
+      <div class="value">${code}</div>
+    </div>
+
+    <div class="section">
+      <div class="label">Status</div>
+      <div class="value">${statusLabel}</div>
+    </div>
+
+    <div class="section">
+      <div class="label">Plan</div>
+      <div class="value">${planName}</div>
+      <div class="value" style="font-size: 12px; color: #6b7280; margin-top: 2px;">${planPrice} per month</div>
+    </div>
+
+    <div class="section">
+      <div class="label">Amount</div>
+      <div class="value">${formatAmountLocal(entry.amount ?? null)}</div>
+    </div>
+
+    <div class="section">
+      <div class="label">Created</div>
+      <div class="value">${formatDateTimeLocal(entry.createdAt)}</div>
+    </div>
+
+    ${
+      entry.periodStart && entry.periodEnd
+        ? `
+    <div class="section">
+      <div class="label">Period</div>
+      <div class="value">${formatDateLocal(entry.periodStart)} - ${formatDateLocal(entry.periodEnd)}</div>
+    </div>`
+        : ''
+    }
+
+    ${
+      entry.paidAt
+        ? `
+    <div class="section">
+      <div class="label">Paid At</div>
+      <div class="value">${formatDateTimeLocal(entry.paidAt)}</div>
+    </div>`
+        : ''
+    }
+
+    ${
+      entry.paystackDetails?.description
+        ? `
+    <div class="section">
+      <div class="label">Failure Reason</div>
+      <div class="value">${entry.paystackDetails.description}</div>
+    </div>`
+        : ''
+    }
+  </body>
+</html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${isInvoice ? 'invoice' : 'transaction'}-${code}.html`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+    }
+
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <>
       <Card>
@@ -844,14 +806,18 @@ function BillingHistoryCard() {
                 filteredHistory.map((item) => (
                   <div
                     key={item.id}
-                    className={`flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-muted/50 ${
+                    onClick={() => handleCardClick(item)}
+                    className={`flex cursor-pointer items-center justify-between rounded-lg border p-4 transition-colors hover:bg-muted/50 ${
                       !item.paid && item.invoiceCode ? 'border-orange-200 bg-orange-50/50' : ''
                     }`}
                   >
                     <div className="flex-1">
                       <div className="flex items-center space-x-2">
                         <button
-                          onClick={() => item.invoiceCode && loadInvoiceDetails(item.invoiceCode)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCardClick(item);
+                          }}
                           className="text-left font-medium hover:underline"
                           disabled={!item.invoiceCode || loadingDetails}
                         >
@@ -881,7 +847,10 @@ function BillingHistoryCard() {
                           variant="outline"
                           size="sm"
                           className="mt-2"
-                          onClick={handleRetryPayment}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRetryPayment();
+                          }}
                         >
                           Retry Payment
                         </Button>
@@ -920,6 +889,12 @@ function BillingHistoryCard() {
               </div>
             ) : invoiceDetails ? (
               <div className="space-y-4">
+                <div className="flex justify-end">
+                  <Button variant="outline" size="sm" onClick={downloadEntry}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Download
+                  </Button>
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Status</p>
@@ -934,6 +909,24 @@ function BillingHistoryCard() {
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Amount</p>
                     <p className="mt-1 font-semibold">{formatAmount(invoiceDetails.amount)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Plan</p>
+                    <p className="mt-1 font-semibold">
+                      {getPlanName(
+                        invoiceDetails.paystackDetails?.subscription?.plan?.plan_code ||
+                        invoiceDetails.paystackDetails?.plan?.plan_code ||
+                        organization?.subscriptionTier
+                      )}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {getPlanPrice(
+                        invoiceDetails.paystackDetails?.subscription?.plan?.plan_code ||
+                        invoiceDetails.paystackDetails?.plan?.plan_code ||
+                        organization?.subscriptionTier
+                      )}{' '}
+                      per month
+                    </p>
                   </div>
                   {invoiceDetails.periodStart && invoiceDetails.periodEnd && (
                     <>

@@ -213,49 +213,151 @@ async function handleSubscriptionCreate(data: any, supabase: any) {
 
   // Upsert subscription record
   const planCode = subscription.plan?.plan_code || subscription.plan_code;
-  const tier = planCode?.includes('FREE') ? 'free' : 
-               planCode?.includes('BASIC') ? 'basic' : 
-               planCode?.includes('PRO') ? 'pro' : 'enterprise';
+  // Helper function to map plan code to tier
+  const getTierFromPlanCode = (code: string | null | undefined): string => {
+    if (!code) return 'free';
+    if (code.includes('FREE') || code === 'PLN_FREE') return 'free';
+    // Monthly plans
+    if (code.includes('5jjsgz1ivndtnxp')) return 'basic';
+    if (code.includes('a7qqm2p4q9ejdpt')) return 'professional';
+    if (code.includes('9jsfo4c1d35od5q')) return 'enterprise';
+    // Annual plans
+    if (code.includes('f5n4d3g6x7cb3or')) return 'basic';      // Basic annual: PLN_f5n4d3g6x7cb3or
+    if (code.includes('zekf4yw2rvdy957')) return 'professional'; // Professional annual: PLN_zekf4yw2rvdy957
+    if (code.includes('2w2w7d02awcarg9')) return 'enterprise';   // Enterprise annual: PLN_2w2w7d02awcarg9
+    // Fallback for other plan codes
+    if (code.includes('BASIC')) return 'basic';
+    if (code.includes('PRO') || code.includes('PROFESSIONAL')) return 'professional';
+    return 'free';
+  };
+
+  const tier = getTierFromPlanCode(planCode);
   
-  // Check if a preliminary subscription already exists from charge.success
-  const { data: existingPreliminary } = await supabase
+  // Check for existing subscription for this organization
+  // This could be:
+  // 1. A preliminary subscription from charge.success (no paystacksubscriptioncode yet)
+  // 2. An old subscription being replaced (status = "non-renewing" from deferred plan switch)
+  // 3. An existing active subscription (shouldn't happen for new subscriptions, but handle it)
+  const { data: existingSub } = await supabase
     .from("subscriptions")
-    .select("id")
+    .select("id, paystacksubscriptioncode, status, tier")
     .eq("organizationid", organizationId)
-    .eq("paystackplancode", planCode)
-    .is("paystacksubscriptioncode", null)
     .maybeSingle();
 
-  if (existingPreliminary) {
-    console.log("[PaystackWebhook] Found preliminary subscription from charge.success, updating with full details:", {
-      subscriptionId: existingPreliminary.id,
-      subscriptionCode: subscription.subscription_code,
-    });
+  if (existingSub) {
+    // Check if this is a deferred plan switch (old subscription marked as non-renewing)
+    const isDeferredSwitch = existingSub.status === "non-renewing" && 
+                             existingSub.paystacksubscriptioncode !== subscription.subscription_code;
     
-    // Update the existing preliminary record with full subscription details
-    const { error: updateError } = await supabase
-      .from("subscriptions")
-      .update({
-        paystacksubscriptioncode: subscription.subscription_code,
-        paystackcustomercode: subscription.customer?.customer_code || subscription.customer_code,
-        status: subscription.status,
-        amount: subscription.amount,
-        nextpaymentdate: subscription.next_payment_date,
-        tier: tier,
-        updatedAt: new Date().toISOString(),
-      } as any)
-      .eq("id", existingPreliminary.id);
+    // Check if this is a preliminary subscription (no subscription code yet)
+    const isPreliminary = !existingSub.paystacksubscriptioncode;
 
-    if (updateError) {
-      console.error("[PaystackWebhook] Error updating preliminary subscription:", {
-        error: updateError,
-        subscriptionId: existingPreliminary.id,
+    if (isDeferredSwitch) {
+      console.log("[PaystackWebhook] Deferred plan switch detected - updating old subscription with new plan details:", {
+        oldSubscriptionId: existingSub.id,
+        oldSubscriptionCode: existingSub.paystacksubscriptioncode,
+        oldTier: existingSub.tier,
+        newSubscriptionCode: subscription.subscription_code,
+        newTier: tier,
       });
+
+      // Update the existing subscription record with new subscription details
+      // This transitions from the old plan to the new plan
+      const { error: updateError } = await supabase
+        .from("subscriptions")
+        .update({
+          paystacksubscriptioncode: subscription.subscription_code,
+          paystackplancode: planCode,
+          paystackcustomercode: subscription.customer?.customer_code || subscription.customer_code,
+          status: subscription.status, // Should be "active" when it starts
+          amount: subscription.amount,
+          nextpaymentdate: subscription.next_payment_date,
+          tier: tier, // Update to new tier
+          updatedAt: new Date().toISOString(),
+        } as any)
+        .eq("id", existingSub.id);
+
+      if (updateError) {
+        console.error("[PaystackWebhook] Error updating subscription for deferred switch:", {
+          error: updateError,
+          subscriptionId: existingSub.id,
+        });
+      } else {
+        console.log("[PaystackWebhook] Subscription updated for deferred plan switch - tier changed from", existingSub.tier, "to", tier);
+        
+        // Update organization tier now that the new subscription is active
+        const { error: orgTierError } = await supabase
+          .from("organizations")
+          .update({
+            subscriptionTier: tier,
+            updatedAt: new Date().toISOString(),
+          })
+          .eq("id", organizationId);
+
+        if (orgTierError) {
+          console.error("[PaystackWebhook] Error updating organization tier:", orgTierError);
+        } else {
+          console.log("[PaystackWebhook] Organization tier updated to", tier);
+        }
+      }
+    } else if (isPreliminary) {
+      console.log("[PaystackWebhook] Found preliminary subscription from charge.success, updating with full details:", {
+        subscriptionId: existingSub.id,
+        subscriptionCode: subscription.subscription_code,
+      });
+      
+      // Update the existing preliminary record with full subscription details
+      const { error: updateError } = await supabase
+        .from("subscriptions")
+        .update({
+          paystacksubscriptioncode: subscription.subscription_code,
+          paystackcustomercode: subscription.customer?.customer_code || subscription.customer_code,
+          status: subscription.status,
+          amount: subscription.amount,
+          nextpaymentdate: subscription.next_payment_date,
+          tier: tier,
+          updatedAt: new Date().toISOString(),
+        } as any)
+        .eq("id", existingSub.id);
+
+      if (updateError) {
+        console.error("[PaystackWebhook] Error updating preliminary subscription:", {
+          error: updateError,
+          subscriptionId: existingSub.id,
+        });
+      } else {
+        console.log("[PaystackWebhook] Preliminary subscription updated successfully");
+      }
     } else {
-      console.log("[PaystackWebhook] Preliminary subscription updated successfully");
+      // Existing subscription with same code - just update details
+      console.log("[PaystackWebhook] Updating existing subscription details:", {
+        subscriptionId: existingSub.id,
+        subscriptionCode: subscription.subscription_code,
+      });
+
+      const { error: updateError } = await supabase
+        .from("subscriptions")
+        .update({
+          paystackplancode: planCode,
+          paystackcustomercode: subscription.customer?.customer_code || subscription.customer_code,
+          status: subscription.status,
+          amount: subscription.amount,
+          nextpaymentdate: subscription.next_payment_date,
+          tier: tier,
+          updatedAt: new Date().toISOString(),
+        } as any)
+        .eq("id", existingSub.id);
+
+      if (updateError) {
+        console.error("[PaystackWebhook] Error updating existing subscription:", {
+          error: updateError,
+          subscriptionId: existingSub.id,
+        });
+      }
     }
   } else {
-    console.log("[PaystackWebhook] Upserting new subscription record:", {
+    // No existing subscription - create new one
+    console.log("[PaystackWebhook] Creating new subscription record:", {
       organizationId,
       subscriptionCode: subscription.subscription_code,
       planCode,
@@ -264,7 +366,7 @@ async function handleSubscriptionCreate(data: any, supabase: any) {
       amount: subscription.amount,
     });
 
-    const { error: upsertError } = await supabase.from("subscriptions").upsert({
+    const { error: insertError } = await supabase.from("subscriptions").insert({
       organizationid: organizationId,
       paystacksubscriptioncode: subscription.subscription_code,
       paystackplancode: planCode,
@@ -277,14 +379,14 @@ async function handleSubscriptionCreate(data: any, supabase: any) {
       updatedAt: new Date().toISOString(),
     } as any);
 
-    if (upsertError) {
-      console.error("[PaystackWebhook] Error upserting subscription:", {
-        error: upsertError,
+    if (insertError) {
+      console.error("[PaystackWebhook] Error creating subscription:", {
+        error: insertError,
         subscriptionCode: subscription.subscription_code,
         organizationId,
       });
     } else {
-      console.log("[PaystackWebhook] Subscription record upserted successfully");
+      console.log("[PaystackWebhook] Subscription record created successfully");
     }
   }
 
@@ -689,80 +791,169 @@ async function handleChargeSuccess(data: any, supabase: any) {
         });
 
         // Determine tier from plan code
-        const tier = plan.plan_code.includes('FREE') ? 'free' : 
-                     plan.plan_code.includes('5jjsgzlivndtnxp') ? 'basic' : 
-                     plan.plan_code.includes('a7qqm2p4q9ejdpt') ? 'professional' : 
-                     plan.plan_code.includes('9jsfo4c1d350d5q') ? 'enterprise' : 'basic';
+        // Use the same tier mapping function defined at the top
+        const getTierFromPlanCodeLocal = (code: string): string => {
+          if (code.includes('FREE') || code === 'PLN_FREE') return 'free';
+          // Monthly plans
+          if (code.includes('5jjsgz1ivndtnxp')) return 'basic';
+          if (code.includes('a7qqm2p4q9ejdpt')) return 'professional';
+          if (code.includes('9jsfo4c1d35od5q')) return 'enterprise';
+          // Annual plans
+          if (code.includes('f5n4d3g6x7cb3or')) return 'basic';      // Basic annual: PLN_f5n4d3g6x7cb3or
+          if (code.includes('zekf4yw2rvdy957')) return 'professional'; // Professional annual: PLN_zekf4yw2rvdy957
+          if (code.includes('2w2w7d02awcarg9')) return 'enterprise';   // Enterprise annual: PLN_2w2w7d02awcarg9
+          // Fallback for other plan codes
+          if (code.includes('BASIC')) return 'basic';
+          if (code.includes('PRO') || code.includes('PROFESSIONAL')) return 'professional';
+          return 'free';
+        };
+        
+        const tier = getTierFromPlanCodeLocal(plan.plan_code);
 
-        // Create preliminary subscription record (subscription.create will complete it later)
-        const { data: newSub, error: createError } = await supabase
+        // Check if subscription already exists for this organization
+        // This handles both first-time subscriptions and plan switches
+        // Prefer active subscription over cancelled one
+        const { data: existingSub, error: checkError } = await supabase
           .from("subscriptions")
-          .insert({
-            organizationid: organizationId,
+          .select("id, paystacksubscriptioncode, status")
+          .eq("organizationid", organizationId)
+          .order("status", { ascending: true }) // Prefer active over cancelled
+          .maybeSingle();
+
+        if (existingSub) {
+          // Subscription exists - update it (handles plan switches and renewals)
+          console.log("[PaystackWebhook] Existing subscription found, updating:", {
+            subscriptionId: existingSub.id,
+            existingSubscriptionCode: existingSub.paystacksubscriptioncode,
+            newPlanCode: plan.plan_code,
+          });
+
+          const updateData: any = {
             paystackplancode: plan.plan_code,
             paystackcustomercode: charge.customer?.customer_code,
             status: "active", // Will be updated by subscription.create webhook if needed
             amount: charge.amount,
             tier: tier,
-            createdAt: charge.created_at || new Date().toISOString(),
             updatedAt: new Date().toISOString(),
-          } as any)
-          .select("id, organizationid")
-          .single();
+          };
 
-        if (createError) {
-          console.error("[PaystackWebhook] Error creating preliminary subscription:", {
-            error: createError,
-            organizationId,
-            planCode: plan.plan_code,
-          });
-        } else {
-          console.log("[PaystackWebhook] Preliminary subscription created:", {
-            subscriptionId: newSub.id,
-            organizationId: newSub.organizationid,
-          });
-
-          // Update organization subscription status
-          const { error: orgUpdateError } = await supabase
-            .from("organizations")
-            .update({
-              subscriptionStatus: "active",
-              subscriptionTier: tier,
-              updatedAt: new Date().toISOString(),
-            })
-            .eq("id", organizationId);
-
-          if (orgUpdateError) {
-            console.error("[PaystackWebhook] Error updating organization:", {
-              error: orgUpdateError,
-              organizationId,
-            });
-          } else {
-            console.log("[PaystackWebhook] Organization updated for first-time subscription");
+          // Only update subscription code if it's not already set (preliminary subscription)
+          if (!existingSub.paystacksubscriptioncode) {
+            // This will be set when subscription.create webhook arrives
+            console.log("[PaystackWebhook] Waiting for subscription.create webhook to set subscription code");
           }
 
-          // Record the charge usage
-          const { error: insertError } = await supabase.from("subscription_usage").insert({
-            organizationid: organizationId,
-            subscriptionid: newSub.id,
-            transactionreference: charge.reference,
-            amount: charge.amount,
-            metric: 'payment',
-            count: 1,
-            periodStart: new Date().toISOString(),
-            periodEnd: new Date().toISOString(),
-            paid: true,
-            paidat: charge.paid_at,
-            createdAt: charge.created_at || new Date().toISOString(),
-          } as any);
+          const { error: updateError } = await supabase
+            .from("subscriptions")
+            .update(updateData)
+            .eq("id", existingSub.id);
 
-          if (insertError) {
-            console.error("[PaystackWebhook] Error recording first-time charge usage:", {
-              error: insertError,
-              reference: charge.reference,
+          if (updateError) {
+            console.error("[PaystackWebhook] Error updating existing subscription:", {
+              error: updateError,
+              subscriptionId: existingSub.id,
+              organizationId,
+              planCode: plan.plan_code,
             });
           } else {
-            console.log("[PaystackWebhook] First-time charge usage recorded successfully");
+            console.log("[PaystackWebhook] Existing subscription updated successfully:", {
+              subscriptionId: existingSub.id,
+              organizationId,
+            });
+
+            // Update organization subscription status
+            const { error: orgUpdateError } = await supabase
+              .from("organizations")
+              .update({
+                subscriptionStatus: "active",
+                subscriptionTier: tier,
+                updatedAt: new Date().toISOString(),
+              })
+              .eq("id", organizationId);
+
+            if (orgUpdateError) {
+              console.error("[PaystackWebhook] Error updating organization:", {
+                error: orgUpdateError,
+                organizationId,
+              });
+            } else {
+              console.log("[PaystackWebhook] Organization updated for subscription");
+            }
+          }
+        } else {
+          // No existing subscription - create preliminary record (first-time subscription)
+          console.log("[PaystackWebhook] No existing subscription found - creating preliminary subscription record");
+
+          // Create preliminary subscription record (subscription.create will complete it later)
+          const { data: newSub, error: createError } = await supabase
+            .from("subscriptions")
+            .insert({
+              organizationid: organizationId,
+              paystackplancode: plan.plan_code,
+              paystackcustomercode: charge.customer?.customer_code,
+              status: "active", // Will be updated by subscription.create webhook if needed
+              amount: charge.amount,
+              tier: tier,
+              createdAt: charge.created_at || new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            } as any)
+            .select("id, organizationid")
+            .single();
+
+          if (createError) {
+            console.error("[PaystackWebhook] Error creating preliminary subscription:", {
+              error: createError,
+              organizationId,
+              planCode: plan.plan_code,
+            });
+          } else {
+            console.log("[PaystackWebhook] Preliminary subscription created:", {
+              subscriptionId: newSub.id,
+              organizationId: newSub.organizationid,
+            });
+
+            // Update organization subscription status
+            const { error: orgUpdateError } = await supabase
+              .from("organizations")
+              .update({
+                subscriptionStatus: "active",
+                subscriptionTier: tier,
+                updatedAt: new Date().toISOString(),
+              })
+              .eq("id", organizationId);
+
+            if (orgUpdateError) {
+              console.error("[PaystackWebhook] Error updating organization:", {
+                error: orgUpdateError,
+                organizationId,
+              });
+            } else {
+              console.log("[PaystackWebhook] Organization updated for first-time subscription");
+            }
+
+            // Record the charge usage
+            const { error: insertError } = await supabase.from("subscription_usage").insert({
+              organizationid: organizationId,
+              subscriptionid: newSub.id,
+              transactionreference: charge.reference,
+              amount: charge.amount,
+              metric: 'payment',
+              count: 1,
+              periodStart: new Date().toISOString(),
+              periodEnd: new Date().toISOString(),
+              paid: true,
+              paidat: charge.paid_at,
+              createdAt: charge.created_at || new Date().toISOString(),
+            } as any);
+
+            if (insertError) {
+              console.error("[PaystackWebhook] Error recording first-time charge usage:", {
+                error: insertError,
+                reference: charge.reference,
+              });
+            } else {
+              console.log("[PaystackWebhook] First-time charge usage recorded successfully");
+            }
           }
         }
       } else {

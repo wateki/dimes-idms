@@ -8,6 +8,7 @@ interface AuthContextType {
   session: Session | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  isRefreshing: boolean;
   login: (email: string, password: string) => Promise<LoginResult>;
   logout: (preserveCurrentUrl?: boolean) => void;
   updateProfile: (updates: Partial<User>) => Promise<User>;
@@ -35,6 +36,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
   // Logout ref - will be set after logout function is defined
   const logoutRef = useRef<((preserveCurrentUrl?: boolean) => void) | null>(null);
+  
+  // Track if we're currently refreshing the session to prevent race conditions
+  const isRefreshingRef = useRef(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  // Track the last known valid session to prevent clearing during temporary refresh failures
+  const lastValidSessionRef = useRef<Session | null>(null);
+  // Debounce timer for session validation failures
+  const sessionValidationTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Track last session refresh time to prevent excessive refreshes
+  const lastRefreshTimeRef = useRef<number>(0);
+  const SESSION_REFRESH_INTERVAL = 15 * 60 * 1000; // 15 minutes in milliseconds
 
   const isAuthenticated = !!user && !!session;
 
@@ -48,6 +60,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (event === 'SIGNED_IN' && session) {
         setSession(session);
+        lastValidSessionRef.current = session;
+        lastRefreshTimeRef.current = Date.now();
         // Fetch user profile
         try {
           const userProfile = await authAPI.getProfile();
@@ -58,8 +72,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else if (event === 'SIGNED_OUT') {
         setSession(null);
         setUser(null);
+        lastValidSessionRef.current = null;
+        lastRefreshTimeRef.current = 0;
       } else if (event === 'TOKEN_REFRESHED' && session) {
         setSession(session);
+        lastValidSessionRef.current = session;
+        lastRefreshTimeRef.current = Date.now();
+        isRefreshingRef.current = false;
+        setIsRefreshing(false);
       }
     });
 
@@ -67,6 +87,127 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe();
     };
   }, []);
+
+  // Refresh session periodically (every 15 minutes) and on visibility change (only if 15 min passed)
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    const refreshSessionIfNeeded = async () => {
+      const now = Date.now();
+      const timeSinceLastRefresh = now - lastRefreshTimeRef.current;
+      
+      // Only refresh if 15 minutes have passed since last refresh
+      if (timeSinceLastRefresh < SESSION_REFRESH_INTERVAL) {
+        console.log(`AuthContext - Skipping refresh, only ${Math.round(timeSinceLastRefresh / 1000)}s since last refresh`);
+        return;
+      }
+
+      if (isRefreshingRef.current) {
+        return;
+      }
+
+      console.log('AuthContext - Refreshing session (15 min interval)');
+      isRefreshingRef.current = true;
+      setIsRefreshing(true);
+      lastRefreshTimeRef.current = now;
+      
+      try {
+        // Refresh session by getting current session (Supabase handles refresh automatically)
+        const currentSession = await authAPI.getSession();
+        
+        if (currentSession) {
+          setSession(currentSession);
+          lastValidSessionRef.current = currentSession;
+          
+          // Verify user profile is still valid
+          try {
+            const userProfile = await authAPI.getProfile();
+            setUser(userProfile);
+          } catch (error) {
+            console.error('AuthContext - Error refreshing user profile:', error);
+            // Don't clear session if profile fetch fails - might be temporary network issue
+          }
+        } else {
+          // Session not found - check if we had a valid session before
+          if (lastValidSessionRef.current) {
+            console.log('AuthContext - Session temporarily unavailable, restoring last valid session');
+            // Restore the last valid session while we wait for refresh
+            setSession(lastValidSessionRef.current);
+            
+            // Keep the last valid session for a short period to allow for network delays
+            // Only clear if session is still invalid after a delay
+            if (sessionValidationTimerRef.current) {
+              clearTimeout(sessionValidationTimerRef.current);
+            }
+            
+            sessionValidationTimerRef.current = setTimeout(async () => {
+              // Re-check session after delay
+              const recheckSession = await authAPI.getSession();
+              if (!recheckSession) {
+                console.log('AuthContext - Session still invalid after delay, clearing');
+                setSession(null);
+                setUser(null);
+                lastValidSessionRef.current = null;
+              } else {
+                console.log('AuthContext - Session restored after delay');
+                setSession(recheckSession);
+                lastValidSessionRef.current = recheckSession;
+                // Refresh user profile
+                try {
+                  const userProfile = await authAPI.getProfile();
+                  setUser(userProfile);
+                } catch (error) {
+                  console.error('AuthContext - Error refreshing user profile after delay:', error);
+                }
+              }
+              isRefreshingRef.current = false;
+              setIsRefreshing(false);
+            }, 2000); // Wait 2 seconds before clearing
+          } else {
+            // No previous valid session, clear immediately
+            setSession(null);
+            setUser(null);
+            isRefreshingRef.current = false;
+            setIsRefreshing(false);
+          }
+        }
+      } catch (error) {
+        console.error('AuthContext - Error refreshing session:', error);
+        // On error, keep existing session if we had one
+        if (!lastValidSessionRef.current && session) {
+          lastValidSessionRef.current = session;
+        }
+      } finally {
+        isRefreshingRef.current = false;
+        setIsRefreshing(false);
+      }
+    };
+
+    // Handle visibility change - only refresh if 15 minutes have passed
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshSessionIfNeeded();
+      }
+    };
+
+    // Set up periodic refresh every 15 minutes
+    const intervalId = setInterval(() => {
+      refreshSessionIfNeeded();
+    }, SESSION_REFRESH_INTERVAL);
+
+    // Also check on visibility change (but will be throttled by refreshSessionIfNeeded)
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (sessionValidationTimerRef.current) {
+        clearTimeout(sessionValidationTimerRef.current);
+      }
+    };
+  }, [isAuthenticated]);
 
   // Auto-refresh session handling is done by Supabase Auth automatically
 
@@ -144,6 +285,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (currentSession) {
         setSession(currentSession);
+        lastValidSessionRef.current = currentSession;
+        lastRefreshTimeRef.current = Date.now(); // Track initialization as refresh
         // Fetch user profile
         try {
           const userProfile = await authAPI.getProfile();
@@ -151,13 +294,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(userProfile);
         } catch (error) {
           console.error('AuthContext - Error fetching user profile:', error);
-          // Session exists but profile fetch failed - clear session
-          await authAPI.logout();
-          setSession(null);
+          // Session exists but profile fetch failed - only clear if it's a persistent error
+          // Give it a retry first
+          try {
+            // Retry once after a short delay
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            const retryProfile = await authAPI.getProfile();
+            if (retryProfile) {
+              setUser(retryProfile);
+            } else {
+              // Still failed, clear session
+              await authAPI.logout();
+              setSession(null);
+              setUser(null);
+              lastValidSessionRef.current = null;
+            }
+          } catch (retryError) {
+            console.error('AuthContext - Retry also failed, clearing session');
+            await authAPI.logout();
+            setSession(null);
+            setUser(null);
+            lastValidSessionRef.current = null;
+          }
         }
+      } else {
+        // No session found - clear state
+        setSession(null);
+        setUser(null);
+        lastValidSessionRef.current = null;
       }
     } catch (error) {
       console.error('AuthContext - Error initializing auth:', error);
+      // On error, don't clear existing session if we had one
+      // This prevents clearing valid sessions due to temporary network issues
     } finally {
       console.log('AuthContext - setting loading to false');
       setIsLoading(false);
@@ -249,6 +418,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session,
       isLoading,
       isAuthenticated,
+      isRefreshing,
       login,
       logout,
       updateProfile,

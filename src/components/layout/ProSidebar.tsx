@@ -470,27 +470,14 @@ export function ProSidebar() {
                   icon={<Building2 className="h-4 w-4" />}
                   className="text-sm"
                 >
-                  <MenuItem 
-                    component={<Link to="/dashboard/organization" onClick={handleCloseSidebar} />}
-                    className="text-sm"
-                    icon={<Database className="h-4 w-4" />}
-                  >
-                    Usage & Limits
-                  </MenuItem>
-                  <MenuItem 
-                    component={<Link to="/dashboard/organization/settings" onClick={handleCloseSidebar} />}
-                    className="text-sm"
-                    icon={<Settings className="h-4 w-4" />}
-                  >
-                    Settings
-                  </MenuItem>
-                  <MenuItem 
+                   <MenuItem 
                     component={<Link to="/dashboard/organization/team" onClick={handleCloseSidebar} />}
                     className="text-sm"
                     icon={<Users className="h-4 w-4" />}
                   >
                     Team Management
                   </MenuItem>
+
                   <MenuItem 
                     component={<Link to="/dashboard/organization/subscription" onClick={handleCloseSidebar} />}
                     className="text-sm"
@@ -498,6 +485,23 @@ export function ProSidebar() {
                   >
                     Subscription & Billing
                   </MenuItem>
+                  <MenuItem 
+                    component={<Link to="/dashboard/organization" onClick={handleCloseSidebar} />}
+                    className="text-sm"
+                    icon={<Database className="h-4 w-4" />}
+                  >
+                    Usage & Limits
+                  </MenuItem>
+                  
+                  <MenuItem 
+                    component={<Link to="/dashboard/organization/settings" onClick={handleCloseSidebar} />}
+                    className="text-sm"
+                    icon={<Settings className="h-4 w-4" />}
+                  >
+                    Settings
+                  </MenuItem>
+                 
+                 
                 
                 </SubMenu>
               )}

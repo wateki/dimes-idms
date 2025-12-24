@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabaseClient';
 import type { Database } from '@/types/supabase';
 import { supabaseAuthService } from './supabaseAuthService';
 import { config } from '@/config/env';
+import { supabaseUsageTrackingService } from './supabaseUsageTrackingService';
 
 type User = Database['public']['Tables']['users']['Row'];
 type Role = Database['public']['Tables']['roles']['Row'];
@@ -453,6 +454,16 @@ class SupabaseUserManagementService {
       }
     }
 
+    // Track usage: increment users count if user is active
+    if (newUser.isActive) {
+      try {
+        await supabaseUsageTrackingService.incrementUsage('users');
+      } catch (error) {
+        console.error('Failed to track user creation:', error);
+        // Don't throw - tracking failure shouldn't break user creation
+      }
+    }
+
     return this.getUserWithDetails(newUser.id);
   }
 
@@ -522,6 +533,35 @@ class SupabaseUserManagementService {
       }
     }
 
+    // Track usage: handle isActive changes
+    if (userData.isActive !== undefined) {
+      try {
+        // Get current user state before update to determine if we need to increment or decrement
+        const { data: currentUser } = await supabase
+          .from('users')
+          .select('isActive')
+          .eq('id', userId)
+          .eq('organizationid', organizationId)
+          .single();
+
+        if (currentUser) {
+          const wasActive = currentUser.isActive;
+          const isNowActive = userData.isActive;
+
+          if (!wasActive && isNowActive) {
+            // User activated - increment
+            await supabaseUsageTrackingService.incrementUsage('users');
+          } else if (wasActive && !isNowActive) {
+            // User deactivated - decrement
+            await supabaseUsageTrackingService.decrementUsage('users');
+          }
+        }
+      } catch (error) {
+        console.error('Failed to track user status change:', error);
+        // Don't throw - tracking failure shouldn't break user update
+      }
+    }
+
     return this.getUserWithDetails(userId);
   }
 
@@ -544,10 +584,10 @@ class SupabaseUserManagementService {
       throw new Error('Cannot delete your own account');
     }
     
-    // Verify user belongs to same organization
+    // Verify user belongs to same organization and get isActive status
     const { data: targetUser, error: userError } = await supabase
       .from('users')
-      .select('id, organizationid')
+      .select('id, organizationid, isActive')
       .eq('id', userId)
       .eq('organizationid', organizationId)
       .single();
@@ -597,6 +637,16 @@ class SupabaseUserManagementService {
 
     if (userUpdate.error) {
       throw new Error(userUpdate.error.message || 'Failed to delete user');
+    }
+
+    // Track usage: decrement users count if user was active
+    if (targetUser.isActive) {
+      try {
+        await supabaseUsageTrackingService.decrementUsage('users');
+      } catch (error) {
+        console.error('Failed to track user deletion:', error);
+        // Don't throw - tracking failure shouldn't break user deletion
+      }
     }
 
     if (rolesUpdate.error) {

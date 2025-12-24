@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { Database } from '@/types/supabase';
 import { supabaseAuthService } from './supabaseAuthService';
+import { supabaseUsageTrackingService } from './supabaseUsageTrackingService';
 
 type ProjectKoboTable = Database['public']['Tables']['project_kobo_tables']['Row'];
 type KoboKpiMapping = Database['public']['Tables']['kobo_kpi_mappings']['Row'];
@@ -216,6 +217,9 @@ class SupabaseKoboDataService {
       throw new Error(error?.message || 'Failed to create project Kobo table');
     }
 
+    // Note: Usage tracking is now handled by database trigger (track_kobo_table_insert)
+    // This ensures atomicity and better performance
+
     return { data: newTable };
   }
 
@@ -394,6 +398,9 @@ class SupabaseKoboDataService {
     if (error) {
       throw new Error(error.message || 'Failed to delete project Kobo table');
     }
+
+    // Note: Usage tracking is now handled by database trigger (track_kobo_table_delete)
+    // This ensures atomicity and better performance
   }
 
   // Kobo KPI Mapping Management

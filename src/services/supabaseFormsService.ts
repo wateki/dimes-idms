@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { Database } from '@/types/supabase';
 import { supabaseAuthService } from './supabaseAuthService';
+import { supabaseUsageTrackingService } from './supabaseUsageTrackingService';
 
 type Form = Database['public']['Tables']['forms']['Row'];
 type FormInsert = Database['public']['Tables']['forms']['Insert'];
@@ -105,6 +106,9 @@ class SupabaseFormsService {
       .single();
 
     if (formError) throw new Error(`Failed to create form: ${formError.message}`);
+
+    // Note: Usage tracking is now handled by database trigger (track_form_insert)
+    // This ensures atomicity and better performance
 
     // Create sections and questions if provided
     if (formData.sections && formData.sections.length > 0) {
@@ -333,6 +337,9 @@ class SupabaseFormsService {
       .eq('organizationid', organizationId); // Ensure ownership
 
     if (error) throw new Error(`Failed to delete form: ${error.message}`);
+
+    // Note: Usage tracking is now handled by database trigger (track_form_delete)
+    // This ensures atomicity and better performance
   }
 
   async duplicateForm(projectId: string, formId: string, createdBy: string): Promise<FormWithSections> {
@@ -586,6 +593,9 @@ class SupabaseFormsService {
       })
       .eq('id', responseData.formId);
 
+    // Note: Usage tracking is now handled by database trigger (track_form_response_insert)
+    // This ensures atomicity and better performance. All responses are tracked (complete and incomplete).
+
     // Return response with data aggregated
     return {
       ...response,
@@ -817,6 +827,10 @@ class SupabaseFormsService {
         .eq('organizationid', organizationId); // Ensure ownership
 
       if (updateError) throw new Error(`Failed to update response: ${updateError.message}`);
+
+      // Note: Usage tracking is now handled by database trigger (track_form_response_insert)
+      // All responses are tracked on creation, so status changes don't affect usage count.
+      // The majority of responses are complete when created, so tracking all responses is appropriate.
     }
 
     // Update question responses if data is provided
@@ -878,6 +892,9 @@ class SupabaseFormsService {
       .eq('organizationid', organizationId); // Ensure ownership
 
     if (error) throw new Error(`Failed to delete response: ${error.message}`);
+
+    // Note: Usage tracking is now handled by database trigger (track_form_response_delete)
+    // This ensures atomicity and better performance. All responses are tracked (complete and incomplete).
   }
 
   // ========================================
@@ -1060,6 +1077,16 @@ class SupabaseFormsService {
       .single();
 
     if (attachmentError) throw new Error(`Failed to create attachment record: ${attachmentError.message}`);
+
+    // Track storage: increment storage_gb
+    try {
+      const fileSizeGB = file.size / (1024 * 1024 * 1024);
+      await supabaseUsageTrackingService.incrementUsage('storage_gb', fileSizeGB);
+    } catch (error) {
+      console.error('Failed to track storage usage on media upload:', error);
+      // Don't throw - tracking failure shouldn't break file upload
+    }
+
     return attachment;
   }
 
@@ -1113,6 +1140,16 @@ class SupabaseFormsService {
       .single();
 
     if (attachmentError) throw new Error(`Failed to create attachment record: ${attachmentError.message}`);
+
+    // Track storage: increment storage_gb
+    try {
+      const fileSizeGB = file.size / (1024 * 1024 * 1024);
+      await supabaseUsageTrackingService.incrementUsage('storage_gb', fileSizeGB);
+    } catch (error) {
+      console.error('Failed to track storage usage on direct media upload:', error);
+      // Don't throw - tracking failure shouldn't break file upload
+    }
+
     return attachment;
   }
 
@@ -1169,10 +1206,10 @@ class SupabaseFormsService {
   }
 
   async deleteMediaFile(projectId: string, formId: string, mediaId: string): Promise<void> {
-    // Get attachment to get file path
+    // Get attachment to get file path and size
     const { data: attachment, error: fetchError } = await supabase
       .from('media_attachments')
-      .select('filePath')
+      .select('filePath, fileSize')
       .eq('id', mediaId)
       .eq('formId', formId)
       .single();
@@ -1198,6 +1235,17 @@ class SupabaseFormsService {
       .eq('formId', formId);
 
     if (deleteError) throw new Error(`Failed to delete attachment: ${deleteError.message}`);
+
+    // Track storage: decrement storage_gb
+    try {
+      const fileSizeGB = parseInt(attachment.fileSize || '0', 10) / (1024 * 1024 * 1024);
+      if (fileSizeGB > 0) {
+        await supabaseUsageTrackingService.decrementUsage('storage_gb', fileSizeGB);
+      }
+    } catch (error) {
+      console.error('Failed to track storage usage on media deletion:', error);
+      // Don't throw - tracking failure shouldn't break file deletion
+    }
   }
 
   async updateMediaFileMetadata(

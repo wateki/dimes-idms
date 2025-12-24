@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { Database } from '@/types/supabase';
 import { supabaseAuthService } from './supabaseAuthService';
+import { supabaseUsageTrackingService } from './supabaseUsageTrackingService';
 import type { Project } from '@/types/dashboard';
 
 type ProjectRow = Database['public']['Tables']['projects']['Row'];
@@ -160,6 +161,9 @@ class SupabaseProjectsService {
       throw new Error(error?.message || 'Failed to create project');
     }
 
+    // Note: Usage tracking is now handled by database trigger (track_project_insert)
+    // This ensures atomicity and better performance
+
     return this.formatProject(data);
   }
 
@@ -221,6 +225,9 @@ class SupabaseProjectsService {
     if (error) {
       throw new Error(error.message || 'Failed to delete project or access denied');
     }
+
+    // Note: Usage tracking is now handled by database trigger (track_project_delete)
+    // This ensures atomicity and better performance
 
     return { success: true, message: 'Project deleted successfully' };
   }

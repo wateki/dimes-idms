@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { Database } from '@/types/supabase';
 import { supabaseAuthService } from './supabaseAuthService';
+import { supabaseUsageTrackingService } from './supabaseUsageTrackingService';
 import type { CreateFeedbackSubmissionRequest } from '@/types/feedback';
 
 type FeedbackForm = Database['public']['Tables']['feedback_forms']['Row'];
@@ -168,6 +169,9 @@ class SupabaseFeedbackService {
       throw new Error(error?.message || 'Failed to create feedback form');
     }
 
+    // Note: Usage tracking is now handled by database trigger (track_feedback_form_insert)
+    // This ensures atomicity and better performance
+
     return form;
   }
 
@@ -222,6 +226,9 @@ class SupabaseFeedbackService {
     if (error) {
       throw new Error(error.message || 'Failed to delete feedback form or access denied');
     }
+
+    // Note: Usage tracking is now handled by database trigger (track_feedback_form_delete)
+    // This ensures atomicity and better performance
   }
 
   // Submissions
@@ -403,6 +410,9 @@ class SupabaseFeedbackService {
       resolvedAt: submission.resolvedAt ? new Date(submission.resolvedAt) : undefined,
       closedAt: submission.closedAt ? new Date(submission.closedAt) : undefined,
     };
+
+    // Note: Usage tracking is now handled by database trigger (track_feedback_submission_insert)
+    // This ensures atomicity and better performance
     
     return formattedSubmission as any; // Type assertion needed due to complex type conversion
   }
@@ -499,6 +509,9 @@ class SupabaseFeedbackService {
     if (error) {
       throw new Error(error.message || 'Failed to delete feedback submission or access denied');
     }
+
+    // Note: Usage tracking is now handled by database trigger (track_feedback_submission_delete)
+    // This ensures atomicity and better performance
   }
 
   // Categories

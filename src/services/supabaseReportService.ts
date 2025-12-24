@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { Database } from '@/types/supabase';
 import { supabaseAuthService } from './supabaseAuthService';
+import { supabaseUsageTrackingService } from './supabaseUsageTrackingService';
 import { saveAs } from 'file-saver';
 
 type Report = Database['public']['Tables']['reports']['Row'];
@@ -204,6 +205,20 @@ class SupabaseReportService {
     if (error) {
       throw new Error(error.message || 'Failed to delete report or access denied');
     }
+
+    // Note: Reports count tracking is now handled by database trigger (track_report_delete)
+    // This ensures atomicity and better performance
+
+    // Track storage: decrement storage_gb (kept at service-level for file size calculation)
+    try {
+      const fileSizeGB = parseInt(report.fileSize || '0', 10) / (1024 * 1024 * 1024);
+      if (fileSizeGB > 0) {
+        await supabaseUsageTrackingService.decrementUsage('storage_gb', fileSizeGB);
+      }
+    } catch (error) {
+      console.error('Failed to track storage usage on deletion:', error);
+      // Don't throw - tracking failure shouldn't break report deletion
+    }
   }
 
   // File upload using Supabase Storage
@@ -286,6 +301,18 @@ class SupabaseReportService {
       // Rollback: delete uploaded file if database insert fails
       await supabase.storage.from('reports').remove([storagePath]);
       throw new Error(reportError?.message || 'Failed to create report record');
+    }
+
+    // Note: Reports count tracking is now handled by database trigger (track_report_insert)
+    // This ensures atomicity and better performance
+
+    // Track storage: calculate and update storage_gb (kept at service-level for file size calculation)
+    try {
+      const fileSizeGB = file.size / (1024 * 1024 * 1024);
+      await supabaseUsageTrackingService.incrementUsage('storage_gb', fileSizeGB);
+    } catch (error) {
+      console.error('Failed to track storage usage:', error);
+      // Don't throw - tracking failure shouldn't break report upload
     }
 
     return {

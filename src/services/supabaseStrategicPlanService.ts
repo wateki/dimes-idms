@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { Database } from '@/types/supabase';
 import { supabaseAuthService } from './supabaseAuthService';
+import { supabaseUsageTrackingService } from './supabaseUsageTrackingService';
 
 type StrategicPlanRow = Database['public']['Tables']['strategic_plans']['Row'];
 type StrategicGoalRow = Database['public']['Tables']['strategic_goals']['Row'];
@@ -314,6 +315,9 @@ class SupabaseStrategicPlanService {
         }
       }
     }
+
+    // Note: Usage tracking is now handled by database trigger (track_strategic_plan_insert)
+    // This ensures atomicity and better performance
 
     return this.formatStrategicPlan(plan);
   }
@@ -659,6 +663,9 @@ class SupabaseStrategicPlanService {
     if (error) {
       throw new Error(error.message || 'Failed to delete strategic plan or access denied');
     }
+
+    // Note: Usage tracking is now handled by database trigger (track_strategic_plan_delete)
+    // This ensures atomicity and better performance
   }
 }
 

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { User } from '@/types/dashboard';
 import { authAPI } from '@/lib/api/auth';
 import type { Session } from '@supabase/supabase-js';
+import { userProfileCache } from '@/services/userProfileCache';
 
 interface AuthContextType {
   user: User | null;
@@ -62,10 +63,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(session);
         lastValidSessionRef.current = session;
         lastRefreshTimeRef.current = Date.now();
-        // Fetch user profile
+        // Fetch user profile and cache it
         try {
           const userProfile = await authAPI.getProfile();
           setUser(userProfile);
+          // Update cache
+          if (userProfile?.organizationId && session.user?.id) {
+            userProfileCache.setCache(userProfile, userProfile.organizationId, session.user.id);
+          }
         } catch (error) {
           console.error('Error fetching user profile after sign in:', error);
         }
@@ -74,6 +79,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         lastValidSessionRef.current = null;
         lastRefreshTimeRef.current = 0;
+        // Clear cache on logout
+        userProfileCache.clearCache();
       } else if (event === 'TOKEN_REFRESHED' && session) {
         setSession(session);
         lastValidSessionRef.current = session;
@@ -287,11 +294,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(currentSession);
         lastValidSessionRef.current = currentSession;
         lastRefreshTimeRef.current = Date.now(); // Track initialization as refresh
-        // Fetch user profile
+        // Fetch user profile and cache it
         try {
           const userProfile = await authAPI.getProfile();
           console.log('AuthContext - user profile loaded, setting user and session');
           setUser(userProfile);
+          // Update cache
+          if (userProfile?.organizationId && currentSession.user?.id) {
+            userProfileCache.setCache(userProfile, userProfile.organizationId, currentSession.user.id);
+          }
         } catch (error) {
           console.error('AuthContext - Error fetching user profile:', error);
           // Session exists but profile fetch failed - only clear if it's a persistent error
@@ -302,11 +313,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const retryProfile = await authAPI.getProfile();
             if (retryProfile) {
               setUser(retryProfile);
+              // Update cache on retry success
+              if (retryProfile?.organizationId && currentSession.user?.id) {
+                userProfileCache.setCache(retryProfile, retryProfile.organizationId, currentSession.user.id);
+              }
             } else {
-              // Still failed, clear session
+              // Still failed, clear session and cache
               await authAPI.logout();
               setSession(null);
               setUser(null);
+              userProfileCache.clearCache();
               lastValidSessionRef.current = null;
             }
           } catch (retryError) {
@@ -396,6 +412,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const updatedUser = await authAPI.updateProfile(updates);
       setUser(updatedUser);
+      // Refresh cache with updated profile
+      if (updatedUser?.organizationId && session?.user?.id) {
+        userProfileCache.setCache(updatedUser, updatedUser.organizationId, session.user.id);
+      }
       return updatedUser;
     } catch (error) {
       console.error('Profile update failed:', error);

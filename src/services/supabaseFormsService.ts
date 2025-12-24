@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabaseClient';
 import type { Database } from '@/types/supabase';
 import { supabaseAuthService } from './supabaseAuthService';
 import { supabaseUsageTrackingService } from './supabaseUsageTrackingService';
+import { getCurrentUserOrganizationId } from './getCurrentUserOrganizationId';
 
 type Form = Database['public']['Tables']['forms']['Row'];
 type FormInsert = Database['public']['Tables']['forms']['Insert'];
@@ -33,20 +34,10 @@ type FormResponseWithAttachments = FormResponse & {
 
 class SupabaseFormsService {
   /**
-   * Get current user's organizationId
+   * Get current user's organizationId (uses shared cache helper)
    */
   private async getCurrentUserOrganizationId(): Promise<string> {
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
-      throw new Error('User is not associated with an organization');
-    }
-
-    return userProfile.organizationId;
+    return getCurrentUserOrganizationId();
   }
 
   /**
@@ -105,7 +96,11 @@ class SupabaseFormsService {
       .select()
       .single();
 
-    if (formError) throw new Error(`Failed to create form: ${formError.message}`);
+    if (formError) {
+      // Handle subscription limit errors from RLS policies
+      const { handleSubscriptionError } = await import('@/utils/subscriptionErrorHandler');
+      throw await handleSubscriptionError(formError, 'forms', 'create');
+    }
 
     // Note: Usage tracking is now handled by database trigger (track_form_insert)
     // This ensures atomicity and better performance
@@ -539,7 +534,14 @@ class SupabaseFormsService {
       .select()
       .single();
 
-    if (responseError) throw new Error(`Failed to create response: ${responseError.message}`);
+    if (responseError) {
+      // Handle subscription limit errors from RLS policies (only for complete responses)
+      if (responseData.isComplete !== false) {
+        const { handleSubscriptionError } = await import('@/utils/subscriptionErrorHandler');
+        throw await handleSubscriptionError(responseError, 'form_responses', 'create');
+      }
+      throw new Error(`Failed to create response: ${responseError.message}`);
+    }
 
     // Create question responses
     // Filter out null/undefined values and ensure all values are valid JSON
@@ -1238,7 +1240,8 @@ class SupabaseFormsService {
 
     // Track storage: decrement storage_gb
     try {
-      const fileSizeGB = parseInt(attachment.fileSize || '0', 10) / (1024 * 1024 * 1024);
+      const fileSizeStr = String(attachment.fileSize || '0');
+      const fileSizeGB = parseInt(fileSizeStr, 10) / (1024 * 1024 * 1024);
       if (fileSizeGB > 0) {
         await supabaseUsageTrackingService.decrementUsage('storage_gb', fileSizeGB);
       }

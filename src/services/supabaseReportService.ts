@@ -300,7 +300,9 @@ class SupabaseReportService {
     if (reportError || !report) {
       // Rollback: delete uploaded file if database insert fails
       await supabase.storage.from('reports').remove([storagePath]);
-      throw new Error(reportError?.message || 'Failed to create report record');
+      // Handle subscription limit errors from RLS policies
+      const { handleSubscriptionError } = await import('@/utils/subscriptionErrorHandler');
+      throw await handleSubscriptionError(reportError || { message: 'Failed to create report record' }, 'reports', 'create');
     }
 
     // Note: Reports count tracking is now handled by database trigger (track_report_insert)

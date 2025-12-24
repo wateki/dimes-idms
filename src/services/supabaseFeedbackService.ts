@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabaseClient';
 import type { Database } from '@/types/supabase';
 import { supabaseAuthService } from './supabaseAuthService';
 import { supabaseUsageTrackingService } from './supabaseUsageTrackingService';
+import { getCurrentUserOrganizationId } from './getCurrentUserOrganizationId';
 import type { CreateFeedbackSubmissionRequest } from '@/types/feedback';
 
 type FeedbackForm = Database['public']['Tables']['feedback_forms']['Row'];
@@ -12,20 +13,10 @@ type FeedbackCommunication = Database['public']['Tables']['feedback_communicatio
 
 class SupabaseFeedbackService {
   /**
-   * Get current user's organizationId
+   * Get current user's organizationId (uses shared cache helper)
    */
   private async getCurrentUserOrganizationId(): Promise<string> {
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
-      throw new Error('User is not associated with an organization');
-    }
-
-    return userProfile.organizationId;
+    return getCurrentUserOrganizationId();
   }
 
   /**
@@ -139,6 +130,13 @@ class SupabaseFeedbackService {
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
+    // Check subscription limits before creating feedback form
+    const { supabaseLimitCheckService } = await import('./supabaseLimitCheckService');
+    const limitCheck = await supabaseLimitCheckService.checkLimit('feedback_forms', 'create');
+    if (!limitCheck.allowed) {
+      throw new Error(limitCheck.message || 'Feedback form limit reached. Please upgrade your plan to create more feedback forms.');
+    }
+
     // Multi-tenant: Verify project ownership if projectId is provided
     if (data.projectId) {
       await this.verifyProjectOwnership(data.projectId);
@@ -166,7 +164,9 @@ class SupabaseFeedbackService {
       .single();
 
     if (error || !form) {
-      throw new Error(error?.message || 'Failed to create feedback form');
+      // Handle subscription limit errors from RLS policies
+      const { handleSubscriptionError } = await import('@/utils/subscriptionErrorHandler');
+      throw await handleSubscriptionError(error || { message: 'Failed to create feedback form' }, 'feedback_forms', 'create');
     }
 
     // Note: Usage tracking is now handled by database trigger (track_feedback_form_insert)
@@ -391,7 +391,10 @@ class SupabaseFeedbackService {
       .single();
 
     if (error || !submission) {
-      throw new Error(error?.message || 'Failed to create feedback submission');
+      // Handle subscription limit errors from RLS policies (feedback submissions count as form_responses)
+      // Also preserves other error types (validation, constraints, etc.)
+      const { handleSubscriptionError } = await import('@/utils/subscriptionErrorHandler');
+      throw await handleSubscriptionError(error || { message: 'Failed to create feedback submission' }, 'form_responses', 'create');
     }
 
     // Format submission to include all required fields

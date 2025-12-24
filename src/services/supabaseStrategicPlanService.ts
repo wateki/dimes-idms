@@ -211,7 +211,9 @@ class SupabaseStrategicPlanService {
       .single();
 
     if (planError || !plan) {
-      throw new Error(planError?.message || 'Failed to create strategic plan');
+      // Handle subscription limit errors from RLS policies
+      const { handleSubscriptionError } = await import('@/utils/subscriptionErrorHandler');
+      throw await handleSubscriptionError(planError || { message: 'Failed to create strategic plan' }, 'strategic_plans', 'create');
     }
 
     // Create goals, subgoals, KPIs, and activity links

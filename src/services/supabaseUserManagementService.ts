@@ -426,7 +426,9 @@ class SupabaseUserManagementService {
       } catch (cleanupError) {
         console.error('Failed to cleanup auth user after profile creation failure:', cleanupError);
       }
-      throw new Error(userError?.message || 'Failed to create user profile');
+      // Handle subscription limit errors from RLS policies, and preserve other errors
+      const { handleSubscriptionError } = await import('@/utils/subscriptionErrorHandler');
+      throw await handleSubscriptionError(userError || { message: 'Failed to create user profile' }, 'users', 'create');
     }
 
     // Assign roles if provided

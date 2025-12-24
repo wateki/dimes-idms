@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabaseClient';
 import type { Database } from '@/types/supabase';
 import { supabaseAuthService } from './supabaseAuthService';
 import { supabaseUsageTrackingService } from './supabaseUsageTrackingService';
+import { getCurrentUserOrganizationId } from './getCurrentUserOrganizationId';
 import type { Project } from '@/types/dashboard';
 
 type ProjectRow = Database['public']['Tables']['projects']['Row'];
@@ -51,20 +52,10 @@ class SupabaseProjectsService {
   }
 
   /**
-   * Get current user's organizationId
+   * Get current user's organizationId (uses shared cache helper)
    */
   private async getCurrentUserOrganizationId(): Promise<string> {
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
-      throw new Error('User is not associated with an organization');
-    }
-
-    return userProfile.organizationId;
+    return getCurrentUserOrganizationId();
   }
 
   async getAllProjects(): Promise<Project[]> {
@@ -158,7 +149,9 @@ class SupabaseProjectsService {
       .single();
 
     if (error || !data) {
-      throw new Error(error?.message || 'Failed to create project');
+      // Handle subscription limit errors from RLS policies
+      const { handleSubscriptionError } = await import('@/utils/subscriptionErrorHandler');
+      throw await handleSubscriptionError(error || { message: 'Failed to create project' }, 'projects', 'create');
     }
 
     // Note: Usage tracking is now handled by database trigger (track_project_insert)

@@ -214,7 +214,9 @@ class SupabaseKoboDataService {
       .single();
 
     if (error || !newTable) {
-      throw new Error(error?.message || 'Failed to create project Kobo table');
+      // Handle subscription limit errors from RLS policies
+      const { handleSubscriptionError } = await import('@/utils/subscriptionErrorHandler');
+      throw await handleSubscriptionError(error || { message: 'Failed to create project Kobo table' }, 'kobo_tables', 'create');
     }
 
     // Note: Usage tracking is now handled by database trigger (track_kobo_table_insert)

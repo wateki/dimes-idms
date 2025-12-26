@@ -26,10 +26,10 @@ export interface InitializeSubscriptionRequest {
 }
 
 export interface UpdateSubscriptionRequest {
-  subscriptionCode: string;
-  planCode?: string;
-  authorizationCode?: string;
+  planCode: string; // Required: the new plan code to switch to
+  authorizationCode?: string; // Optional: if customer has multiple authorizations
   immediate?: boolean; // If true, switch immediately. If false (default), switch at next billing cycle
+  // Note: subscriptionCode is no longer required - backend will detect it from the user's organization
 }
 
 export interface PaystackPlan {
@@ -228,11 +228,10 @@ class PaystackService {
 
   /**
    * Get subscription management link
+   * Note: subscriptionCode is no longer required - backend will detect it from the user's organization
    */
-  async getSubscriptionLink(subscriptionCode: string): Promise<{ link: string }> {
-    const result = await this.callEdgeFunction('get_subscription_link', {
-      subscriptionCode,
-    });
+  async getSubscriptionLink(): Promise<{ link: string }> {
+    const result = await this.callEdgeFunction('get_subscription_link', {});
     return result.data;
   }
 }

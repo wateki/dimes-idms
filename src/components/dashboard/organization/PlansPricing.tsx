@@ -19,7 +19,6 @@ export function PlansPricing() {
   const [subscription, setSubscription] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
-  const [switchImmediately, setSwitchImmediately] = useState(false);
   const [isAnnual, setIsAnnual] = useState(false);
 
   useEffect(() => {
@@ -257,29 +256,49 @@ export function PlansPricing() {
     }
 
     // Check if user has an active subscription
-    const hasActiveSubscription = subscription?.paystackSubscriptionCode && 
-      (subscription.status === 'active' || subscription.status === 'trialing');
+    // The subscription object uses lowercase field names from the database
+    const paystackSubscriptionCode = subscription?.paystackSubscriptionCode || 
+                                    subscription?.paystacksubscriptioncode ||
+                                    subscription?.paystack_subscription_code;
+    const subscriptionStatus = subscription?.status || subscription?.Status;
+    const subscriptionTier = subscription?.tier || subscription?.Tier || organization?.subscriptionTier;
+    
+    // User has an active subscription if:
+    // 1. They have a subscription code AND status is active/trialing, OR
+    // 2. They have a paid tier (not free) - even if subscription code isn't set yet
+    const hasActiveSubscription = (
+      (paystackSubscriptionCode && (subscriptionStatus === 'active' || subscriptionStatus === 'trialing'))
+    ) || (
+      subscriptionTier && 
+      subscriptionTier !== 'free' && 
+      (subscriptionStatus === 'active' || subscriptionStatus === 'trialing' || !subscriptionStatus)
+    );
+
+    // Determine if this is a switch from free to paid plan
+    // immediate = true ONLY when switching FROM free TO a paid plan
+    const isFreeToPaidSwitch = (subscriptionTier === 'free' || !subscriptionTier) && planCode !== 'PLN_FREE';
+    const shouldSwitchImmediately = isFreeToPaidSwitch;
 
     // If user has an active subscription, switch plans instead of creating new one
     if (hasActiveSubscription && planCode !== 'PLN_FREE') {
       try {
         setProcessing(true);
         console.log('[Subscription] Switching subscription plan:', {
-          subscriptionCode: subscription.paystackSubscriptionCode,
+          subscriptionCode: paystackSubscriptionCode,
+          currentTier: subscriptionTier,
           newPlanCode: planCode,
+          isFreeToPaid: isFreeToPaidSwitch,
+          immediate: shouldSwitchImmediately,
           organizationId: organization.id,
         });
 
-        await supabaseOrganizationService.switchSubscriptionPlan(planCode, switchImmediately);
+        await supabaseOrganizationService.switchSubscriptionPlan(planCode, shouldSwitchImmediately);
         
-        if (switchImmediately) {
+        if (shouldSwitchImmediately) {
           showSuccess('Subscription plan switched successfully. Changes are effective immediately.');
         } else {
           showSuccess('Subscription plan switch scheduled. Your current plan will remain active until the next billing cycle, when your new plan will begin.');
         }
-        
-        // Reset the immediate switch option
-        setSwitchImmediately(false);
         
         // Refresh subscription and organization data
         await loadSubscription();
@@ -293,7 +312,7 @@ export function PlansPricing() {
           message: error?.message,
           stack: error?.stack,
           planCode,
-          subscriptionCode: subscription?.paystackSubscriptionCode,
+          subscriptionCode: paystackSubscriptionCode,
         });
         showError(error?.message || 'Failed to switch subscription plan');
       } finally {
@@ -406,29 +425,6 @@ export function PlansPricing() {
         </div>
       </div>
       
-      {/* Immediate Switch Option - Only show if user has an active subscription */}
-      {subscription?.paystackSubscriptionCode && 
-       (subscription.status === 'active' || subscription.status === 'trialing') && (
-        <div className="p-4 bg-muted rounded-lg border">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label htmlFor="switch-immediately" className="text-base font-medium cursor-pointer">
-                Switch plan immediately
-              </Label>
-              <p className="text-sm text-muted-foreground">
-                {switchImmediately 
-                  ? 'Your current subscription will be cancelled and the new plan will start right away.'
-                  : 'Your current plan will remain active until the next billing cycle, then the new plan will begin. (Recommended)'}
-              </p>
-            </div>
-            <Switch
-              id="switch-immediately"
-              checked={switchImmediately}
-              onCheckedChange={setSwitchImmediately}
-            />
-          </div>
-        </div>
-      )}
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {plans.map((plan) => {
@@ -523,8 +519,13 @@ export function PlansPricing() {
                           Processing...
                         </>
                       )
-                      : (subscription?.paystackSubscriptionCode && 
-                         (subscription.status === 'active' || subscription.status === 'trialing'))
+                      : (() => {
+                          const paystackCode = subscription?.paystackSubscriptionCode || 
+                                              subscription?.paystacksubscriptioncode ||
+                                              subscription?.paystack_subscription_code;
+                          const status = subscription?.status || subscription?.Status;
+                          return paystackCode && (status === 'active' || status === 'trialing');
+                        })()
                         ? 'Switch Plan'
                         : 'Select Plan'}
                   </Button>

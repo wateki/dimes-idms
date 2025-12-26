@@ -239,6 +239,98 @@ class SupabaseLimitCheckService {
       return false;
     }
   }
+
+  /**
+   * Get plan details including display name and subscription status
+   */
+  async getPlanDetails(): Promise<{
+    displayName: string;
+    tierName: string;
+    status: string;
+    isAnnual: boolean;
+  } | null> {
+    try {
+      const organizationId = await this.getCurrentUserOrganizationId();
+
+      // Get plan code from subscription
+      const { data: planCode } = await supabase.rpc('get_organization_plan_code', {
+        p_org_id: organizationId,
+      });
+
+      if (!planCode) {
+        // Fallback to tier name
+        const { data: tierName } = await supabase.rpc('get_organization_tier', {
+          p_org_id: organizationId,
+        });
+
+        if (!tierName) {
+          return null;
+        }
+
+        // Get plan by tier name (get monthly version)
+        const { data: plan } = await supabase
+          .from('subscription_plans')
+          .select('displayName, tierName, isAnnual')
+          .eq('tierName', tierName)
+          .eq('isActive', true)
+          .eq('isAnnual', false)
+          .limit(1)
+          .single();
+
+        if (!plan) {
+          return null;
+        }
+
+        // Get subscription status
+        const { data: subscription } = await supabase
+          .from('subscriptions')
+          .select('status')
+          .eq('organizationid', organizationId)
+          .eq('status', 'active')
+          .limit(1)
+          .single();
+
+        return {
+          displayName: plan.displayName,
+          tierName: plan.tierName,
+          status: subscription?.status || 'inactive',
+          isAnnual: plan.isAnnual ?? false,
+        };
+      }
+
+      // Get plan by plan code
+      const { data: plan } = await supabase
+        .from('subscription_plans')
+        .select('displayName, tierName, isAnnual')
+        .eq('planCode', planCode)
+        .eq('isActive', true)
+        .limit(1)
+        .single();
+
+      if (!plan) {
+        return null;
+      }
+
+      // Get subscription status
+      const { data: subscription } = await supabase
+        .from('subscriptions')
+        .select('status')
+        .eq('organizationid', organizationId)
+        .eq('status', 'active')
+        .limit(1)
+        .single();
+
+      return {
+        displayName: plan.displayName,
+        tierName: plan.tierName,
+        status: subscription?.status || 'inactive',
+        isAnnual: plan.isAnnual ?? false,
+      };
+    } catch (error) {
+      console.error('Error getting plan details:', error);
+      return null;
+    }
+  }
 }
 
 export const supabaseLimitCheckService = new SupabaseLimitCheckService();

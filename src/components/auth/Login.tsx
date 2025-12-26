@@ -20,40 +20,55 @@ export const Login: React.FC<LoginProps> = () => {
   const [searchParams] = useSearchParams();
   const { login, isAuthenticated, isLoading } = useAuth();
   
-  // Get the 'next' (preferred) or legacy 'returnTo' parameter from URL and validate it
-  let rawNext = searchParams.get('next') || searchParams.get('returnTo');
-  if (!rawNext && typeof window !== 'undefined') {
-    // Fallback to window.location.search parsing to handle edge cases
-    const sp = new URLSearchParams(window.location.search);
-    rawNext = sp.get('next') || sp.get('returnTo');
-  }
-  
-  // Debug logging
-  console.log('Login component - nextUrl from searchParams:', rawNext);
-  console.log('Login component - all search params:', Object.fromEntries(searchParams.entries()));
-  
   // Validate and sanitize the next URL to prevent open redirects
   const isValidNextUrl = (url: string): boolean => {
     // Only allow relative URLs (starting with /) and not login page
     return url.startsWith('/') && !url.startsWith('//') && url !== '/login';
   };
-  
-  const decodedNext = rawNext ? decodeURIComponent(rawNext) : null;
-  console.log('Login component - decoded URL:', decodedNext);
-  
-  const safeNextUrl = decodedNext && isValidNextUrl(decodedNext) ? decodedNext : null;
-  console.log('Login component - safeNextUrl:', safeNextUrl);
+
+  // Function to get and validate the next URL from search params
+  const getSafeNextUrl = (): string | null => {
+    // Get the 'next' (preferred) or legacy 'returnTo' parameter from URL
+    let rawNext = searchParams.get('next') || searchParams.get('returnTo');
+    if (!rawNext && typeof window !== 'undefined') {
+      // Fallback to window.location.search parsing to handle edge cases
+      const sp = new URLSearchParams(window.location.search);
+      rawNext = sp.get('next') || sp.get('returnTo');
+    }
+    
+    if (!rawNext) {
+      return null;
+    }
+
+    try {
+      const decodedNext = decodeURIComponent(rawNext);
+      console.log('Login component - decoded URL:', decodedNext);
+      
+      if (isValidNextUrl(decodedNext)) {
+        console.log('Login component - safeNextUrl:', decodedNext);
+        return decodedNext;
+      }
+      
+      console.warn('Login component - invalid next URL:', decodedNext);
+      return null;
+    } catch (error) {
+      console.error('Login component - error decoding next URL:', error);
+      return null;
+    }
+  };
 
   // Redirect if already authenticated
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !isLoading) {
+      // Get the next URL fresh from the URL params
+      const safeNextUrl = getSafeNextUrl();
       // If there's a safe 'next' URL, redirect there, otherwise go to dashboard
       const redirectUrl = safeNextUrl && safeNextUrl !== '/login' ? safeNextUrl : '/dashboard';
       console.log('Login component - user authenticated, redirecting to:', redirectUrl);
       console.log('Login component - safeNextUrl was:', safeNextUrl);
       navigate(redirectUrl, { replace: true });
     }
-  }, [isAuthenticated, navigate, safeNextUrl]);
+  }, [isAuthenticated, isLoading, navigate, searchParams]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

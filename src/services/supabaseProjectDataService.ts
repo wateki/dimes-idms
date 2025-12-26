@@ -154,7 +154,7 @@ class SupabaseProjectDataService {
         unit: outcomeData.unit || null,
         status: (outcomeData.status || 'PLANNING') as Database['public']['Enums']['OutcomeStatus'],
         progress: outcomeData.progress || 0,
-        organizationId: userProfile.organizationId, // Multi-tenant: Set organizationId
+        organizationid: userProfile.organizationId, // Multi-tenant: Set organizationId
         createdBy: userProfile.id,
         updatedBy: userProfile.id,
         createdAt: now,
@@ -494,7 +494,7 @@ class SupabaseProjectDataService {
         unit: kpiData.unit || null,
         type: kpiData.type || null,
         frequency: (kpiData.frequency || 'MONTHLY') as Database['public']['Enums']['KPIFrequency'],
-        organizationId: userProfile.organizationId, // Multi-tenant: Set organizationId
+        organizationid: userProfile.organizationId, // Multi-tenant: Set organizationId
         createdBy: userProfile.id,
         updatedBy: userProfile.id,
         createdAt: now,

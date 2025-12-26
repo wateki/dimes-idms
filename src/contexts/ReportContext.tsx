@@ -249,6 +249,7 @@ export function ReportProvider({ children }: ReportProviderProps) {
       // Create a minimal User object for compatibility
       const mockUser: User = {
         id: userId,
+        organizationId: '',
         email: '',
         firstName: '',
         lastName: '',

@@ -73,6 +73,14 @@ export async function handleSubscriptionError(
       const metricName = metricNames[metric] || metric;
       const limitText = usageInfo.isUnlimited ? 'unlimited' : usageInfo.limit.toString();
 
+      // If unlimited, show a different message (this shouldn't happen, but handle gracefully)
+      if (usageInfo.isUnlimited) {
+        return new Error(
+          `An unexpected error occurred while ${operation === 'create' ? 'creating' : 'updating'} ${metricName}. ` +
+          `Your plan supports unlimited ${metricName}. Please try again or contact support if the issue persists.`
+        );
+      }
+
       return new Error(
         `You have reached your ${metricName} limit (${usageInfo.currentUsage}/${limitText}). ` +
         `Please upgrade your plan to ${operation === 'create' ? 'create' : 'update'} more ${metricName}.`

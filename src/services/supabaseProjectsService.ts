@@ -87,6 +87,7 @@ class SupabaseProjectsService {
       .single();
 
     if (error || !data) {
+      console.log('error fetching project by id', error);
       throw new Error(error?.message || 'Project not found');
     }
 
@@ -139,7 +140,7 @@ class SupabaseProjectsService {
         backgroundInformation: projectData.backgroundInformation || null,
         mapData: projectData.mapData || null,
         theoryOfChange: projectData.theoryOfChange || null,
-        organizationId: userProfile.organizationId, // Multi-tenant: Set organizationId
+        organizationid: userProfile.organizationId, // Multi-tenant: Set organizationId
         createdBy: userProfile.id,
         updatedBy: userProfile.id,
         createdAt: now,

@@ -221,19 +221,22 @@ class SupabaseOrganizationService {
     const organization = await this.getOrganization(orgId);
     const stats = await this.getOrganizationStats(orgId);
 
+    const maxUsers = organization.maxUsers ?? 0;
+    const maxProjects = organization.maxProjects ?? 0;
+
     return {
       users: {
         current: stats.activeUsers,
-        limit: organization.maxUsers,
-        percentage: organization.maxUsers > 0 
-          ? Math.round((stats.activeUsers / organization.maxUsers) * 100) 
+        limit: maxUsers,
+        percentage: maxUsers > 0 
+          ? Math.round((stats.activeUsers / maxUsers) * 100) 
           : 0,
       },
       projects: {
         current: stats.activeProjects,
-        limit: organization.maxProjects,
-        percentage: organization.maxProjects > 0 
-          ? Math.round((stats.activeProjects / organization.maxProjects) * 100) 
+        limit: maxProjects,
+        percentage: maxProjects > 0 
+          ? Math.round((stats.activeProjects / maxProjects) * 100) 
           : 0,
       },
       storage: {
@@ -302,64 +305,34 @@ class SupabaseOrganizationService {
 
   /**
    * Get subscription management link
+   * The backend will automatically detect the subscription from the user's organization
    */
   async getSubscriptionManagementLink(): Promise<string | null> {
-    const organizationId = await this.getCurrentUserOrganizationId();
-    
-    const { data: subscription } = await supabase
-      .from('subscriptions')
-      .select('*')
-      .eq('organizationid', organizationId)
-      .single();
-
-    if (!subscription) {
-      return null;
-    }
-
-    const paystackCode = (subscription as any).paystacksubscriptioncode;
-    if (!paystackCode) {
-      return null;
-    }
-
     try {
-      const result = await paystackService.getSubscriptionLink(paystackCode);
+      // Backend will find the subscription code from the database
+      const result = await paystackService.getSubscriptionLink();
       return result.link;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to get subscription management link:', error);
-      return null;
+      throw new Error(error.message || 'Failed to get subscription management link');
     }
   }
 
   /**
    * Switch subscription plan (for users with active subscriptions)
+   * The backend will automatically detect the user's current subscription from the database
    */
   async switchSubscriptionPlan(planCode: string, immediate: boolean = false): Promise<void> {
-    const organizationId = await this.getCurrentUserOrganizationId();
-    
-    const { data: subscription, error } = await supabase
-      .from('subscriptions')
-      .select('*')
-      .eq('organizationid', organizationId)
-      .single();
-
-    if (error || !subscription) {
-      throw new Error('No active subscription found');
-    }
-
-    const paystackCode = (subscription as any).paystacksubscriptioncode;
-    if (!paystackCode) {
-      throw new Error('No Paystack subscription code found');
-    }
-
     // Update subscription plan using Paystack API
+    // Backend will detect the subscription from the user's organization
     // By default, immediate=false means the switch happens at the next billing cycle
     await paystackService.updateSubscription({
-      subscriptionCode: paystackCode,
       planCode: planCode,
       immediate: immediate,
     });
 
     // Refresh organization data to get updated subscription info
+    const organizationId = await this.getCurrentUserOrganizationId();
     await this.getOrganization(organizationId);
   }
 

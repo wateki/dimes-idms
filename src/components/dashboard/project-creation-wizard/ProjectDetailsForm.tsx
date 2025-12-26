@@ -1,10 +1,16 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DatePicker } from '@/components/ui/date-picker';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Check, ChevronsUpDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { ProjectFormData } from './types';
+import countries from 'world-countries';
 
 interface ProjectDetailsFormProps {
   projectData: ProjectFormData;
@@ -12,6 +18,24 @@ interface ProjectDetailsFormProps {
 }
 
 export function ProjectDetailsForm({ projectData, onProjectChange }: ProjectDetailsFormProps) {
+  const [countryOpen, setCountryOpen] = useState(false);
+
+  // Get all countries, sorted alphabetically by name
+  const sortedCountries = useMemo(() => {
+    return countries
+      .map((country) => ({
+        name: country.name.common,
+        code: country.cca2.toLowerCase(), // ISO 3166-1 alpha-2 code (e.g., 'us', 'ke')
+        flag: country.flag, // Emoji flag
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, []);
+
+  // Find the selected country for display
+  const selectedCountry = useMemo(() => {
+    return sortedCountries.find((country) => country.code === projectData.country);
+  }, [projectData.country, sortedCountries]);
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4">
@@ -26,17 +50,58 @@ export function ProjectDetailsForm({ projectData, onProjectChange }: ProjectDeta
         </div>
         <div>
           <Label htmlFor="country">Country *</Label>
-          <Select value={projectData.country} onValueChange={(value) => onProjectChange('country', value)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select country" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="kenya">Kenya</SelectItem>
-              <SelectItem value="tanzania">Tanzania</SelectItem>
-              <SelectItem value="cote d'ivoire">Côte d'Ivoire</SelectItem>
-             
-            </SelectContent>
-          </Select>
+          <Popover open={countryOpen} onOpenChange={setCountryOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={countryOpen}
+                className="w-full justify-between"
+              >
+                {selectedCountry ? (
+                  <div className="flex items-center gap-2">
+                    <span>{selectedCountry.flag}</span>
+                    <span>{selectedCountry.name}</span>
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground">Select country</span>
+                )}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-full p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Search country..." />
+                <CommandList className="max-h-[300px]">
+                  <CommandEmpty>No country found.</CommandEmpty>
+                  <CommandGroup>
+                    {sortedCountries.map((country) => (
+                      <CommandItem
+                        key={country.code}
+                        value={`${country.name} ${country.code}`}
+                        onSelect={() => {
+                          onProjectChange('country', country.code);
+                          setCountryOpen(false);
+                        }}
+                        className="cursor-pointer"
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            projectData.country === country.code ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        <div className="flex items-center gap-2">
+                          <span>{country.flag}</span>
+                          <span>{country.name}</span>
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 

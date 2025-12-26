@@ -1,6 +1,6 @@
 import { supabaseKoboDataService } from './supabaseKoboDataService';
 import type {
-  ProjectKoboTableWithMappings as ProjectKoboTable,
+  ProjectKoboTableWithMappings,
   KoboKpiMappingWithDetails as KoboKpiMapping,
   AvailableKoboTable,
   TableColumn,
@@ -11,7 +11,7 @@ import type {
 
 // Re-export types for backwards compatibility
 export type {
-  ProjectKoboTable,
+  ProjectKoboTableWithMappings as ProjectKoboTable,
   KoboKpiMapping,
   AvailableKoboTable,
   TableColumn,
@@ -36,11 +36,11 @@ export class KoboDataService {
     return supabaseKoboDataService.createProjectKoboTable(projectId, data);
   }
 
-  static async getProjectKoboTables(projectId: string): Promise<{ data: ProjectKoboTable[] }> {
+  static async getProjectKoboTables(projectId: string): Promise<{ data: ProjectKoboTableWithMappings[] }> {
     return supabaseKoboDataService.getProjectKoboTables(projectId);
   }
 
-  static async getProjectKoboTable(projectId: string, tableId: string): Promise<{ data: ProjectKoboTable }> {
+  static async getProjectKoboTable(projectId: string, tableId: string): Promise<{ data: ProjectKoboTableWithMappings }> {
     return supabaseKoboDataService.getProjectKoboTable(projectId, tableId);
   }
 

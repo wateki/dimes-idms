@@ -131,8 +131,7 @@ class SupabaseKoboDataService {
     await this.verifyProjectOwnership(projectId);
     // Query the kobo_asset_tracking table (if it exists in Supabase)
     // Note: This table might be in a different schema or need to be created
-    const { data, error } = await supabase
-      .from('kobo_asset_tracking')
+    const { data, error } = await (supabase.from as any)('kobo_asset_tracking')
       .select('*')
       .order('asset_name', { ascending: true });
 
@@ -204,7 +203,7 @@ class SupabaseKoboDataService {
         displayName: data.displayName,
         description: data.description || null,
         isActive: data.isActive ?? true,
-        organizationId: userProfile.organizationId, // Multi-tenant: Set organizationId
+        organizationid: userProfile.organizationId, // Multi-tenant: Set organizationid
         createdBy: userProfile.id,
         updatedBy: userProfile.id,
         createdAt: now,
@@ -225,27 +224,7 @@ class SupabaseKoboDataService {
     return { data: newTable };
   }
 
-  async getProjectKoboTables(projectId: string): Promise<{ data: Array<{
-    id: string;
-    tableName: string;
-    displayName: string;
-    description?: string;
-    isActive: boolean;
-    createdAt: string;
-    updatedAt: string;
-    kpiMappings: Array<KoboKpiMapping & {
-      kpi: {
-        id: string;
-        name: string;
-        unit?: string;
-      };
-      projectKoboTable: {
-        id: string;
-        tableName: string;
-        displayName: string;
-      };
-    }>;
-  }> }> {
+  async getProjectKoboTables(projectId: string): Promise<{ data: ProjectKoboTableWithMappings[] }> {
     // Multi-tenant: Verify project ownership first
     await this.verifyProjectOwnership(projectId);
     
@@ -270,33 +249,17 @@ class SupabaseKoboDataService {
       throw new Error(error.message || 'Failed to fetch project Kobo tables');
     }
 
-    // Map to convert null to undefined for description
+    // Map to convert null to undefined for description and kpiMappings fields
     return {
       data: (data || []).map(table => ({
         ...table,
         description: table.description ?? undefined,
-        kpiMappings: (table as any).kpiMappings || [],
-      })) as Array<{
-        id: string;
-        tableName: string;
-        displayName: string;
-        description?: string;
-        isActive: boolean;
-        createdAt: string;
-        updatedAt: string;
-        kpiMappings: Array<KoboKpiMapping & {
-          kpi: {
-            id: string;
-            name: string;
-            unit?: string;
-          };
-          projectKoboTable: {
-            id: string;
-            tableName: string;
-            displayName: string;
-          };
-        }>;
-      }>,
+        kpiMappings: ((table as any).kpiMappings || []).map((mapping: any) => ({
+          ...mapping,
+          timeFilterField: mapping.timeFilterField ?? undefined,
+          timeFilterValue: mapping.timeFilterValue ?? undefined,
+        })),
+      })) as ProjectKoboTableWithMappings[],
     };
   }
 
@@ -325,7 +288,12 @@ class SupabaseKoboDataService {
       throw new Error(error?.message || 'Kobo table not found or access denied');
     }
 
-    return { data: data as ProjectKoboTableWithMappings };
+    return { 
+      data: {
+        ...data,
+        description: data.description ?? undefined,
+      } as ProjectKoboTableWithMappings 
+    };
   }
 
   async updateProjectKoboTable(
@@ -480,7 +448,7 @@ class SupabaseKoboDataService {
         timeFilterField: data.timeFilterField || null,
         timeFilterValue: data.timeFilterValue || null,
         isActive: data.isActive ?? true,
-        organizationId: userProfile.organizationId, // Multi-tenant: Set organizationId
+        organizationid: userProfile.organizationId, // Multi-tenant: Set organizationid
         createdBy: userProfile.id,
         updatedBy: userProfile.id,
         createdAt: now,
@@ -653,7 +621,7 @@ class SupabaseKoboDataService {
     // Use Supabase RPC to get column information
     // Note: This requires a database function to be created
     // For now, we'll use a direct query to information_schema
-    const { data, error } = await supabase.rpc('get_table_columns', {
+    const { data, error } = await (supabase.rpc as any)('get_table_columns', {
       table_name: tableName,
     });
 
@@ -672,17 +640,17 @@ class SupabaseKoboDataService {
     const tableName = table.data.tableName;
 
     // Use Supabase RPC to get table stats
-    const { data, error } = await supabase.rpc('get_table_stats', {
+    const { data, error } = await (supabase.rpc as any)('get_table_stats', {
       table_name: tableName,
     });
 
-    if (error) {
+    if (error || !data || typeof data !== 'object' || !('totalCount' in data)) {
       return {
         data: {
           totalCount: 0,
           hasData: false,
           tableName,
-          error: error.message,
+          error: error?.message || 'Failed to fetch table stats',
         },
       };
     }
@@ -702,13 +670,13 @@ class SupabaseKoboDataService {
     const offset = (page - 1) * limit;
 
     // Use Supabase RPC to fetch paginated data from dynamic table
-    const { data: tableData, error: dataError } = await supabase.rpc('get_kobo_table_data', {
+    const { data: tableData, error: dataError } = await (supabase.rpc as any)('get_kobo_table_data', {
       table_name: tableName,
       page_limit: limit,
       page_offset: offset,
     });
 
-    const { data: countData, error: countError } = await supabase.rpc('get_kobo_table_count', {
+    const { data: countData, error: countError } = await (supabase.rpc as any)('get_kobo_table_count', {
       table_name: tableName,
     });
 
@@ -742,7 +710,7 @@ class SupabaseKoboDataService {
     // Get KPI mappings for this KPI
     const { data: mappings } = await this.getKoboKpiMappings(projectId);
 
-    const kpiMappings = mappings.data.filter(m => m.kpiId === kpiId);
+    const kpiMappings = mappings.filter(m => m.kpiId === kpiId);
 
     if (kpiMappings.length === 0) {
       throw new Error('No KPI mappings found for this KPI');
@@ -761,7 +729,7 @@ class SupabaseKoboDataService {
     }
 
     // Calculate KPI using RPC function
-    const { data: result, error } = await supabase.rpc('calculate_kpi_from_kobo', {
+    const { data: result, error } = await (supabase.rpc as any)('calculate_kpi_from_kobo', {
       kpi_id: kpiId,
       mapping_ids: kpiMappings.map(m => m.id),
     });
@@ -774,7 +742,7 @@ class SupabaseKoboDataService {
       data: {
         kpiId: kpi.id,
         kpiName: kpi.name,
-        results: (result?.results || []) as KpiCalculationResult['results'],
+        results: (result && typeof result === 'object' && 'results' in result ? result.results : []) as KpiCalculationResult['results'],
         calculatedAt: new Date().toISOString(),
       },
     };

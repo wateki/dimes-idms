@@ -288,7 +288,7 @@ class SupabaseReportService {
         fileUrl: storagePath, // Store the storage path
         fileSize: file.size.toString(),
         status: 'DRAFT' as Database['public']['Enums']['ReportStatus'],
-        organizationId: userProfile.organizationId, // Multi-tenant: Set organizationId
+        organizationid:userProfile.organizationId, // Multi-tenant: Set organizationId
         createdBy: userProfile.id,
         updatedBy: userProfile.id,
         createdAt: now,

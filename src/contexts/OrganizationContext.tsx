@@ -12,14 +12,14 @@ export interface Organization {
   domain?: string | null;
   logoUrl?: string | null;
   settings: Record<string, any>;
-  subscriptionTier: string;
-  subscriptionStatus: string;
+  subscriptionTier: string | null;
+  subscriptionStatus: string | null;
   subscriptionExpiresAt?: string | null;
-  maxUsers: number;
-  maxProjects: number;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  maxUsers: number | null;
+  maxProjects: number | null;
+  isActive: boolean | null;
+  createdAt: string | null;
+  updatedAt: string | null;
   createdBy?: string | null;
 }
 
@@ -57,22 +57,23 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
       if (data) {
         // Map database row to Organization interface
+        const row = data as OrganizationRow;
         const org: Organization = {
-          id: data.id,
-          name: data.name,
-          slug: data.slug,
-          domain: data.domain,
-          logoUrl: data.logoUrl,
-          settings: (data.settings as Record<string, any>) || {},
-          subscriptionTier: data.subscriptionTier,
-          subscriptionStatus: data.subscriptionStatus,
-          subscriptionExpiresAt: data.subscriptionExpiresAt,
-          maxUsers: data.maxUsers,
-          maxProjects: data.maxProjects,
-          isActive: data.isActive,
-          createdAt: data.createdAt,
-          updatedAt: data.updatedAt,
-          createdBy: data.createdBy,
+          id: row.id,
+          name: row.name,
+          slug: row.slug,
+          domain: row.domain,
+          logoUrl: row.logoUrl,
+          settings: (row.settings as Record<string, any>) || {},
+          subscriptionTier: row.subscriptionTier,
+          subscriptionStatus: row.subscriptionStatus,
+          subscriptionExpiresAt: row.subscriptionExpiresAt,
+          maxUsers: row.maxUsers,
+          maxProjects: row.maxProjects,
+          isActive: row.isActive,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+          createdBy: row.createdBy,
         };
         setOrganization(org);
       } else {

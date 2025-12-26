@@ -31,3 +31,4 @@ export async function getCurrentUserOrganizationId(): Promise<string> {
 
   return userProfile.organizationId;
 }
+

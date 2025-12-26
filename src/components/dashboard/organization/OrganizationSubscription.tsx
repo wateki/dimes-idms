@@ -35,6 +35,7 @@ export function OrganizationSubscription() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [manageLink, setManageLink] = useState<string | null>(null);
+  const [loadingManageLink, setLoadingManageLink] = useState(false);
 
   const formatDate = (dateString: string | null | undefined): string => {
     if (!dateString) return 'N/A';
@@ -56,12 +57,8 @@ export function OrganizationSubscription() {
       setLoading(true);
       const sub = await supabaseOrganizationService.getSubscription();
       setSubscription(sub);
-      
-      // Get management link if subscription exists
-      if (sub?.paystackSubscriptionCode) {
-        const link = await supabaseOrganizationService.getSubscriptionManagementLink();
-        setManageLink(link);
-      }
+
+      console.log('subscription', sub);
     } catch (error) {
       console.error('Failed to load subscription:', error);
     } finally {
@@ -70,11 +67,22 @@ export function OrganizationSubscription() {
   };
 
 
-  const handleManageSubscription = () => {
-    if (manageLink) {
-      window.open(manageLink, '_blank');
-    } else {
-      showError('Subscription management link not available');
+  const handleUpdateCard = async () => {
+    // Backend will detect the subscription from the user's organization
+    try {
+      setLoadingManageLink(true);
+      const link = await supabaseOrganizationService.getSubscriptionManagementLink();
+      if (link) {
+        setManageLink(link);
+        window.open(link, '_blank');
+      } else {
+        showError('Unable to generate subscription management link');
+      }
+    } catch (error: any) {
+      console.error('Failed to get subscription management link:', error);
+      showError(error.message || 'Failed to get subscription management link');
+    } finally {
+      setLoadingManageLink(false);
     }
   };
 
@@ -162,7 +170,9 @@ export function OrganizationSubscription() {
               <div className="text-muted-foreground">
                 Your account is currently on a{' '}
                 <Badge variant="outline" className="ml-1">
-                  {organization.subscriptionTier.charAt(0).toUpperCase() + organization.subscriptionTier.slice(1)}
+                  {organization.subscriptionTier 
+                    ? organization.subscriptionTier.charAt(0).toUpperCase() + organization.subscriptionTier.slice(1)
+                    : 'Free'}
                 </Badge>
                 {' '}plan.
               </div>
@@ -193,32 +203,6 @@ export function OrganizationSubscription() {
                   Upgrade
                 </Button>
               )}
-              {manageLink && (
-                <Button onClick={handleManageSubscription} variant="outline" size="sm">
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Manage
-                </Button>
-              )}
-              {subscription?.paystackSubscriptionCode && (
-                <Button 
-                  onClick={handleCancelSubscription} 
-                  variant="destructive"
-                  size="sm"
-                  disabled={processing}
-                >
-                  {processing ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Cancelling...
-                    </>
-                  ) : (
-                    <>
-                      <X className="h-4 w-4 mr-2" />
-                      Cancel
-                    </>
-                  )}
-                </Button>
-              )}
             </div>
           </div>
         </CardContent>
@@ -226,6 +210,56 @@ export function OrganizationSubscription() {
 
       {/* Billing History */}
       <BillingHistoryCard />
+
+      {/* Subscription Management Actions */}
+      {  (
+        <Card>
+          <CardHeader>
+            <CardTitle>Subscription Management</CardTitle>
+            <CardDescription>
+              Manage your subscription settings and payment method
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col sm:flex-row gap-4">
+            <Button
+              onClick={handleUpdateCard}
+              variant="outline"
+              className="flex-1"
+              disabled={loadingManageLink || processing}
+            >
+              {loadingManageLink ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                <>
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Update Card
+                </>
+              )}
+            </Button>
+          {/*   <Button
+              onClick={handleCancelSubscription}
+              variant="destructive"
+              className="flex-1"
+              disabled={processing || loadingManageLink}
+            >
+              {processing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Cancelling...
+                </>
+              ) : (
+                <>
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel Subscription
+                </>
+              )}
+            </Button> */}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

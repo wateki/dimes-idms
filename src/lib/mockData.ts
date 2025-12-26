@@ -2,6 +2,7 @@ import { User, Project, Outcome, Activity, KPI } from '@/types/dashboard';
 
 export const mockUser: User = {
   id: '1',
+  organizationId: '1',
   firstName: 'Sarah',
   lastName: 'Johnson',
   email: 'sarah.johnson@ics.org',

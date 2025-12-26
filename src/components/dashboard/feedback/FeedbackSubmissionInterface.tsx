@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,19 +24,32 @@ import { SafetyIncidentForm } from './forms/SafetyIncidentForm';
 import { EmergencyReportForm } from './forms/EmergencyReportForm';
 import { StaffFeedbackForm } from './forms/StaffFeedbackForm';
 import { useFeedback } from '@/contexts/FeedbackContext';
-import { useOrganization } from '@/contexts/OrganizationContext';
+import { useOrganization, type Organization } from '@/contexts/OrganizationContext';
 import type { FeedbackPriority, FeedbackSensitivity, EscalationLevel } from '@/types/feedback';
 
 interface FeedbackSubmissionInterfaceProps {
   projectId: string;
   projectName?: string;
+  organizationId?: string;
+  organization?: Organization | null;
 }
 
-export function FeedbackSubmissionInterface({ projectId, projectName = "ICS Program" }: FeedbackSubmissionInterfaceProps) {
+export function FeedbackSubmissionInterface({ 
+  projectId, 
+  projectName = "ICS Program", 
+  organizationId,
+  organization: organizationProp
+}: FeedbackSubmissionInterfaceProps) {
   const [activeTab, setActiveTab] = useState('general');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { forms, categories, loading, createSubmission } = useFeedback();
-  const { organization } = useOrganization();
+  
+  // Get organizationId from route params if available (for public routes)
+  const routeParams = useParams<{ organizationId?: string }>();
+  
+  // Use organization from props if provided, otherwise try to get from context
+  const { organization: organizationFromContext } = useOrganization();
+  const organization = organizationProp ?? organizationFromContext;
   
   // Get contact information from organization settings
   const settings = organization?.settings || {};
@@ -44,10 +58,13 @@ export function FeedbackSubmissionInterface({ projectId, projectName = "ICS Prog
   const feedbackEmail = settings.feedbackEmail || '';
   const officeAddress = settings.officeAddress || '';
 
+  // Priority: route params > props > organization.id > fallback
+  const orgId = routeParams.organizationId || organizationId || organization?.id || 'organization';
+
   const handleShareLink = async () => {
     try {
       const baseUrl = window.location.origin;
-      const url = `${baseUrl}/feedback/submit`;
+      const url = `${baseUrl}/feedback/${orgId}/submit`;
       await navigator.clipboard.writeText(url);
       toast({
         title: 'Link Copied!',
@@ -236,7 +253,7 @@ export function FeedbackSubmissionInterface({ projectId, projectName = "ICS Prog
           </Button>
         </div>
         <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-          Your voice matters! Help us improve {projectName} by sharing your feedback, 
+          Your voice matters! Help us improve {organization?.name || 'our organization'} by sharing your feedback, 
           reporting issues, or alerting us to emergencies.
         </p>
       </div>

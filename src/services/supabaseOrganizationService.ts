@@ -103,6 +103,196 @@ class SupabaseOrganizationService {
   }
 
   /**
+   * Upload organization logo to Supabase Storage
+   */
+  async uploadLogo(file: File): Promise<string> {
+    const startTime = Date.now();
+    
+    try {
+      console.log(`[Logo Upload] uploadLogo method called`);
+      console.log(`[Logo Upload] File details:`, {
+        name: file.name,
+        type: file.type,
+        size: `${(file.size / 1024).toFixed(2)} KB`,
+      });
+      
+      let organizationId: string;
+      try {
+        console.log(`[Logo Upload] Getting organization ID...`);
+        organizationId = await this.getCurrentUserOrganizationId();
+        console.log(`[Logo Upload] Organization ID retrieved: ${organizationId}`);
+      } catch (error: any) {
+        console.error(`[Logo Upload] Failed to get organization ID:`, error);
+        throw new Error(`Failed to get organization ID: ${error.message}`);
+      }
+      
+      console.log(`[Logo Upload] Starting logo upload for organization: ${organizationId}`);
+    
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+    console.log(`[Logo Upload] Validating file type: ${file.type}`);
+    if (!allowedTypes.includes(file.type)) {
+      console.error(`[Logo Upload] Validation failed: Invalid file type ${file.type}`);
+      throw new Error('Invalid file type. Please upload an image file (JPEG, PNG, GIF, WebP, or SVG).');
+    }
+    console.log(`[Logo Upload] File type validation passed`);
+
+    // Validate file size (max 5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    console.log(`[Logo Upload] Validating file size: ${(file.size / 1024).toFixed(2)} KB (max: ${(maxSize / 1024).toFixed(2)} KB)`);
+    if (file.size > maxSize) {
+      console.error(`[Logo Upload] Validation failed: File size ${(file.size / 1024).toFixed(2)} KB exceeds limit`);
+      throw new Error('File size exceeds 5MB limit. Please upload a smaller image.');
+    }
+    console.log(`[Logo Upload] File size validation passed`);
+
+    // Get file extension
+    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'png';
+    const fileName = `logo.${fileExt}`;
+    const filePath = `organizations/${organizationId}/${fileName}`;
+    console.log(`[Logo Upload] Generated file path: ${filePath}`);
+
+    // Delete existing logo if it exists
+    console.log(`[Logo Upload] Checking for existing logo files...`);
+    try {
+      const { data: existingFiles, error: listError } = await supabase.storage
+        .from('organization-logos')
+        .list(`organizations/${organizationId}/`);
+      
+      if (listError) {
+        console.warn(`[Logo Upload] Could not list existing files:`, listError.message);
+      } else if (existingFiles && existingFiles.length > 0) {
+        // Filter for logo files
+        const logoFiles = existingFiles.filter(f => f.name.startsWith('logo.'));
+        console.log(`[Logo Upload] Found ${logoFiles.length} existing logo file(s)`);
+        
+        if (logoFiles.length > 0) {
+          const filesToDelete = logoFiles.map(f => `organizations/${organizationId}/${f.name}`);
+          console.log(`[Logo Upload] Deleting existing logo files:`, filesToDelete);
+          
+          const { error: deleteError } = await supabase.storage
+            .from('organization-logos')
+            .remove(filesToDelete);
+          
+          if (deleteError) {
+            console.warn(`[Logo Upload] Could not delete existing logo:`, deleteError.message);
+          } else {
+            console.log(`[Logo Upload] Successfully deleted ${logoFiles.length} existing logo file(s)`);
+          }
+        }
+      } else {
+        console.log(`[Logo Upload] No existing logo files found`);
+      }
+    } catch (error: any) {
+      // Ignore errors when deleting (file might not exist)
+      console.warn(`[Logo Upload] Error during existing logo cleanup:`, error.message);
+    }
+
+    // Upload new logo to organization-logos bucket
+    console.log(`[Logo Upload] Uploading logo to storage bucket 'organization-logos'...`);
+    const uploadStartTime = Date.now();
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('organization-logos')
+      .upload(filePath, file, {
+        contentType: file.type,
+        upsert: true, // Replace if exists
+      });
+
+    const uploadDuration = Date.now() - uploadStartTime;
+
+    if (uploadError) {
+      console.error(`[Logo Upload] Upload failed after ${uploadDuration}ms:`, uploadError.message);
+      console.error(`[Logo Upload] Upload error details:`, uploadError);
+      throw new Error(`Failed to upload logo: ${uploadError.message}`);
+    }
+
+    console.log(`[Logo Upload] Upload successful in ${uploadDuration}ms`);
+    console.log(`[Logo Upload] Upload data:`, uploadData);
+
+    // Get public URL
+    console.log(`[Logo Upload] Generating public URL...`);
+    const { data: urlData } = supabase.storage
+      .from('organization-logos')
+      .getPublicUrl(filePath);
+
+    if (!urlData?.publicUrl) {
+      console.error(`[Logo Upload] Failed to get public URL`);
+      throw new Error('Failed to get logo URL');
+    }
+
+      const totalDuration = Date.now() - startTime;
+      console.log(`[Logo Upload] Logo upload completed successfully in ${totalDuration}ms`);
+      console.log(`[Logo Upload] Public URL: ${urlData.publicUrl}`);
+
+      return urlData.publicUrl;
+    } catch (error: any) {
+      const totalDuration = Date.now() - startTime;
+      console.error(`[Logo Upload] Logo upload failed after ${totalDuration}ms:`, error);
+      console.error(`[Logo Upload] Error details:`, {
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Delete organization logo
+   */
+  async deleteLogo(): Promise<void> {
+    const startTime = Date.now();
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    console.log(`[Logo Delete] Starting logo deletion for organization: ${organizationId}`);
+    
+    try {
+      console.log(`[Logo Delete] Listing files in organizations/${organizationId}/...`);
+      const { data: files, error: listError } = await supabase.storage
+        .from('organization-logos')
+        .list(`organizations/${organizationId}/`);
+      
+      if (listError) {
+        console.error(`[Logo Delete] Failed to list files:`, listError.message);
+        throw new Error(`Failed to list logo files: ${listError.message}`);
+      }
+      
+      if (files && files.length > 0) {
+        console.log(`[Logo Delete] Found ${files.length} file(s) in organization directory`);
+        
+        // Filter for logo files
+        const logoFiles = files.filter(f => f.name.startsWith('logo.'));
+        console.log(`[Logo Delete] Found ${logoFiles.length} logo file(s) to delete`);
+        
+        if (logoFiles.length > 0) {
+          const filesToDelete = logoFiles.map(f => `organizations/${organizationId}/${f.name}`);
+          console.log(`[Logo Delete] Deleting files:`, filesToDelete);
+          
+          const { error: deleteError } = await supabase.storage
+            .from('organization-logos')
+            .remove(filesToDelete);
+          
+          if (deleteError) {
+            console.error(`[Logo Delete] Failed to delete logo files:`, deleteError.message);
+            throw new Error(`Failed to delete logo: ${deleteError.message}`);
+          }
+          
+          const duration = Date.now() - startTime;
+          console.log(`[Logo Delete] Successfully deleted ${logoFiles.length} logo file(s) in ${duration}ms`);
+        } else {
+          console.log(`[Logo Delete] No logo files found to delete`);
+        }
+      } else {
+        console.log(`[Logo Delete] No files found in organization directory`);
+      }
+    } catch (error: any) {
+      const duration = Date.now() - startTime;
+      console.error(`[Logo Delete] Logo deletion failed after ${duration}ms:`, error.message);
+      throw new Error(error.message || 'Failed to delete logo');
+    }
+  }
+
+  /**
    * Update organization
    */
   async updateOrganization(updates: UpdateOrganizationRequest): Promise<Organization> {

@@ -13,6 +13,10 @@ import { GlobalOverview } from '@/components/dashboard/GlobalOverview';
 import { ProjectOverview } from '@/components/dashboard/ProjectOverview';
 import { KPIAnalytics } from '@/components/dashboard/KPIAnalytics';
 import Login from '@/components/auth/Login';
+import { OrganizationSignup } from '@/components/auth/OrganizationSignup';
+import { ConfirmEmail } from '@/components/auth/ConfirmEmail';
+import { CompleteSignup } from '@/components/auth/CompleteSignup';
+import { GuidedSetup } from '@/components/auth/GuidedSetup';
 import { OutcomesDetails } from '@/components/dashboard/OutcomesDetails';
 import { OutputsDetails } from '@/components/dashboard/OutputsDetails';
 import { Reports } from '@/components/dashboard/Reports';
@@ -38,10 +42,9 @@ import { StrategicPlanEdit } from '@/components/dashboard/StrategicPlanEdit';
 import { Profile } from '@/components/dashboard/Profile';
 import { PublicFormFiller } from '@/components/public/PublicFormFiller';
 import { PublicLanding } from '@/components/public/PublicLanding';
+import { PublicFeedbackSubmission } from '@/components/public/PublicFeedbackSubmission';
 import { ProjectsApiTest } from '@/components/dashboard/ProjectsApiTest';
 import { FeedbackRoutes } from '@/components/dashboard/feedback/FeedbackRoutes';
-import { FeedbackSubmissionInterface } from '@/components/dashboard/feedback/FeedbackSubmissionInterface';
-import { FeedbackProvider } from '@/contexts/FeedbackContext';
 // New all-outcomes and all-outputs pages will be created as OutcomesDetails and OutputsDetails
 import { Toaster as ShadToaster } from '@/components/ui/toaster';
 import { createEnhancedPermissionManager } from '@/lib/permissions';
@@ -55,9 +58,11 @@ function ProtectedRoute({ roles }: { roles?: string[] }) {
     return (
       path === '/login' ||
       path === '/' ||
+      path === '/signup' ||
+      path.startsWith('/signup/') ||
       path.startsWith('/fill/') ||
       path.startsWith('/embed/') ||
-      path === '/feedback/submit'
+      path.match(/^\/feedback\/[^/]+\/submit$/)
     );
   };
   
@@ -148,6 +153,18 @@ function AppWithNotifications() {
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<Login />} />
           
+          {/* Organization signup routes */}
+          <Route path="/signup" element={<OrganizationSignup />} />
+          <Route path="/signup/confirm-email" element={<ConfirmEmail />} />
+          <Route path="/signup/complete" element={<CompleteSignup />} />
+          <Route path="/signup/setup" element={
+            <AuthProvider>
+              <OrganizationProvider>
+                <GuidedSetup />
+              </OrganizationProvider>
+            </AuthProvider>
+          } />
+          
           {/* Public form filling routes - need FormProvider for form functionality */}
           <Route path="/fill/:formId" element={
             <FormProvider>
@@ -160,14 +177,9 @@ function AppWithNotifications() {
             </FormProvider>
           } />
           
-          {/* Public feedback submission route */}
-          <Route path="/feedback/submit" element={
-            <FeedbackProvider projectId="organization">
-              <FeedbackSubmissionInterface 
-                projectId="organization" 
-                projectName="ICS Organization" 
-              />
-            </FeedbackProvider>
+          {/* Public feedback submission route with organization ID */}
+          <Route path="/feedback/:organizationId/submit" element={
+            <PublicFeedbackSubmission />
           } />
           
           {/* Authenticated routes - wrapped in dashboard context providers */}

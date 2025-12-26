@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useNotification } from '@/hooks/useNotification';
-import { Upload, Save, Building2, Phone, Mail, MapPin } from 'lucide-react';
+import { Upload, Save, Building2, Phone, Mail, MapPin, X, Loader2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export function OrganizationSettings() {
@@ -49,34 +49,98 @@ export function OrganizationSettings() {
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      console.log('[Organization Settings] Logo file selected:', {
+        name: file.name,
+        type: file.type,
+        size: `${(file.size / 1024).toFixed(2)} KB`,
+      });
+
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+      if (!allowedTypes.includes(file.type)) {
+        console.error('[Organization Settings] Invalid file type:', file.type);
+        showError('Invalid file type. Please upload an image file (JPEG, PNG, GIF, WebP, or SVG).');
+        return;
+      }
+
+      // Validate file size (max 5MB)
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      if (file.size > maxSize) {
+        console.error('[Organization Settings] File size exceeds limit:', `${(file.size / 1024).toFixed(2)} KB`);
+        showError('File size exceeds 5MB limit. Please upload a smaller image.');
+        return;
+      }
+
+      console.log('[Organization Settings] File validation passed, creating preview...');
       setLogoFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
+        console.log('[Organization Settings] Preview created successfully');
         setLogoPreview(reader.result as string);
+      };
+      reader.onerror = (error) => {
+        console.error('[Organization Settings] Failed to create preview:', error);
       };
       reader.readAsDataURL(file);
     }
   };
 
   const handleSave = async () => {
-    if (!organization) return;
+    console.log('[Organization Settings] handleSave called');
+    
+    if (!organization) {
+      console.error('[Organization Settings] No organization found, cannot save');
+      return;
+    }
+
+    const saveStartTime = Date.now();
+    console.log('[Organization Settings] Starting save process...');
+    console.log('[Organization Settings] Organization ID:', organization.id);
+    console.log('[Organization Settings] Has logoFile:', !!logoFile);
+    console.log('[Organization Settings] Current logoUrl:', logoUrl);
 
     try {
       setSaving(true);
 
-      // TODO: Upload logo file to storage if logoFile is set
-      // For now, we'll just use the logoUrl
+      // Upload logo file to storage if logoFile is set
       let finalLogoUrl = logoUrl;
       if (logoFile) {
-        // In a real implementation, upload to Supabase Storage
-        // const { data, error } = await supabase.storage
-        //   .from('organization-logos')
-        //   .upload(`${organization.id}/${logoFile.name}`, logoFile);
-        // if (!error && data) {
-        //   finalLogoUrl = data.path;
-        // }
-        showError('Logo upload not yet implemented');
-        return;
+        console.log('[Organization Settings] Logo file detected, starting upload process...');
+        console.log('[Organization Settings] Logo file details:', {
+          name: logoFile.name,
+          type: logoFile.type,
+          size: logoFile.size,
+        });
+        try {
+          setLoading(true);
+          console.log('[Organization Settings] Calling uploadLogo service method...');
+          const uploadStartTime = Date.now();
+          finalLogoUrl = await supabaseOrganizationService.uploadLogo(logoFile);
+          const uploadDuration = Date.now() - uploadStartTime;
+          console.log(`[Organization Settings] Logo upload completed successfully in ${uploadDuration}ms`);
+          console.log('[Organization Settings] Received logo URL:', finalLogoUrl);
+          setLogoFile(null); // Clear the file after successful upload
+          console.log('[Organization Settings] Logo file cleared from state');
+        } catch (error: any) {
+          console.error('[Organization Settings] Logo upload error caught:', error);
+          console.error('[Organization Settings] Error stack:', error.stack);
+          console.error('[Organization Settings] Error details:', {
+            message: error.message,
+            name: error.name,
+            cause: error.cause,
+          });
+          showError(error.message || 'Failed to upload logo');
+          setSaving(false);
+          setLoading(false);
+          return;
+        } finally {
+          setLoading(false);
+          console.log('[Organization Settings] Upload process finished, loading set to false');
+        }
+      } else if (logoUrl) {
+        console.log('[Organization Settings] No new logo file, using existing logo URL:', logoUrl);
+      } else {
+        console.log('[Organization Settings] No logo file and no existing logo URL');
       }
 
       // Merge settings to preserve existing settings
@@ -97,11 +161,28 @@ export function OrganizationSettings() {
         settings: updatedSettings,
       };
 
+      console.log('[Organization Settings] Updating organization with:', {
+        name: updates.name,
+        domain: updates.domain,
+        hasLogoUrl: !!updates.logoUrl,
+        logoUrl: updates.logoUrl,
+        settingsKeys: Object.keys(updatedSettings),
+      });
+
+      const updateStartTime = Date.now();
       await supabaseOrganizationService.updateOrganization(updates);
+      const updateDuration = Date.now() - updateStartTime;
+      console.log(`[Organization Settings] Organization update completed in ${updateDuration}ms`);
+
+      console.log('[Organization Settings] Refreshing organization data...');
       await refreshOrganization();
+      
+      const totalDuration = Date.now() - saveStartTime;
+      console.log(`[Organization Settings] Save process completed successfully in ${totalDuration}ms`);
       showSuccess('Organization settings updated successfully');
     } catch (error: any) {
-      console.error('Failed to update organization:', error);
+      const totalDuration = Date.now() - saveStartTime;
+      console.error(`[Organization Settings] Save process failed after ${totalDuration}ms:`, error);
       showError(error.message || 'Failed to update organization settings');
     } finally {
       setSaving(false);
@@ -187,9 +268,9 @@ export function OrganizationSettings() {
               </div>
 
               <div className="flex justify-end pt-4">
-                <Button onClick={handleSave} disabled={saving}>
+                <Button onClick={handleSave} disabled={saving || loading}>
                   <Save className="h-4 w-4 mr-2" />
-                  {saving ? 'Saving...' : 'Save Changes'}
+                  {saving ? 'Saving...' : loading ? 'Uploading...' : 'Save Changes'}
                 </Button>
               </div>
             </CardContent>
@@ -271,9 +352,9 @@ export function OrganizationSettings() {
               </div>
 
               <div className="flex justify-end pt-4">
-                <Button onClick={handleSave} disabled={saving}>
+                <Button onClick={handleSave} disabled={saving || loading}>
                   <Save className="h-4 w-4 mr-2" />
-                  {saving ? 'Saving...' : 'Save Changes'}
+                  {saving ? 'Saving...' : loading ? 'Uploading...' : 'Save Changes'}
                 </Button>
               </div>
             </CardContent>
@@ -291,13 +372,47 @@ export function OrganizationSettings() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-col items-center space-y-4">
-                {logoPreview ? (
-                  <div className="relative w-32 h-32 rounded-lg border-2 border-dashed border-gray-300 overflow-hidden">
-                    <img
-                      src={logoPreview}
-                      alt="Organization logo"
-                      className="w-full h-full object-cover"
-                    />
+                 {logoPreview ? (
+                   <div className="relative w-32 h-32 rounded-lg border-2 border-dashed border-gray-300 overflow-hidden group">
+                     <img
+                       src={logoPreview}
+                       alt="Organization logo"
+                       className="w-full h-full object-cover"
+                     />
+                     {loading && (
+                       <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                         <Loader2 className="h-6 w-6 text-white animate-spin" />
+                       </div>
+                     )}
+                    {!logoFile && logoUrl && (
+                      <button
+                    onClick={async () => {
+                      console.log('[Organization Settings] Removing logo...');
+                      try {
+                        setLoading(true);
+                        const deleteStartTime = Date.now();
+                        await supabaseOrganizationService.deleteLogo();
+                        const deleteDuration = Date.now() - deleteStartTime;
+                        console.log(`[Organization Settings] Logo deletion completed in ${deleteDuration}ms`);
+                        setLogoUrl('');
+                        setLogoPreview(null);
+                        await refreshOrganization();
+                        console.log('[Organization Settings] Logo removed successfully');
+                        showSuccess('Logo removed successfully');
+                      } catch (error: any) {
+                        console.error('[Organization Settings] Logo removal failed:', error);
+                        showError(error.message || 'Failed to remove logo');
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                        disabled={loading || saving}
+                        className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                        title="Remove logo"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div className="w-32 h-32 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center bg-gray-50">
@@ -307,31 +422,79 @@ export function OrganizationSettings() {
 
                 <div className="w-full">
                   <Label htmlFor="logo" className="cursor-pointer">
-                    <div className="flex items-center justify-center w-full px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50">
-                      <Upload className="h-4 w-4 mr-2" />
-                      <span className="text-sm">Upload Logo</span>
+                    <div className={`flex items-center justify-center w-full px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors ${(loading || saving) ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                      {loading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          <span className="text-sm">Uploading...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-4 w-4 mr-2" />
+                          <span className="text-sm">{logoFile ? 'Change Logo' : 'Upload Logo'}</span>
+                        </>
+                      )}
                     </div>
                   </Label>
                   <Input
                     id="logo"
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml"
                     onChange={handleLogoChange}
                     className="hidden"
+                    disabled={loading || saving}
                   />
                 </div>
 
+                {logoFile && (
+                  <div className="w-full space-y-2">
+                    <p className="text-xs text-muted-foreground text-center">
+                      New logo selected. Click "Save" to upload.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={handleSave}
+                        disabled={loading || saving}
+                        className="flex-1"
+                      >
+                        {loading ? (
+                          <>
+                            <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                            Uploading...
+                          </>
+                        ) : saving ? (
+                          <>
+                            <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="h-3 w-3 mr-2" />
+                            Save Logo
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setLogoFile(null);
+                          setLogoPreview(logoUrl || null);
+                        }}
+                        disabled={loading || saving}
+                        className="flex-1"
+                      >
+                        <X className="h-3 w-3 mr-2" />
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                
                 {logoUrl && !logoFile && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setLogoUrl('');
-                      setLogoPreview(null);
-                    }}
-                  >
-                    Remove Logo
-                  </Button>
+                  <p className="text-xs text-muted-foreground text-center">
+                    Current logo is active
+                  </p>
                 )}
               </div>
             </CardContent>

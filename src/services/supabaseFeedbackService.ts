@@ -42,8 +42,10 @@ class SupabaseFeedbackService {
     // Multi-tenant: Filter by organizationId
     const organizationId = await this.getCurrentUserOrganizationId();
     
-    // If projectId is provided, verify ownership
-    if (projectId) {
+    // Only verify project ownership if projectId is provided and it's not 'organization'
+    // 'organization' is a special value indicating we want all forms for the organization
+    const isValidProjectId = projectId && projectId !== 'organization';
+    if (isValidProjectId) {
       await this.verifyProjectOwnership(projectId);
     }
     
@@ -60,7 +62,8 @@ class SupabaseFeedbackService {
       .eq('isActive', true)
       .eq('organizationid', organizationId); // Filter by organization
 
-    if (projectId) {
+    // Only filter by projectId if it's a valid project ID (not 'organization')
+    if (isValidProjectId) {
       query = query.eq('projectId', projectId);
     }
 
@@ -236,8 +239,10 @@ class SupabaseFeedbackService {
     // Multi-tenant: Filter by organizationId
     const organizationId = await this.getCurrentUserOrganizationId();
     
-    // If projectId is provided, verify ownership
-    if (projectId) {
+    // Only verify project ownership if projectId is provided and it's not 'organization'
+    // 'organization' is a special value indicating we want all submissions for the organization
+    const isValidProjectId = projectId && projectId !== 'organization';
+    if (isValidProjectId) {
       await this.verifyProjectOwnership(projectId);
     }
     
@@ -256,7 +261,8 @@ class SupabaseFeedbackService {
       `)
       .eq('organizationid', organizationId); // Filter by organization
 
-    if (projectId) {
+    // Only filter by projectId if it's a valid project ID (not 'organization')
+    if (isValidProjectId) {
       query = query.eq('projectId', projectId);
     }
 
@@ -649,8 +655,10 @@ class SupabaseFeedbackService {
     // Multi-tenant: Filter by organizationId
     const organizationId = await this.getCurrentUserOrganizationId();
     
-    // If projectId is provided, verify ownership
-    if (projectId) {
+    // Only verify project ownership if projectId is provided and it's not 'organization'
+    // 'organization' is a special value indicating we want all analytics for the organization
+    const isValidProjectId = projectId && projectId !== 'organization';
+    if (isValidProjectId) {
       await this.verifyProjectOwnership(projectId);
     }
     
@@ -659,7 +667,8 @@ class SupabaseFeedbackService {
       .select('status, priority, categoryId, formId, submittedAt')
       .eq('organizationid', organizationId); // Filter by organization
 
-    if (projectId) {
+    // Only filter by projectId if it's a valid project ID (not 'organization')
+    if (isValidProjectId) {
       query = query.eq('projectId', projectId);
     }
 

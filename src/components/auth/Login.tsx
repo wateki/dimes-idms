@@ -216,6 +216,16 @@ export const Login: React.FC<LoginProps> = () => {
        {/*  <div className="text-center text-sm text-gray-600">
           <p>This is a demo application. Use the demo accounts above to explore different user roles.</p>
         </div> */}
+        
+        {/* Signup Link */}
+        <div className="text-center pt-4">
+          <p className="text-sm text-muted-foreground">
+            Don't have an organization?{' '}
+            <a href="/signup" className="text-blue-600 hover:underline font-medium">
+              Create one now
+            </a>
+          </p>
+        </div>
       </div>
     </div>
   );

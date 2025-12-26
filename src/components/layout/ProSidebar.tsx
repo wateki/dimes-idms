@@ -5,6 +5,7 @@ import { Target, Activity, Users, Settings, Folder, Circle, CheckCircle2, Flag, 
 import { useDashboard } from '@/contexts/DashboardContext';
 import { useProjects } from '@/contexts/ProjectsContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useOrganization } from '@/contexts/OrganizationContext';
 import { Button } from '@/components/ui/button';
 import { createEnhancedPermissionManager } from '@/lib/permissions';
 
@@ -12,6 +13,7 @@ import { createEnhancedPermissionManager } from '@/lib/permissions';
 export function ProSidebar() {
   const { setSidebarOpen } = useDashboard();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { organization } = useOrganization();
   const location = useLocation();
   
   // Always call hooks in the same order
@@ -128,12 +130,25 @@ export function ProSidebar() {
           {/* Header */}
           <div className="p-4 border-b border-gray-200 flex-shrink-0">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-800">ICS Dashboard</h2>
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                {organization?.logoUrl ? (
+                  <img
+                    src={organization.logoUrl}
+                    alt={organization.name || 'Organization logo'}
+                    className="h-8 w-8 rounded object-cover flex-shrink-0"
+                  />
+                ) : (
+                  <Building2 className="h-8 w-8 text-gray-400 flex-shrink-0" />
+                )}
+                <h2 className="text-lg font-semibold text-gray-800 truncate">
+                  {organization?.name || 'ICS Dashboard'}
+                </h2>
+              </div>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleCloseSidebar}
-                className="md:hidden"
+                className="md:hidden flex-shrink-0"
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -472,7 +487,7 @@ export function ProSidebar() {
               {/* Organization Admin section - Only for global admins */}
               {isAdmin() && (
                 <SubMenu 
-                  label="Organization" 
+                  label="Account Management" 
                   icon={<FileText className="h-4 w-4" />}
                   className="text-sm"
                 >
@@ -513,7 +528,7 @@ export function ProSidebar() {
               )}
               
               {/* Settings section - Personal Settings */}
-              {isAdmin() && (
+              { (
                 <SubMenu 
                   label="My profile" 
                   icon={<UserCircle className="h-4 w-4" />}

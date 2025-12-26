@@ -111,16 +111,21 @@ class SupabaseUserManagementService {
    * Get current user's organizationId
    */
   private async getCurrentUserOrganizationId(): Promise<string> {
+    console.log('[User Management Service] Getting current user organization ID...');
     const currentUser = await supabaseAuthService.getCurrentUser();
     if (!currentUser) {
+      console.error('[User Management Service] Not authenticated - no current user');
       throw new Error('Not authenticated');
     }
 
+    console.log(`[User Management Service] Current user: ${currentUser.id}`);
     const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
     if (!userProfile || !userProfile.organizationId) {
+      console.error(`[User Management Service] User profile not found or no organization ID for user: ${currentUser.id}`);
       throw new Error('User is not associated with an organization');
     }
 
+    console.log(`[User Management Service] Organization ID: ${userProfile.organizationId}`);
     return userProfile.organizationId;
   }
 
@@ -147,6 +152,7 @@ class SupabaseUserManagementService {
   }
 
   private async getUserWithDetails(userId: string): Promise<UserWithDetails> {
+    console.log(`[User Management Service] getUserWithDetails called: ${userId}`);
     // Multi-tenant: Filter by organizationId
     const organizationId = await this.getCurrentUserOrganizationId();
     
@@ -159,10 +165,14 @@ class SupabaseUserManagementService {
       .single();
 
     if (userError || !user) {
+      console.error(`[User Management Service] User not found or access denied: ${userId}`, userError?.message);
       throw new Error('User not found or access denied');
     }
 
+    console.log(`[User Management Service] User found: ${user.id} (${user.email})`);
+
     // Get user roles with role details (filtered by organization)
+    console.log(`[User Management Service] Fetching user roles for: ${userId}`);
     const { data: userRoles, error: rolesError } = await supabase
       .from('user_roles')
       .select(`
@@ -174,10 +184,14 @@ class SupabaseUserManagementService {
       .eq('organizationid', organizationId); // Filter by organization
 
     if (rolesError) {
+      console.error(`[User Management Service] Failed to fetch user roles:`, rolesError.message);
       throw new Error(rolesError.message || 'Failed to fetch user roles');
     }
 
+    console.log(`[User Management Service] Found ${userRoles?.length || 0} role(s) for user: ${userId}`);
+
     // Get project access (filtered by organization)
+    console.log(`[User Management Service] Fetching project access for: ${userId}`);
     const { data: projectAccess, error: accessError } = await supabase
       .from('user_project_access')
       .select(`
@@ -188,8 +202,11 @@ class SupabaseUserManagementService {
       .eq('organizationid', organizationId); // Filter by organization
 
     if (accessError) {
+      console.error(`[User Management Service] Failed to fetch project access:`, accessError.message);
       throw new Error(accessError.message || 'Failed to fetch project access');
     }
+
+    console.log(`[User Management Service] Found ${projectAccess?.length || 0} project access record(s) for user: ${userId}`);
 
     // Format response
     return {
@@ -214,12 +231,17 @@ class SupabaseUserManagementService {
   }
 
   async getUsers(params: QueryUsersParams = {}): Promise<UsersResponse> {
+    const startTime = Date.now();
+    console.log('[User Management Service] getUsers called:', { params });
+    
     // Multi-tenant: Filter by organizationId
     const organizationId = await this.getCurrentUserOrganizationId();
     
     const page = params.page || 1;
     const limit = params.limit || 20;
     const skip = (page - 1) * limit;
+
+    console.log(`[User Management Service] Fetching users - page: ${page}, limit: ${limit}, organization: ${organizationId}`);
 
     let query = supabase
       .from('users')
@@ -228,16 +250,19 @@ class SupabaseUserManagementService {
 
     // Apply filters
     if (params.search) {
+      console.log(`[User Management Service] Applying search filter: ${params.search}`);
       query = query.or(`email.ilike.%${params.search}%,firstName.ilike.%${params.search}%,lastName.ilike.%${params.search}%`);
     }
 
     if (params.isActive !== undefined) {
+      console.log(`[User Management Service] Applying isActive filter: ${params.isActive}`);
       query = query.eq('isActive', params.isActive);
     }
 
     // Apply sorting
     const sortBy = params.sortBy || 'createdAt';
     const sortOrder = params.sortOrder || 'desc';
+    console.log(`[User Management Service] Sorting by: ${sortBy} (${sortOrder})`);
     query = query.order(sortBy, { ascending: sortOrder === 'asc' });
 
     // Apply pagination
@@ -246,10 +271,15 @@ class SupabaseUserManagementService {
     const { data: users, error, count } = await query;
 
     if (error) {
+      console.error('[User Management Service] Error fetching users:', error.message);
       throw new Error(error.message || 'Failed to fetch users');
     }
 
+    console.log(`[User Management Service] Fetched ${users?.length || 0} users (total: ${count || 0})`);
+
     // For each user, get their roles and project access
+    console.log(`[User Management Service] Enriching ${users?.length || 0} users with roles and project access...`);
+    const enrichStartTime = Date.now();
     const usersWithDetails = await Promise.all(
       (users || []).map(async (user) => {
         // Get user roles (filtered by organization)
@@ -294,6 +324,9 @@ class SupabaseUserManagementService {
         };
       })
     );
+    const enrichDuration = Date.now() - enrichStartTime;
+    const totalDuration = Date.now() - startTime;
+    console.log(`[User Management Service] getUsers completed in ${totalDuration}ms (enrichment: ${enrichDuration}ms)`);
 
     return {
       users: usersWithDetails,
@@ -307,14 +340,19 @@ class SupabaseUserManagementService {
   }
 
   async getUserById(userId: string): Promise<UserWithDetails> {
+    console.log(`[User Management Service] getUserById called: ${userId}`);
     return this.getUserWithDetails(userId);
   }
 
   async createUser(userData: CreateUserRequest): Promise<UserWithDetails> {
+    const startTime = Date.now();
+    console.log('[User Management Service] createUser called:', { email: userData.email, firstName: userData.firstName, lastName: userData.lastName });
+    
     // Multi-tenant: Get organizationId
     const organizationId = await this.getCurrentUserOrganizationId();
     
     // Check if email already exists (within organization)
+    console.log(`[User Management Service] Checking if email already exists: ${userData.email}`);
     const { data: existingUser } = await supabase
       .from('users')
       .select('id')
@@ -323,28 +361,37 @@ class SupabaseUserManagementService {
       .single();
 
     if (existingUser) {
+      console.error(`[User Management Service] User with email ${userData.email} already exists (ID: ${existingUser.id})`);
       throw new Error('User with this email already exists in your organization');
     }
+
+    console.log(`[User Management Service] Email ${userData.email} is available`);
 
     // Get current user for createdBy
     const currentUser = await supabaseAuthService.getCurrentUser();
     if (!currentUser) {
+      console.error('[User Management Service] Not authenticated - no current user');
       throw new Error('Not authenticated');
     }
     
     const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
     if (!userProfile || !userProfile.organizationId) {
+      console.error(`[User Management Service] User profile not found or no organization ID for user: ${currentUser.id}`);
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
+    console.log(`[User Management Service] Creating auth user via edge function for: ${userData.email}`);
     // Create user in Supabase Auth using Edge Function (Admin API)
     // Get session token for authorization
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
+      console.error('[User Management Service] Not authenticated - no session');
       throw new Error('Not authenticated');
     }
 
     const edgeFunctionUrl = `${config.SUPABASE_URL}/functions/v1/user-management`;
+    console.log(`[User Management Service] Calling edge function: ${edgeFunctionUrl}`);
+    const edgeFunctionStartTime = Date.now();
     const response = await fetch(edgeFunctionUrl, {
       method: 'POST',
       headers: {
@@ -361,30 +408,42 @@ class SupabaseUserManagementService {
         emailConfirmed: true, // Auto-confirm for admin-created users
       }),
     });
+    const edgeFunctionDuration = Date.now() - edgeFunctionStartTime;
 
     const edgeFunctionData = await response.json();
+    console.log(`[User Management Service] Edge function response (${edgeFunctionDuration}ms):`, { 
+      ok: response.ok, 
+      status: response.status,
+      success: edgeFunctionData?.success,
+      hasError: !!edgeFunctionData?.error 
+    });
 
     // Handle HTTP errors
     if (!response.ok) {
       const errorMessage = edgeFunctionData?.error || `HTTP ${response.status}: ${response.statusText}`;
       const errorDetails = edgeFunctionData?.details ? ` - ${edgeFunctionData.details}` : '';
+      console.error(`[User Management Service] Edge function returned error: ${errorMessage}${errorDetails}`);
       throw new Error(`Failed to create auth user: ${errorMessage}${errorDetails}`);
     }
 
     // Check if response contains an error
     if (edgeFunctionData && 'error' in edgeFunctionData) {
+      console.error(`[User Management Service] Edge function response contains error:`, edgeFunctionData.error);
       throw new Error(`Failed to create auth user: ${edgeFunctionData.error}${edgeFunctionData.details ? ` - ${edgeFunctionData.details}` : ''}`);
     }
 
     if (!edgeFunctionData?.success || !edgeFunctionData?.authUserId) {
+      console.error(`[User Management Service] Invalid edge function response:`, edgeFunctionData);
       throw new Error('Failed to create auth user: Invalid response from edge function');
     }
 
     const authUserId = edgeFunctionData.authUserId;
+    console.log(`[User Management Service] Auth user created: ${authUserId}, creating user profile...`);
 
     const now = new Date().toISOString();
     
     // Create profile record linked to the auth user
+    const profileStartTime = Date.now();
     const { data: newUser, error: userError } = await supabase
       .from('users')
       .insert({
@@ -403,14 +462,18 @@ class SupabaseUserManagementService {
       } as unknown as Database['public']['Tables']['users']['Insert'])
       .select()
       .single();
+    const profileDuration = Date.now() - profileStartTime;
 
     if (userError || !newUser) {
+      console.error(`[User Management Service] Failed to create user profile after ${profileDuration}ms:`, userError?.message || 'No user returned');
       // If profile creation fails, clean up the auth user via edge function
+      console.log(`[User Management Service] Cleaning up auth user: ${authUserId}`);
       try {
         const { data: { session: cleanupSession } } = await supabase.auth.getSession();
         if (cleanupSession) {
           const cleanupUrl = `${config.SUPABASE_URL}/functions/v1/user-management`;
-          await fetch(cleanupUrl, {
+          const cleanupStartTime = Date.now();
+          const cleanupResponse = await fetch(cleanupUrl, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -422,17 +485,22 @@ class SupabaseUserManagementService {
               authUserId: authUserId,
             }),
           });
+          const cleanupDuration = Date.now() - cleanupStartTime;
+          console.log(`[User Management Service] Cleanup response (${cleanupDuration}ms):`, { ok: cleanupResponse.ok, status: cleanupResponse.status });
         }
       } catch (cleanupError) {
-        console.error('Failed to cleanup auth user after profile creation failure:', cleanupError);
+        console.error('[User Management Service] Failed to cleanup auth user after profile creation failure:', cleanupError);
       }
       // Handle subscription limit errors from RLS policies, and preserve other errors
       const { handleSubscriptionError } = await import('@/utils/subscriptionErrorHandler');
       throw await handleSubscriptionError(userError || { message: 'Failed to create user profile' }, 'users', 'create');
     }
 
+    console.log(`[User Management Service] User profile created successfully: ${newUser.id}`);
+
     // Assign roles if provided
     if (userData.roleAssignments && userData.roleAssignments.length > 0) {
+      console.log(`[User Management Service] Assigning ${userData.roleAssignments.length} role(s) to user: ${newUser.id}`);
       const roleInserts = userData.roleAssignments.map(assignment => ({
         id: crypto.randomUUID(),
         userId: newUser.id,
@@ -445,41 +513,58 @@ class SupabaseUserManagementService {
         updatedAt: now,
       } as unknown as Database['public']['Tables']['user_roles']['Insert']));
 
+      const rolesStartTime = Date.now();
       const { error: rolesError } = await supabase
         .from('user_roles')
         .insert(roleInserts);
+      const rolesDuration = Date.now() - rolesStartTime;
 
       if (rolesError) {
+        console.error(`[User Management Service] Failed to assign roles after ${rolesDuration}ms:`, rolesError.message);
         // Rollback user creation
+        console.log(`[User Management Service] Rolling back user creation: ${newUser.id}`);
         await supabase.from('users').delete().eq('id', newUser.id);
         throw new Error(rolesError.message || 'Failed to assign roles');
       }
+
+      console.log(`[User Management Service] Roles assigned successfully in ${rolesDuration}ms`);
     }
 
     // Track usage: increment users count if user is active
     if (newUser.isActive) {
       try {
+        console.log(`[User Management Service] Tracking usage increment for active user: ${newUser.id}`);
         await supabaseUsageTrackingService.incrementUsage('users');
       } catch (error) {
-        console.error('Failed to track user creation:', error);
+        console.error('[User Management Service] Failed to track user creation:', error);
         // Don't throw - tracking failure shouldn't break user creation
       }
     }
 
+    const totalDuration = Date.now() - startTime;
+    console.log(`[User Management Service] createUser completed in ${totalDuration}ms: ${newUser.id}`);
     return this.getUserWithDetails(newUser.id);
   }
 
   async updateUser(userId: string, userData: UpdateUserRequest): Promise<UserWithDetails> {
+    const startTime = Date.now();
+    console.log(`[User Management Service] updateUser called: ${userId}`, { 
+      updateFields: Object.keys(userData),
+      hasRoleAssignments: !!userData.roleAssignments 
+    });
+    
     // Multi-tenant: Verify ownership first
     const organizationId = await this.getCurrentUserOrganizationId();
     
     const currentUser = await supabaseAuthService.getCurrentUser();
     if (!currentUser) {
+      console.error('[User Management Service] Not authenticated - no current user');
       throw new Error('Not authenticated');
     }
 
     const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
     if (!userProfile || !userProfile.organizationId) {
+      console.error(`[User Management Service] User profile not found or no organization ID for user: ${currentUser.id}`);
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
@@ -493,18 +578,25 @@ class SupabaseUserManagementService {
     if (userData.isActive !== undefined) updateData.isActive = userData.isActive;
 
     // Multi-tenant: Ensure ownership
+    console.log(`[User Management Service] Updating user profile: ${userId}`);
+    const updateStartTime = Date.now();
     const { error: updateError } = await supabase
       .from('users')
       .update(updateData)
       .eq('id', userId)
       .eq('organizationid', organizationId); // Ensure ownership
+    const updateDuration = Date.now() - updateStartTime;
 
     if (updateError) {
+      console.error(`[User Management Service] Failed to update user after ${updateDuration}ms:`, updateError.message);
       throw new Error(updateError.message || 'Failed to update user');
     }
 
+    console.log(`[User Management Service] User profile updated successfully in ${updateDuration}ms`);
+
     // Update role assignments if provided
     if (userData.roleAssignments && userData.roleAssignments.length > 0) {
+      console.log(`[User Management Service] Updating role assignments: removing existing, adding ${userData.roleAssignments.length} new`);
       // Remove existing role assignments (filtered by organization)
       await supabase
         .from('user_roles')
@@ -526,18 +618,24 @@ class SupabaseUserManagementService {
         updatedAt: now,
       } as unknown as Database['public']['Tables']['user_roles']['Insert']));
 
+      const rolesStartTime = Date.now();
       const { error: rolesError } = await supabase
         .from('user_roles')
         .insert(roleInserts);
+      const rolesDuration = Date.now() - rolesStartTime;
 
       if (rolesError) {
+        console.error(`[User Management Service] Failed to update role assignments after ${rolesDuration}ms:`, rolesError.message);
         throw new Error(rolesError.message || 'Failed to update role assignments');
       }
+
+      console.log(`[User Management Service] Role assignments updated successfully in ${rolesDuration}ms`);
     }
 
     // Track usage: handle isActive changes
     if (userData.isActive !== undefined) {
       try {
+        console.log(`[User Management Service] Checking user status change for usage tracking: ${userId}`);
         // Get current user state before update to determine if we need to increment or decrement
         const { data: currentUser } = await supabase
           .from('users')
@@ -552,41 +650,54 @@ class SupabaseUserManagementService {
 
           if (!wasActive && isNowActive) {
             // User activated - increment
+            console.log(`[User Management Service] User activated, incrementing usage: ${userId}`);
             await supabaseUsageTrackingService.incrementUsage('users');
           } else if (wasActive && !isNowActive) {
             // User deactivated - decrement
+            console.log(`[User Management Service] User deactivated, decrementing usage: ${userId}`);
             await supabaseUsageTrackingService.decrementUsage('users');
+          } else {
+            console.log(`[User Management Service] User status unchanged (wasActive: ${wasActive}, isNowActive: ${isNowActive})`);
           }
         }
       } catch (error) {
-        console.error('Failed to track user status change:', error);
+        console.error('[User Management Service] Failed to track user status change:', error);
         // Don't throw - tracking failure shouldn't break user update
       }
     }
 
+    const totalDuration = Date.now() - startTime;
+    console.log(`[User Management Service] updateUser completed in ${totalDuration}ms: ${userId}`);
     return this.getUserWithDetails(userId);
   }
 
   async deleteUser(userId: string): Promise<void> {
+    const startTime = Date.now();
+    console.log(`[User Management Service] deleteUser called: ${userId}`);
+    
     // Multi-tenant: Verify ownership first
     const organizationId = await this.getCurrentUserOrganizationId();
     
     const currentUser = await supabaseAuthService.getCurrentUser();
     if (!currentUser) {
+      console.error('[User Management Service] Not authenticated - no current user');
       throw new Error('Not authenticated');
     }
 
     const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
     if (!userProfile || !userProfile.organizationId) {
+      console.error(`[User Management Service] User profile not found or no organization ID for user: ${currentUser.id}`);
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
     // Prevent self-deletion
     if (userId === userProfile.id) {
+      console.error(`[User Management Service] Self-deletion attempted by user: ${userId}`);
       throw new Error('Cannot delete your own account');
     }
     
     // Verify user belongs to same organization and get isActive status
+    console.log(`[User Management Service] Verifying target user: ${userId}`);
     const { data: targetUser, error: userError } = await supabase
       .from('users')
       .select('id, organizationid, isActive')
@@ -595,12 +706,17 @@ class SupabaseUserManagementService {
       .single();
 
     if (userError || !targetUser) {
+      console.error(`[User Management Service] Target user not found or access denied: ${userId}`, userError?.message);
       throw new Error('User not found or access denied');
     }
+
+    console.log(`[User Management Service] Target user verified: ${targetUser.id} (isActive: ${targetUser.isActive})`);
 
     const now = new Date().toISOString();
 
     // Soft delete user and related data in parallel
+    console.log(`[User Management Service] Soft deleting user and related data: ${userId}`);
+    const softDeleteStartTime = Date.now();
     const [userUpdate, rolesUpdate, accessUpdate, permissionsDelete] = await Promise.all([
       // Soft delete user
       supabase
@@ -636,34 +752,41 @@ class SupabaseUserManagementService {
         .delete()
         .eq('userId', userId),
     ]);
+    const softDeleteDuration = Date.now() - softDeleteStartTime;
+    console.log(`[User Management Service] Soft delete operations completed in ${softDeleteDuration}ms`);
 
     if (userUpdate.error) {
+      console.error(`[User Management Service] Failed to soft delete user:`, userUpdate.error.message);
       throw new Error(userUpdate.error.message || 'Failed to delete user');
     }
+
+    console.log(`[User Management Service] User soft deleted successfully`);
 
     // Track usage: decrement users count if user was active
     if (targetUser.isActive) {
       try {
+        console.log(`[User Management Service] User was active, decrementing usage: ${userId}`);
         await supabaseUsageTrackingService.decrementUsage('users');
       } catch (error) {
-        console.error('Failed to track user deletion:', error);
+        console.error('[User Management Service] Failed to track user deletion:', error);
         // Don't throw - tracking failure shouldn't break user deletion
       }
     }
 
     if (rolesUpdate.error) {
-      console.warn('Failed to deactivate user roles:', rolesUpdate.error);
+      console.warn('[User Management Service] Failed to deactivate user roles:', rolesUpdate.error.message);
     }
 
     if (accessUpdate.error) {
-      console.warn('Failed to deactivate project access:', accessUpdate.error);
+      console.warn('[User Management Service] Failed to deactivate project access:', accessUpdate.error.message);
     }
 
     if (permissionsDelete.error) {
-      console.warn('Failed to delete user permissions:', permissionsDelete.error);
+      console.warn('[User Management Service] Failed to delete user permissions:', permissionsDelete.error.message);
     }
 
     // Delete user from Supabase Auth using Edge Function (Admin API)
+    console.log(`[User Management Service] Fetching auth_user_id for deletion: ${userId}`);
     const { data: deletedTargetUser } = await supabase
       .from('users')
       .select('auth_user_id')
@@ -671,15 +794,17 @@ class SupabaseUserManagementService {
       .single();
 
     if (deletedTargetUser?.auth_user_id) {
+      console.log(`[User Management Service] Deleting auth user via edge function: ${deletedTargetUser.auth_user_id}`);
       try {
         // Get session token for authorization
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
-          console.warn('Failed to delete auth user: Not authenticated');
+          console.warn('[User Management Service] Failed to delete auth user: Not authenticated');
           return;
         }
 
         const deleteUrl = `${config.SUPABASE_URL}/functions/v1/user-management`;
+        const authDeleteStartTime = Date.now();
         const deleteResponse = await fetch(deleteUrl, {
           method: 'POST',
           headers: {
@@ -693,6 +818,7 @@ class SupabaseUserManagementService {
             authUserId: deletedTargetUser.auth_user_id,
           }),
         });
+        const authDeleteDuration = Date.now() - authDeleteStartTime;
 
         const deleteData = await deleteResponse.json();
 
@@ -700,14 +826,21 @@ class SupabaseUserManagementService {
         if (!deleteResponse.ok || (deleteData && 'error' in deleteData)) {
           const errorMessage = deleteData?.error || `HTTP ${deleteResponse.status}: ${deleteResponse.statusText}`;
           const errorDetails = deleteData?.details ? ` - ${deleteData.details}` : '';
-          console.warn('Failed to delete auth user:', errorMessage, errorDetails);
+          console.warn(`[User Management Service] Failed to delete auth user after ${authDeleteDuration}ms:`, errorMessage, errorDetails);
           // Don't throw - profile is already soft deleted
+        } else {
+          console.log(`[User Management Service] Auth user deleted successfully in ${authDeleteDuration}ms`);
         }
       } catch (error) {
-        console.warn('Failed to delete auth user:', error instanceof Error ? error.message : String(error));
+        console.warn('[User Management Service] Failed to delete auth user:', error instanceof Error ? error.message : String(error));
         // Don't throw - profile is already soft deleted
       }
+    } else {
+      console.warn(`[User Management Service] No auth_user_id found for user: ${userId}, skipping auth deletion`);
     }
+
+    const totalDuration = Date.now() - startTime;
+    console.log(`[User Management Service] deleteUser completed in ${totalDuration}ms: ${userId}`);
   }
 
   async getAvailableRoles(): Promise<Array<{
@@ -717,6 +850,9 @@ class SupabaseUserManagementService {
     level: number;
     isActive: boolean;
   }>> {
+    const startTime = Date.now();
+    console.log('[User Management Service] getAvailableRoles called');
+    
     // Multi-tenant: Filter by organizationId
     const organizationId = await this.getCurrentUserOrganizationId();
     
@@ -728,8 +864,12 @@ class SupabaseUserManagementService {
       .order('level', { ascending: true });
 
     if (error) {
+      console.error('[User Management Service] Failed to fetch roles:', error.message);
       throw new Error(error.message || 'Failed to fetch roles');
     }
+
+    const duration = Date.now() - startTime;
+    console.log(`[User Management Service] getAvailableRoles completed in ${duration}ms: ${data?.length || 0} role(s) found`);
 
     // Map to convert null to undefined for description and exclude extra fields
     return (data || []).map(role => ({

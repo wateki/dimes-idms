@@ -73,6 +73,8 @@ export function UserManagement() {
   }, [searchTerm, activeFilter, pagination.page]);
 
   const loadUsers = async () => {
+    const startTime = Date.now();
+    console.log('[User Management Component] loadUsers called:', { searchTerm, activeFilter, page: pagination.page });
     try {
       setLoading(true);
       const params: QueryUsersRequest = {
@@ -83,43 +85,61 @@ export function UserManagement() {
       };
       
       const response = await userManagementService.getUsers(params);
+      const duration = Date.now() - startTime;
+      console.log(`[User Management Component] loadUsers completed in ${duration}ms: ${response.users.length} user(s) loaded, total: ${response.pagination.total}`);
       setUsers(response.users);
       setPagination(response.pagination);
     } catch (error) {
-      console.error('Failed to load users:', error);
+      const duration = Date.now() - startTime;
+      console.error(`[User Management Component] Failed to load users after ${duration}ms:`, error);
     } finally {
       setLoading(false);
     }
   };
 
   const loadRoles = async () => {
+    const startTime = Date.now();
+    console.log('[User Management Component] loadRoles called');
     try {
       const rolesData = await userManagementService.getAvailableRoles();
+      const duration = Date.now() - startTime;
+      console.log(`[User Management Component] loadRoles completed in ${duration}ms: ${rolesData.length} role(s) loaded`);
       setRoles(rolesData);
     } catch (error) {
-      console.error('Failed to load roles:', error);
+      const duration = Date.now() - startTime;
+      console.error(`[User Management Component] Failed to load roles after ${duration}ms:`, error);
     }
   };
 
   const handleCreateUser = async (userData: any) => {
+    const startTime = Date.now();
+    console.log('[User Management Component] handleCreateUser called:', { email: userData.email, firstName: userData.firstName, lastName: userData.lastName });
     try {
       await userManagementService.createUser(userData);
+      const duration = Date.now() - startTime;
+      console.log(`[User Management Component] handleCreateUser completed in ${duration}ms: User created successfully`);
       setCreateDialogOpen(false);
       loadUsers(); // Refresh the list
     } catch (error) {
-      console.error('Failed to create user:', error);
+      const duration = Date.now() - startTime;
+      console.error(`[User Management Component] Failed to create user after ${duration}ms:`, error);
       throw error;
     }
   };
 
   const handleUpdateUser = async (userId: string, userData: any) => {
+    const startTime = Date.now();
+    console.log(`[User Management Component] handleUpdateUser called: ${userId}`, { updateFields: Object.keys(userData) });
     try {
       await userManagementService.updateUser(userId, userData);
+      const duration = Date.now() - startTime;
+      console.log(`[User Management Component] handleUpdateUser completed in ${duration}ms: User updated successfully`);
       setEditDialogOpen(false);
       setSelectedUser(null);
       loadUsers(); // Refresh the list
     } catch (error) {
-      console.error('Failed to update user:', error);
+      const duration = Date.now() - startTime;
+      console.error(`[User Management Component] Failed to update user after ${duration}ms:`, error);
       throw error;
     }
   };
@@ -128,17 +148,25 @@ export function UserManagement() {
     const userToDelete = users.find(u => u.id === userId);
     const userName = userToDelete ? `${userToDelete.firstName} ${userToDelete.lastName}` : 'this user';
     
+    console.log(`[User Management Component] handleDeleteUser called: ${userId} (${userName})`);
+    
     if (window.confirm(`Are you sure you want to delete ${userName}? This will deactivate their account and remove their access.`)) {
+      const startTime = Date.now();
       try {
         await userManagementService.deleteUser(userId);
+        const duration = Date.now() - startTime;
+        console.log(`[User Management Component] handleDeleteUser completed in ${duration}ms: User deleted successfully`);
         loadUsers(); // Refresh the list
         // Show success message
         alert(`User ${userName} has been successfully deleted.`);
       } catch (error: any) {
-        console.error('Failed to delete user:', error);
+        const duration = Date.now() - startTime;
+        console.error(`[User Management Component] Failed to delete user after ${duration}ms:`, error);
         // Show error message
         alert(`Failed to delete user: ${error.message || 'An unexpected error occurred'}`);
       }
+    } else {
+      console.log(`[User Management Component] handleDeleteUser cancelled by user`);
     }
   };
 

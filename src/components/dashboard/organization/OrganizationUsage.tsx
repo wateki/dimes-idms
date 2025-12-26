@@ -155,8 +155,8 @@ export function OrganizationUsage() {
   // Get limits for display in Current Plan card
   const usersLimit = usageLimitInfo.find(info => info.metric === 'users');
   const projectsLimit = usageLimitInfo.find(info => info.metric === 'projects');
-  const usersLimitText = usersLimit?.isUnlimited ? 'Unlimited' : (usersLimit?.limit ?? organization.maxUsers ?? 0).toString();
-  const projectsLimitText = projectsLimit?.isUnlimited ? 'Unlimited' : (projectsLimit?.limit ?? organization.maxProjects ?? 0).toString();
+  const usersLimitText = usersLimit?.isUnlimited ? 'Unlimited' : (usersLimit?.limit ?? organization.maxUsers).toString();
+  const projectsLimitText = projectsLimit?.isUnlimited ? 'Unlimited' : (projectsLimit?.limit ?? organization.maxProjects).toString();
 
   return (
     <div className="p-6 space-y-6">
@@ -194,21 +194,21 @@ export function OrganizationUsage() {
               const displayInfo = METRIC_DISPLAY_MAP[info.metric];
               if (!displayInfo) return null;
 
-              // Use actual counts from orgStats when available, fallback to subscription_usage
+              // Use actual total counts from orgStats when available (resources are consumed even when inactive)
               let actualUsage = info.currentUsage;
               if (info.metric === 'users' && orgStats) {
-                // For users, use active users count (matches limit enforcement)
-                actualUsage = orgStats.activeUsers || 0;
+                // Use total users count (inactive users still consume resources)
+                actualUsage = orgStats.totalUsers || 0;
               } else if (info.metric === 'projects' && orgStats) {
-                // For projects, use active projects count (matches limit enforcement)
-                actualUsage = orgStats.activeProjects || 0;
+                // Use total projects count (archived projects still consume resources)
+                actualUsage = orgStats.totalProjects || 0;
               } else if (info.metric === 'forms' && orgStats) {
                 actualUsage = orgStats.totalForms || 0;
               } else if (info.metric === 'reports' && orgStats) {
                 actualUsage = orgStats.totalReports || 0;
               }
 
-              // Recalculate percentage and limit status based on actual usage
+              // Recalculate percentage and limit status based on actual total usage
               const isUnlimited = info.isUnlimited;
               const limit = info.limit;
               const percentage = isUnlimited ? 0 : limit > 0 ? Math.round((actualUsage / limit) * 100) : 0;
@@ -303,9 +303,7 @@ export function OrganizationUsage() {
             <div>
               <p className="text-sm text-muted-foreground">Plan</p>
               <p className="text-lg font-semibold">
-                {planDetails?.displayName || (organization.subscriptionTier 
-                  ? organization.subscriptionTier.charAt(0).toUpperCase() + organization.subscriptionTier.slice(1)
-                  : 'Free')}
+                {planDetails?.displayName || organization.subscriptionTier.charAt(0).toUpperCase() + organization.subscriptionTier.slice(1)}
                 {planDetails?.isAnnual && (
                   <span className="text-sm text-muted-foreground ml-1">(Annual)</span>
                 )}

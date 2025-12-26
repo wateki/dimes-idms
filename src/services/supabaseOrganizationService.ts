@@ -221,22 +221,19 @@ class SupabaseOrganizationService {
     const organization = await this.getOrganization(orgId);
     const stats = await this.getOrganizationStats(orgId);
 
-    const maxUsers = organization.maxUsers ?? 0;
-    const maxProjects = organization.maxProjects ?? 0;
-
     return {
       users: {
         current: stats.activeUsers,
-        limit: maxUsers,
-        percentage: maxUsers > 0 
-          ? Math.round((stats.activeUsers / maxUsers) * 100) 
+        limit: organization.maxUsers,
+        percentage: organization.maxUsers > 0 
+          ? Math.round((stats.activeUsers / organization.maxUsers) * 100) 
           : 0,
       },
       projects: {
         current: stats.activeProjects,
-        limit: maxProjects,
-        percentage: maxProjects > 0 
-          ? Math.round((stats.activeProjects / maxProjects) * 100) 
+        limit: organization.maxProjects,
+        percentage: organization.maxProjects > 0 
+          ? Math.round((stats.activeProjects / organization.maxProjects) * 100) 
           : 0,
       },
       storage: {

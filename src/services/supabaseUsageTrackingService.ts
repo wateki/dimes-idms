@@ -114,24 +114,21 @@ class SupabaseUsageTrackingService {
     const { data: existing, error: fetchError } = await supabase
       .from('subscription_usage')
       .select('*')
-      .eq('organizationid', organizationId)
+      .eq('organizationId', organizationId)
       .eq('metric', metric)
       .eq('periodStart', periodStart.toISOString())
       .eq('periodEnd', periodEnd.toISOString())
       .single();
 
     if (existing && !fetchError) {
-      return {
-        ...existing,
-        organizationId: existing.organizationid,
-      } as UsageRecord;
+      return existing as UsageRecord;
     }
 
     // Create new record if it doesn't exist
     const { data: newRecord, error: createError } = await supabase
       .from('subscription_usage')
       .insert({
-        organizationid: organizationId,
+        organizationId,
         metric,
         count: 0,
         periodStart: periodStart.toISOString(),
@@ -146,10 +143,7 @@ class SupabaseUsageTrackingService {
       );
     }
 
-    return {
-      ...newRecord,
-      organizationId: newRecord.organizationid,
-    } as UsageRecord;
+    return newRecord as UsageRecord;
   }
 
   /**
@@ -215,7 +209,7 @@ class SupabaseUsageTrackingService {
     const { data, error } = await supabase
       .from('subscription_usage')
       .select('*')
-      .eq('organizationid', organizationId)
+      .eq('organizationId', organizationId)
       .eq('metric', metric)
       .eq('periodStart', periodStart.toISOString())
       .eq('periodEnd', periodEnd.toISOString())
@@ -249,7 +243,7 @@ class SupabaseUsageTrackingService {
     const { data, error } = await supabase
       .from('subscription_usage')
       .select('*')
-      .eq('organizationid', organizationId)
+      .eq('organizationId', organizationId)
       .eq('periodStart', periodStart.toISOString())
       .eq('periodEnd', periodEnd.toISOString());
 
@@ -300,7 +294,6 @@ class SupabaseUsageTrackingService {
    */
   async recalculateUsage(metric: UsageMetric): Promise<void> {
     const organizationId = await this.getCurrentUserOrganizationId();
-    const { periodStart, periodEnd } = await this.getCurrentPeriod(organizationId);
     let count = 0;
 
     switch (metric) {
@@ -338,8 +331,8 @@ class SupabaseUsageTrackingService {
           .from('form_responses')
           .select('*', { count: 'exact', head: true })
           .eq('organizationid', organizationId)
-          .gte('startedAt', periodStart.toISOString())
-          .lte('startedAt', periodEnd.toISOString());
+          .gte('startedAt', periodStart)
+          .lte('startedAt', periodEnd);
         count = responsesCount || 0;
         break;
 

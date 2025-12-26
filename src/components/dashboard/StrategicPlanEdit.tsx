@@ -8,7 +8,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Trash2, Save, ArrowLeft, Edit3, Eye } from 'lucide-react';
-import { organizationalGoals } from '@/lib/organizationalGoals';
 import { strategicPlanApi } from '@/lib/api/strategicPlanApi';
 import { useProjects } from '@/contexts/ProjectsContext';
 import { useNotifications } from '@/contexts/NotificationContext';
@@ -102,13 +101,30 @@ export function StrategicPlanEdit() {
 
   const loadStrategicPlan = async () => {
     try {
-      // Try to load from API first
-      const activePlan = await strategicPlanApi.getActiveStrategicPlan();
-      if (activePlan) {
-        setCurrentPlanId(activePlan.id);
-        setStartYear(activePlan.startYear);
-        setEndYear(activePlan.endYear);
-        const convertedGoals: StrategicGoal[] = activePlan.goals.map(goal => ({
+      setIsLoading(true);
+      // First try to load active plan for the organization
+      let planToLoad = await strategicPlanApi.getActiveStrategicPlan();
+      
+      // If no active plan, try to load the most recent plan for the organization
+      if (!planToLoad) {
+        const allPlans = await strategicPlanApi.getStrategicPlans();
+        if (allPlans && allPlans.length > 0) {
+          // Use the most recent plan (they're already sorted by createdAt descending)
+          planToLoad = allPlans[0];
+         /*  addNotification({
+            type: 'info',
+            title: 'No Active Plan Found',
+            message: `Loaded the most recent strategic plan (${planToLoad.startYear}-${planToLoad.endYear}) for your organization.`,
+            duration: 4000,
+          }); */
+        }
+      }
+      
+      if (planToLoad) {
+        setCurrentPlanId(planToLoad.id);
+        setStartYear(planToLoad.startYear);
+        setEndYear(planToLoad.endYear);
+        const convertedGoals: StrategicGoal[] = planToLoad.goals.map(goal => ({
           id: goal.id,
           title: goal.title,
           description: goal.description,
@@ -138,62 +154,35 @@ export function StrategicPlanEdit() {
         addNotification({
           type: 'success',
           title: 'Strategic Plan Loaded Successfully',
-          message: `Loaded ${convertedGoals.length} strategic goals from the database.`,
+          message: `Loaded ${convertedGoals.length} strategic goals from your organization's plan (${planToLoad.startYear}-${planToLoad.endYear}).`,
           duration: 3000,
         });
       } else {
-        // Fallback to static data
-        loadStaticData();
+        // No plans found for the organization - show empty state
+        setGoals([]);
+        setCurrentPlanId(null);
         addNotification({
           type: 'info',
-          title: 'Using Default Strategic Plan Data',
-          message: 'No active strategic plan found in the database.',
-          duration: 3000,
+          title: 'No Strategic Plan Found',
+          message: 'No strategic plan found for your organization. Please create a new plan.',
+          duration: 4000,
         });
       }
     } catch (error) {
       console.error('Error loading strategic plan:', error);
-      // Fallback to static data
-      loadStaticData();
+      setGoals([]);
+      setCurrentPlanId(null);
       addNotification({
-        type: 'warning',
-        title: 'Failed to Load Strategic Plan from Database',
-        message: 'Using default data instead.',
-        duration: 4000,
+        type: 'error',
+        title: 'Failed to Load Strategic Plan',
+        message: error instanceof Error ? error.message : 'Please try again or create a new plan.',
+        duration: 5000,
       });
+    } finally {
+      setIsLoading(false);
     }
   };
-
-  const loadStaticData = () => {
-    // Convert the existing organizational goals to the editable format
-    const convertedGoals: StrategicGoal[] = organizationalGoals.map(goal => ({
-      id: goal.id,
-      title: goal.title,
-      description: goal.description,
-      priority: goal.priority as 'high' | 'medium' | 'low',
-      targetOutcome: goal.targetOutcome,
-      subgoals: goal.subgoals.map(subGoal => ({
-        id: subGoal.id,
-        title: subGoal.title,
-        description: subGoal.description,
-        kpi: {
-          currentValue: subGoal.kpi.value,
-          targetValue: subGoal.kpi.target,
-          unit: subGoal.kpi.unit,
-          type: subGoal.kpi.type
-        },
-        activityLinks: subGoal.linkedActivities.map(activity => ({
-          projectId: activity.projectId,
-          projectName: activity.projectName,
-          activityId: activity.activityId,
-          activityTitle: activity.activityTitle,
-          contribution: activity.contribution,
-          status: activity.status
-        }))
-      }))
-    }));
-    setGoals(convertedGoals);
-  };
+  
 
   const addGoal = () => {
     const newGoal: StrategicGoal = {
@@ -516,7 +505,29 @@ export function StrategicPlanEdit() {
       </Card>
 
       <div className="space-y-6">
-        {goals.map((goal, goalIndex) => (
+        {isLoading ? (
+          <Card>
+            <CardContent className="py-8 text-center">
+              <p className="text-muted-foreground">Loading strategic plan...</p>
+            </CardContent>
+          </Card>
+        ) : goals.length === 0 ? (
+          <Card>
+            <CardContent className="py-8 text-center">
+              <p className="text-muted-foreground mb-4">
+                No strategic plan found for your organization.
+              </p>
+              <Button
+                onClick={() => navigate('/dashboard/strategic-plan/create')}
+                className="flex items-center space-x-2"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Create Strategic Plan</span>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          goals.map((goal, goalIndex) => (
           <Card key={goal.id} className="border-l-4 border-l-blue-500">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -830,7 +841,9 @@ export function StrategicPlanEdit() {
               </div>
             </CardContent>
           </Card>
-        ))}
+        ))
+        )
+        }
 
         {isEditing && (
           <Card className="border-dashed border-2 border-gray-300">

@@ -224,16 +224,16 @@ class SupabaseOrganizationService {
     return {
       users: {
         current: stats.activeUsers,
-        limit: organization.maxUsers,
-        percentage: organization.maxUsers > 0 
-          ? Math.round((stats.activeUsers / organization.maxUsers) * 100) 
+        limit: organization.maxUsers ?? 0,
+        percentage: (organization.maxUsers ?? 0) > 0 
+          ? Math.round((stats.activeUsers / (organization.maxUsers ?? 0)) * 100) 
           : 0,
       },
       projects: {
         current: stats.activeProjects,
-        limit: organization.maxProjects,
-        percentage: organization.maxProjects > 0 
-          ? Math.round((stats.activeProjects / organization.maxProjects) * 100) 
+        limit: organization.maxProjects ?? 0,
+        percentage: (organization.maxProjects ?? 0) > 0 
+          ? Math.round((stats.activeProjects / (organization.maxProjects ?? 0)) * 100) 
           : 0,
       },
       storage: {

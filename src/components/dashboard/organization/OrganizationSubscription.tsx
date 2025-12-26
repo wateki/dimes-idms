@@ -170,7 +170,9 @@ export function OrganizationSubscription() {
               <div className="text-muted-foreground">
                 Your account is currently on a{' '}
                 <Badge variant="outline" className="ml-1">
-                  {organization.subscriptionTier.charAt(0).toUpperCase() + organization.subscriptionTier.slice(1)}
+                  {organization.subscriptionTier 
+                    ? organization.subscriptionTier.charAt(0).toUpperCase() + organization.subscriptionTier.slice(1)
+                    : 'Free'}
                 </Badge>
                 {' '}plan.
               </div>

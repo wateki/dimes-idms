@@ -23,6 +23,7 @@ import { SafetyIncidentForm } from './forms/SafetyIncidentForm';
 import { EmergencyReportForm } from './forms/EmergencyReportForm';
 import { StaffFeedbackForm } from './forms/StaffFeedbackForm';
 import { useFeedback } from '@/contexts/FeedbackContext';
+import { useOrganization } from '@/contexts/OrganizationContext';
 import type { FeedbackPriority, FeedbackSensitivity, EscalationLevel } from '@/types/feedback';
 
 interface FeedbackSubmissionInterfaceProps {
@@ -34,6 +35,14 @@ export function FeedbackSubmissionInterface({ projectId, projectName = "ICS Prog
   const [activeTab, setActiveTab] = useState('general');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { forms, categories, loading, createSubmission } = useFeedback();
+  const { organization } = useOrganization();
+  
+  // Get contact information from organization settings
+  const settings = organization?.settings || {};
+  const emergencyHotline = settings.emergencyHotline || '';
+  const emergencyEmail = settings.emergencyEmail || '';
+  const feedbackEmail = settings.feedbackEmail || '';
+  const officeAddress = settings.officeAddress || '';
 
   const handleShareLink = async () => {
     try {
@@ -350,39 +359,57 @@ export function FeedbackSubmissionInterface({ projectId, projectName = "ICS Prog
             <div className="space-y-4">
               <h4 className="font-semibold text-lg">Emergency Contacts</h4>
               <div className="space-y-3">
-                <div className="flex items-center gap-3 p-3 bg-red-50 rounded-lg">
-                  <Phone className="w-5 h-5 text-red-600" />
-                  <div>
-                    <p className="font-medium">Emergency Hotline</p>
-                    <p className="text-sm text-gray-600">+1 (555) 911-HELP</p>
+                {emergencyHotline && (
+                  <div className="flex items-center gap-3 p-3 bg-red-50 rounded-lg">
+                    <Phone className="w-5 h-5 text-red-600" />
+                    <div>
+                      <p className="font-medium">Emergency Hotline</p>
+                      <p className="text-sm text-gray-600">{emergencyHotline}</p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
-                  <Mail className="w-5 h-5 text-blue-600" />
-                  <div>
-                    <p className="font-medium">Emergency Email</p>
-                    <p className="text-sm text-gray-600">emergency@ics-program.org</p>
+                )}
+                {emergencyEmail && (
+                  <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
+                    <Mail className="w-5 h-5 text-blue-600" />
+                    <div>
+                      <p className="font-medium">Emergency Email</p>
+                      <p className="text-sm text-gray-600">{emergencyEmail}</p>
+                    </div>
                   </div>
-                </div>
+                )}
+                {!emergencyHotline && !emergencyEmail && (
+                  <p className="text-sm text-muted-foreground italic">
+                    Emergency contacts not configured. Please contact your administrator.
+                  </p>
+                )}
               </div>
             </div>
             <div className="space-y-4">
               <h4 className="font-semibold text-lg">General Inquiries</h4>
               <div className="space-y-3">
-                <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
-                  <Mail className="w-5 h-5 text-blue-600" />
-                  <div>
-                    <p className="font-medium">Feedback Email</p>
-                    <p className="text-sm text-gray-600">feedback@ics-program.org</p>
+                {feedbackEmail && (
+                  <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
+                    <Mail className="w-5 h-5 text-blue-600" />
+                    <div>
+                      <p className="font-medium">Feedback Email</p>
+                      <p className="text-sm text-gray-600">{feedbackEmail}</p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
-                  <MapPin className="w-5 h-5 text-green-600" />
-                  <div>
-                    <p className="font-medium">Visit Our Office</p>
-                    <p className="text-sm text-gray-600">Local community center</p>
+                )}
+                {officeAddress && (
+                  <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
+                    <MapPin className="w-5 h-5 text-green-600" />
+                    <div>
+                      <p className="font-medium">Visit Our Office</p>
+                      <p className="text-sm text-gray-600">{officeAddress}</p>
+                    </div>
                   </div>
-                </div>
+                )}
+                {!feedbackEmail && !officeAddress && (
+                  <p className="text-sm text-muted-foreground italic">
+                    General inquiry contacts not configured. Please contact your administrator.
+                  </p>
+                )}
               </div>
             </div>
           </div>

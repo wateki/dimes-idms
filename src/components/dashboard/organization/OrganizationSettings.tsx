@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useNotification } from '@/hooks/useNotification';
-import { Upload, Save, Building2 } from 'lucide-react';
+import { Upload, Save, Building2, Phone, Mail, MapPin } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export function OrganizationSettings() {
@@ -22,6 +22,12 @@ export function OrganizationSettings() {
   const [logoUrl, setLogoUrl] = useState('');
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  
+  // Contact information state
+  const [emergencyHotline, setEmergencyHotline] = useState('');
+  const [emergencyEmail, setEmergencyEmail] = useState('');
+  const [feedbackEmail, setFeedbackEmail] = useState('');
+  const [officeAddress, setOfficeAddress] = useState('');
 
   useEffect(() => {
     if (organization) {
@@ -30,6 +36,13 @@ export function OrganizationSettings() {
       setDomain(organization.domain || '');
       setLogoUrl(organization.logoUrl || '');
       setLogoPreview(organization.logoUrl || null);
+      
+      // Load contact information from settings
+      const settings = organization.settings || {};
+      setEmergencyHotline(settings.emergencyHotline || '');
+      setEmergencyEmail(settings.emergencyEmail || '');
+      setFeedbackEmail(settings.feedbackEmail || '');
+      setOfficeAddress(settings.officeAddress || '');
     }
   }, [organization]);
 
@@ -66,11 +79,22 @@ export function OrganizationSettings() {
         return;
       }
 
+      // Merge settings to preserve existing settings
+      const currentSettings = organization.settings || {};
+      const updatedSettings = {
+        ...currentSettings,
+        emergencyHotline: emergencyHotline.trim() || undefined,
+        emergencyEmail: emergencyEmail.trim() || undefined,
+        feedbackEmail: feedbackEmail.trim() || undefined,
+        officeAddress: officeAddress.trim() || undefined,
+      };
+
       const updates: UpdateOrganizationRequest = {
         name: name.trim(),
         slug: slug.trim(),
         domain: domain.trim() || undefined,
         logoUrl: finalLogoUrl || undefined,
+        settings: updatedSettings,
       };
 
       await supabaseOrganizationService.updateOrganization(updates);
@@ -159,6 +183,90 @@ export function OrganizationSettings() {
                 />
                 <p className="text-xs text-muted-foreground">
                   Custom domain for your organization
+                </p>
+              </div>
+
+              <div className="flex justify-end pt-4">
+                <Button onClick={handleSave} disabled={saving}>
+                  <Save className="h-4 w-4 mr-2" />
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Contact Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Contact Information</CardTitle>
+              <CardDescription>
+                Configure contact details displayed in feedback forms
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="emergency-hotline" className="flex items-center gap-2">
+                  <Phone className="h-4 w-4" />
+                  Emergency Hotline
+                </Label>
+                <Input
+                  id="emergency-hotline"
+                  value={emergencyHotline}
+                  onChange={(e) => setEmergencyHotline(e.target.value)}
+                  placeholder="+1 (555) 911-HELP"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Phone number for emergency contacts
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="emergency-email" className="flex items-center gap-2">
+                  <Mail className="h-4 w-4" />
+                  Emergency Email
+                </Label>
+                <Input
+                  id="emergency-email"
+                  type="email"
+                  value={emergencyEmail}
+                  onChange={(e) => setEmergencyEmail(e.target.value)}
+                  placeholder="emergency@example.org"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Email address for emergency contacts
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="feedback-email" className="flex items-center gap-2">
+                  <Mail className="h-4 w-4" />
+                  Feedback Email
+                </Label>
+                <Input
+                  id="feedback-email"
+                  type="email"
+                  value={feedbackEmail}
+                  onChange={(e) => setFeedbackEmail(e.target.value)}
+                  placeholder="feedback@example.org"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Email address for general inquiries and feedback
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="office-address" className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  Office Address
+                </Label>
+                <Input
+                  id="office-address"
+                  value={officeAddress}
+                  onChange={(e) => setOfficeAddress(e.target.value)}
+                  placeholder="Local community center"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Physical address or location description
                 </p>
               </div>
 

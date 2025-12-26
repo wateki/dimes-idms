@@ -67,7 +67,15 @@ export function KoboData() {
     try {
       setLoading(true);
       const response = await KoboDataService.getProjectKoboTables(projectId);
-      const tables = response.data || [];
+      const tables = (response.data || []).map(table => ({
+        ...table,
+        description: table.description ?? undefined,
+        kpiMappings: (table.kpiMappings || []).map((mapping: any) => ({
+          ...mapping,
+          timeFilterField: mapping.timeFilterField ?? undefined,
+          timeFilterValue: mapping.timeFilterValue ?? undefined,
+        })),
+      }));
       setKoboTables(tables);
 
       // Fetch stats for each table

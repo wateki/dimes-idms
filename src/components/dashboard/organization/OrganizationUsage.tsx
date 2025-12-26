@@ -155,8 +155,8 @@ export function OrganizationUsage() {
   // Get limits for display in Current Plan card
   const usersLimit = usageLimitInfo.find(info => info.metric === 'users');
   const projectsLimit = usageLimitInfo.find(info => info.metric === 'projects');
-  const usersLimitText = usersLimit?.isUnlimited ? 'Unlimited' : (usersLimit?.limit ?? organization.maxUsers).toString();
-  const projectsLimitText = projectsLimit?.isUnlimited ? 'Unlimited' : (projectsLimit?.limit ?? organization.maxProjects).toString();
+  const usersLimitText = usersLimit?.isUnlimited ? 'Unlimited' : (usersLimit?.limit ?? organization.maxUsers ?? 0).toString();
+  const projectsLimitText = projectsLimit?.isUnlimited ? 'Unlimited' : (projectsLimit?.limit ?? organization.maxProjects ?? 0).toString();
 
   return (
     <div className="p-6 space-y-6">
@@ -303,7 +303,9 @@ export function OrganizationUsage() {
             <div>
               <p className="text-sm text-muted-foreground">Plan</p>
               <p className="text-lg font-semibold">
-                {planDetails?.displayName || organization.subscriptionTier.charAt(0).toUpperCase() + organization.subscriptionTier.slice(1)}
+                {planDetails?.displayName || (organization.subscriptionTier 
+                  ? organization.subscriptionTier.charAt(0).toUpperCase() + organization.subscriptionTier.slice(1)
+                  : 'Free')}
                 {planDetails?.isAnnual && (
                   <span className="text-sm text-muted-foreground ml-1">(Annual)</span>
                 )}

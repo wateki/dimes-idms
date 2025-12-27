@@ -218,7 +218,7 @@ export const Login: React.FC<LoginProps> = () => {
         {/* Signup Link */}
         <div className="text-center pt-4">
           <p className="text-sm text-muted-foreground">
-            Don't have an organization?{' '}
+            Don't have an organization account?{' '}
             <a href="/signup" className="text-blue-600 hover:underline font-medium">
               Create one now
             </a>

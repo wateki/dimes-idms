@@ -377,19 +377,19 @@ export function FeedbackSubmissionInterface({
               <h4 className="font-semibold text-lg">Emergency Contacts</h4>
               <div className="space-y-3">
                 {emergencyHotline && (
-                  <div className="flex items-center gap-3 p-3 bg-red-50 rounded-lg">
-                    <Phone className="w-5 h-5 text-red-600" />
-                    <div>
-                      <p className="font-medium">Emergency Hotline</p>
+                <div className="flex items-center gap-3 p-3 bg-red-50 rounded-lg">
+                  <Phone className="w-5 h-5 text-red-600" />
+                  <div>
+                    <p className="font-medium">Emergency Hotline</p>
                       <p className="text-sm text-gray-600">{emergencyHotline}</p>
                     </div>
                   </div>
                 )}
                 {emergencyEmail && (
-                  <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
-                    <Mail className="w-5 h-5 text-blue-600" />
-                    <div>
-                      <p className="font-medium">Emergency Email</p>
+                <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
+                  <Mail className="w-5 h-5 text-blue-600" />
+                  <div>
+                    <p className="font-medium">Emergency Email</p>
                       <p className="text-sm text-gray-600">{emergencyEmail}</p>
                     </div>
                   </div>
@@ -405,19 +405,19 @@ export function FeedbackSubmissionInterface({
               <h4 className="font-semibold text-lg">General Inquiries</h4>
               <div className="space-y-3">
                 {feedbackEmail && (
-                  <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
-                    <Mail className="w-5 h-5 text-blue-600" />
-                    <div>
-                      <p className="font-medium">Feedback Email</p>
+                <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
+                  <Mail className="w-5 h-5 text-blue-600" />
+                  <div>
+                    <p className="font-medium">Feedback Email</p>
                       <p className="text-sm text-gray-600">{feedbackEmail}</p>
                     </div>
                   </div>
                 )}
                 {officeAddress && (
-                  <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
-                    <MapPin className="w-5 h-5 text-green-600" />
-                    <div>
-                      <p className="font-medium">Visit Our Office</p>
+                <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
+                  <MapPin className="w-5 h-5 text-green-600" />
+                  <div>
+                    <p className="font-medium">Visit Our Office</p>
                       <p className="text-sm text-gray-600">{officeAddress}</p>
                     </div>
                   </div>

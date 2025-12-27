@@ -7,6 +7,7 @@ import { useProjects } from '@/contexts/ProjectsContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { createEnhancedPermissionManager } from '@/lib/permissions';
 
 
@@ -140,9 +141,58 @@ export function ProSidebar() {
                 ) : (
                   <Building2 className="h-8 w-8 text-gray-400 flex-shrink-0" />
                 )}
-                <h2 className="text-lg font-semibold text-gray-800 truncate">
-                  {organization?.name || 'ICS Dashboard'}
-                </h2>
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <h2 className="text-lg font-semibold text-gray-800 truncate">
+                    {organization?.name || 'ICS Dashboard'}
+                  </h2>
+                  {organization?.subscriptionTier && (() => {
+                    const tier = organization.subscriptionTier.toLowerCase();
+                    const getTierBadgeStyle = () => {
+                      switch (tier) {
+                        case 'free':
+                          return 'bg-gray-100 text-gray-700 border-gray-300';
+                        case 'basic':
+                          return 'bg-blue-100 text-blue-700 border-blue-300';
+                        case 'professional':
+                        case 'pro':
+                          return 'bg-green-100 text-green-700 border-green-300';
+                        case 'enterprise':
+                          return 'bg-purple-100 text-purple-700 border-purple-300';
+                        default:
+                          return 'bg-gray-100 text-gray-700 border-gray-300';
+                      }
+                    };
+                    const getTierDisplayName = () => {
+                      switch (tier) {
+                        case 'free':
+                          return 'FREE PLAN';
+                        case 'basic':
+                          return 'BASIC PLAN';
+                        case 'professional':
+                        case 'pro':
+                          return 'PRO PLAN';
+                        case 'enterprise':
+                          return 'ENTERPRISE PLAN';
+                        default:
+                          return `${tier.toUpperCase()} PLAN`;
+                      }
+                    };
+                    return (
+                      <Link 
+                        to="/dashboard/organization" 
+                        onClick={handleCloseSidebar}
+                        className="flex-shrink-0"
+                      >
+                        <Badge 
+                          variant="outline" 
+                          className={`text-xs font-semibold cursor-pointer hover:opacity-80 transition-opacity ${getTierBadgeStyle()}`}
+                        >
+                          {getTierDisplayName()}
+                        </Badge>
+                      </Link>
+                    );
+                  })()}
+                </div>
               </div>
               <Button
                 variant="ghost"
@@ -159,63 +209,63 @@ export function ProSidebar() {
           <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
             <Menu>
               {/* Global Menu */}
-              <SubMenu 
+             <SubMenu 
                 label="Global" 
-                icon={<Users className="h-4 w-4" />}
-                className="text-sm"
-              >
+            icon={<Users className="h-4 w-4" />}
+            className="text-sm"
+            >
                 {/* Goals */}
-                <MenuItem 
+              <MenuItem 
                   icon={<Flag className="h-4 w-4" />} 
-                  component={<Link to="/dashboard" onClick={handleCloseSidebar} />}
-                  className="text-sm"
-                >
+            component={<Link to="/dashboard" onClick={handleCloseSidebar} />}
+            className="text-sm"
+          >
                   Goals
-                </MenuItem>
+          </MenuItem>
                 
                 {/* Strategic Plan - Expandable */}
-                {isAdmin() && (
-                  <SubMenu 
-                    label="Strategic Plan" 
-                    icon={<BookOpen className="h-4 w-4" />}
-                    className="text-sm"
-                  >
-                    <MenuItem 
-                      component={<Link to="/dashboard/strategic-plan/create" onClick={handleCloseSidebar} />}
-                      className="text-sm"
-                    >
-                      Create Organizational Plan
-                    </MenuItem>
-                    <MenuItem 
-                      component={<Link to="/dashboard/strategic-plan/edit" onClick={handleCloseSidebar} />}
-                      className="text-sm"
-                    >
-                      Edit Organizational Plan
-                    </MenuItem>
-                  </SubMenu>
-                )}
-                
-                {/* Feedback & Submissions - Expandable */}
-                <SubMenu 
-                  label="Feedback & Submissions" 
-                  icon={<MessageSquare className="h-4 w-4" />}
+            {isAdmin() && (
+              <SubMenu 
+                label="Strategic Plan" 
+                icon={<BookOpen className="h-4 w-4" />}
+                className="text-sm"
+              >
+                <MenuItem 
+                  component={<Link to="/dashboard/strategic-plan/create" onClick={handleCloseSidebar} />}
                   className="text-sm"
                 >
-                  <MenuItem 
-                    component={<Link to="/dashboard/feedback" onClick={handleCloseSidebar} />}
-                    className="text-sm"
-                  >
-                    Submit Feedback
-                  </MenuItem>
-                  <MenuItem 
-                    component={<Link to="/dashboard/feedback/submissions" onClick={handleCloseSidebar} />}
-                    className="text-sm"
-                  >
-                    View Submissions
-                  </MenuItem>
-                </SubMenu>
+                      Create Organizational Plan
+                </MenuItem>
+                <MenuItem 
+                  component={<Link to="/dashboard/strategic-plan/edit" onClick={handleCloseSidebar} />}
+                  className="text-sm"
+                >
+                      Edit Organizational Plan
+                </MenuItem>
               </SubMenu>
-              
+            )}
+                
+                {/* Feedback & Submissions - Expandable */}
+            <SubMenu 
+                  label="Feedback & Submissions" 
+              icon={<MessageSquare className="h-4 w-4" />}
+              className="text-sm"
+            >
+              <MenuItem 
+                component={<Link to="/dashboard/feedback" onClick={handleCloseSidebar} />}
+                className="text-sm"
+              >
+                Submit Feedback
+              </MenuItem>
+              <MenuItem 
+                component={<Link to="/dashboard/feedback/submissions" onClick={handleCloseSidebar} />}
+                className="text-sm"
+              >
+                View Submissions
+              </MenuItem>
+            </SubMenu>
+          </SubMenu>
+
               {/* Projects Section - Independent */}
               <SubMenu 
                 label="Projects" 
@@ -289,24 +339,24 @@ export function ProSidebar() {
                             icon={<TrendingUp className="h-4 w-4" />}
                             className="text-sm"
                           >
-                            <MenuItem 
-                              component={<Link to={`/dashboard/projects/${project.id}/outcomes`} onClick={handleCloseSidebar} />}
-                              className="text-sm"
-                            >
-                              Outcomes
-                            </MenuItem>
-                            <MenuItem 
-                              component={<Link to={`/dashboard/projects/${project.id}/outputs`} onClick={handleCloseSidebar} />}
-                              className="text-sm"
-                            >
-                              Outputs
-                            </MenuItem>
-                            <MenuItem 
-                              component={<Link to={`/dashboard/projects/${project.id}/activities`} onClick={handleCloseSidebar} />}
-                              className="text-sm"
-                            >
-                              Activities
-                            </MenuItem>
+                          <MenuItem 
+                            component={<Link to={`/dashboard/projects/${project.id}/outcomes`} onClick={handleCloseSidebar} />}
+                            className="text-sm"
+                          >
+                            Outcomes
+                          </MenuItem>
+                          <MenuItem 
+                            component={<Link to={`/dashboard/projects/${project.id}/outputs`} onClick={handleCloseSidebar} />}
+                            className="text-sm"
+                          >
+                            Outputs
+                          </MenuItem>
+                          <MenuItem 
+                            component={<Link to={`/dashboard/projects/${project.id}/activities`} onClick={handleCloseSidebar} />}
+                            className="text-sm"
+                          >
+                            Activities
+                          </MenuItem>
                             <MenuItem 
                               component={<Link to={`/dashboard/projects/${project.id}/subactivities`} onClick={handleCloseSidebar} />}
                               className="text-sm"
@@ -383,7 +433,7 @@ export function ProSidebar() {
                               className="text-sm"
                             >
                               Kobo
-                            </MenuItem>
+                          </MenuItem>
                           </SubMenu>
                         )}
                         
@@ -534,13 +584,13 @@ export function ProSidebar() {
                   icon={<UserCircle className="h-4 w-4" />}
                   className="text-sm"
                 >
-                  <MenuItem 
-                    component={<Link to="/dashboard/admin/settings" onClick={handleCloseSidebar} />}
-                    className="text-sm"
+                    <MenuItem 
+                      component={<Link to="/dashboard/admin/settings" onClick={handleCloseSidebar} />}
+                      className="text-sm"
                     icon={<UserCog className="h-4 w-4" />}
-                  >
+                    >
                     Personal Settings
-                  </MenuItem>
+                    </MenuItem>
                 </SubMenu>
               )}
             </Menu>

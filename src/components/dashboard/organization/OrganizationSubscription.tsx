@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabaseOrganizationService } from '@/services/supabaseOrganizationService';
-import { useSubscriptionPaymentListener } from '@/hooks/useSubscriptionPaymentListener';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -47,10 +46,6 @@ export function OrganizationSubscription() {
       day: 'numeric',
     });
   };
-
-  // Listen for subscription status changes when waiting for payment (checks localStorage)
-  const isWaitingForPayment = localStorage.getItem('waiting_for_subscription_payment') === 'true';
-  useSubscriptionPaymentListener(isWaitingForPayment);
 
   // Handle Paystack redirect with transaction reference
   useEffect(() => {

@@ -190,31 +190,31 @@ function calculatePeriodDates(subscription: any): { periodStart: string | null; 
       // Period ends the day before next payment date
       // The next_payment_date is when the NEXT billing period starts
       periodEnd = new Date(subscription.next_payment_date);
-      periodEnd.setDate(periodEnd.getDate() - 1);
-      periodEnd.setHours(23, 59, 59, 999); // End of day
+    periodEnd.setDate(periodEnd.getDate() - 1);
+    periodEnd.setHours(23, 59, 59, 999); // End of day
     } else {
       // Fallback: Calculate from period start + interval
       const planInterval = subscription.plan?.interval || 'monthly';
       periodEnd = new Date(periodStart);
-      
-      switch (planInterval.toLowerCase()) {
-        case 'monthly':
+    
+    switch (planInterval.toLowerCase()) {
+      case 'monthly':
           periodEnd.setMonth(periodEnd.getMonth() + 1);
           periodEnd.setDate(periodEnd.getDate() - 1); // Last day before next month
-          break;
-        case 'annually':
-        case 'yearly':
+        break;
+      case 'annually':
+      case 'yearly':
           periodEnd.setFullYear(periodEnd.getFullYear() + 1);
           periodEnd.setDate(periodEnd.getDate() - 1); // Last day before anniversary
-          break;
-        case 'weekly':
+        break;
+      case 'weekly':
           periodEnd.setDate(periodEnd.getDate() + 6); // 7 days total (start + 6 more)
-          break;
-        case 'daily':
+        break;
+      case 'daily':
           // Same day for daily subscriptions
-          break;
-        default:
-          // Default to monthly
+        break;
+      default:
+        // Default to monthly
           periodEnd.setMonth(periodEnd.getMonth() + 1);
           periodEnd.setDate(periodEnd.getDate() - 1);
           break;
@@ -752,7 +752,7 @@ async function handleSubscriptionCreate(data: any, supabase: any) {
 
       // Calculate period dates from Paystack subscription data
       const periodDates = calculatePeriodDates(subscription);
-      
+
       console.log("[PaystackWebhook] Step 8d: Creating new subscription record", {
         organizationId,
         insertData: {
@@ -810,6 +810,19 @@ async function handleSubscriptionCreate(data: any, supabase: any) {
     .eq("paystacksubscriptioncode", subscription.subscription_code)
     .maybeSingle();
 
+  console.log("[PaystackWebhook] Step 9b: Checking subscription record for period date updates", {
+    subscriptionCode: subscription.subscription_code,
+    organizationId,
+    subscriptionRecord: subscriptionRecord ? {
+      id: subscriptionRecord.id,
+      hasPeriodStart: !!subscriptionRecord.currentPeriodStart,
+      hasPeriodEnd: !!subscriptionRecord.currentPeriodEnd,
+      periodStart: subscriptionRecord.currentPeriodStart,
+      periodEnd: subscriptionRecord.currentPeriodEnd,
+    } : null,
+    subLookupError,
+  });
+
   if (!subLookupError && subscriptionRecord?.id && subscriptionRecord.currentPeriodStart && subscriptionRecord.currentPeriodEnd) {
     const subscriptionId = subscriptionRecord.id;
     const periodStart = subscriptionRecord.currentPeriodStart;
@@ -826,52 +839,108 @@ async function handleSubscriptionCreate(data: any, supabase: any) {
     // Update records where periodStart == periodEnd (temporary dates set by charge.success) or where they're null
     const { data: usageRecords, error: usageError } = await supabase
       .from("subscription_usage")
-      .select("id, periodStart, periodEnd, transactionreference")
+      .select("id, periodStart, periodEnd, transactionreference, subscriptionid")
       .eq("subscriptionid", subscriptionId)
       .eq("metric", "payment");
 
+    console.log("[PaystackWebhook] Step 9b: Fetched subscription_usage records", {
+      subscriptionId,
+      recordCount: usageRecords?.length || 0,
+      usageError: usageError ? usageError.message : null,
+      records: usageRecords?.map((r: any) => ({
+        id: r.id,
+        transactionReference: r.transactionreference,
+        periodStart: r.periodStart,
+        periodEnd: r.periodEnd,
+        needsUpdate: !r.periodStart || !r.periodEnd || r.periodStart === r.periodEnd,
+      })),
+    });
+
     if (!usageError && usageRecords && usageRecords.length > 0) {
       // Filter records that need fixing (null dates or same start/end date - these are temporary dates from charge.success)
-      const recordsToUpdate = usageRecords.filter((record: any) => 
-        !record.periodStart || 
-        !record.periodEnd || 
-        record.periodStart === record.periodEnd
-      );
+      // Compare dates as strings since they're ISO strings
+      const recordsToUpdate = usageRecords.filter((record: any) => {
+        const hasSameDate = record.periodStart && record.periodEnd && 
+                           new Date(record.periodStart).getTime() === new Date(record.periodEnd).getTime();
+        return !record.periodStart || !record.periodEnd || hasSameDate;
+      });
+
+      console.log("[PaystackWebhook] Step 9b: Filtered records to update", {
+        totalRecords: usageRecords.length,
+        recordsToUpdate: recordsToUpdate.length,
+        transactionReferences: recordsToUpdate.map((r: any) => r.transactionreference),
+      });
 
       if (recordsToUpdate.length > 0) {
         console.log("[PaystackWebhook] Found subscription_usage records to update:", {
           recordCount: recordsToUpdate.length,
           transactionReferences: recordsToUpdate.map((r: any) => r.transactionreference),
+          periodStart,
+          periodEnd,
         });
 
-        const { error: updateUsageError } = await supabase
+        const { error: updateUsageError, data: updateResult } = await supabase
           .from("subscription_usage")
           .update({
             periodStart: periodStart,
             periodEnd: periodEnd,
           })
-          .in("id", recordsToUpdate.map((r: any) => r.id));
+          .in("id", recordsToUpdate.map((r: any) => r.id))
+          .select();
 
         if (updateUsageError) {
           console.error("[PaystackWebhook] Error updating subscription_usage period dates:", {
             error: updateUsageError,
+            errorMessage: updateUsageError.message,
+            errorDetails: updateUsageError.details,
             recordCount: recordsToUpdate.length,
+            recordIds: recordsToUpdate.map((r: any) => r.id),
           });
         } else {
           console.log("[PaystackWebhook] Successfully updated subscription_usage records with correct period dates", {
             recordCount: recordsToUpdate.length,
             periodStart,
             periodEnd,
+            updatedRecords: updateResult?.map((r: any) => ({
+              id: r.id,
+              transactionReference: r.transactionreference,
+              periodStart: r.periodStart,
+              periodEnd: r.periodEnd,
+            })),
           });
         }
       } else {
         console.log("[PaystackWebhook] No subscription_usage records need updating (all have correct period dates)");
       }
+    } else if (usageError) {
+      console.error("[PaystackWebhook] Error fetching subscription_usage records:", {
+        error: usageError,
+        errorMessage: usageError.message,
+        subscriptionId,
+      });
+    } else {
+      console.log("[PaystackWebhook] No subscription_usage records found for this subscription", {
+        subscriptionId,
+      });
     }
   } else if (!subLookupError && subscriptionRecord?.id && (!subscriptionRecord.currentPeriodStart || !subscriptionRecord.currentPeriodEnd)) {
     console.warn("[PaystackWebhook] Subscription found but period dates not set yet, cannot update subscription_usage records", {
       subscriptionId: subscriptionRecord.id,
       subscriptionCode: subscription.subscription_code,
+      hasPeriodStart: !!subscriptionRecord.currentPeriodStart,
+      hasPeriodEnd: !!subscriptionRecord.currentPeriodEnd,
+    });
+  } else if (subLookupError) {
+    console.error("[PaystackWebhook] Error fetching subscription record for period date updates:", {
+      error: subLookupError,
+      errorMessage: subLookupError.message,
+      subscriptionCode: subscription.subscription_code,
+      organizationId,
+    });
+  } else {
+    console.warn("[PaystackWebhook] Subscription record not found for period date updates", {
+      subscriptionCode: subscription.subscription_code,
+      organizationId,
     });
   }
 
@@ -1468,14 +1537,17 @@ async function handleChargeSuccess(data: any, supabase: any) {
                   subscriptionId: existingSub.id,
                 });
 
+                // Calculate period dates from Paystack subscription data
+                const periodDates = calculatePeriodDates(paystackSubscription);
+
                 // Update subscription with details from Paystack API
                 const { error: apiUpdateError } = await supabase
                   .from("subscriptions")
                   .update({
                     paystacksubscriptioncode: paystackSubscription.subscription_code,
                     nextpaymentdate: paystackSubscription.next_payment_date,
-                    currentPeriodStart: paystackSubscription.current_period_start || null,
-                    currentPeriodEnd: paystackSubscription.current_period_end || null,
+                    currentPeriodStart: periodDates.periodStart,
+                    currentPeriodEnd: periodDates.periodEnd,
                     status: paystackSubscription.status,
                     updatedAt: new Date().toISOString(),
                   } as any)
@@ -1513,14 +1585,17 @@ async function handleChargeSuccess(data: any, supabase: any) {
                   subscriptionId: existingSub.id,
                 });
 
+                // Calculate period dates from Paystack subscription data
+                const periodDates = calculatePeriodDates(paystackSubscription);
+
                 // Update subscription with details from Paystack API
                 const { error: apiUpdateError } = await supabase
                   .from("subscriptions")
                   .update({
                     paystacksubscriptioncode: paystackSubscription.subscription_code,
                     nextpaymentdate: paystackSubscription.next_payment_date,
-                    currentPeriodStart: paystackSubscription.current_period_start || null,
-                    currentPeriodEnd: paystackSubscription.current_period_end || null,
+                    currentPeriodStart: periodDates.periodStart,
+                    currentPeriodEnd: periodDates.periodEnd,
                     status: paystackSubscription.status,
                     updatedAt: new Date().toISOString(),
                   } as any)
@@ -1557,13 +1632,16 @@ async function handleChargeSuccess(data: any, supabase: any) {
                 subscriptionId: existingSub.id,
               });
 
+              // Calculate period dates from Paystack subscription data
+              const periodDates = calculatePeriodDates(paystackSubscription);
+
               const { error: apiUpdateError } = await supabase
                 .from("subscriptions")
                 .update({
                   paystacksubscriptioncode: paystackSubscription.subscription_code,
                   nextpaymentdate: paystackSubscription.next_payment_date,
-                  currentPeriodStart: paystackSubscription.current_period_start || null,
-                  currentPeriodEnd: paystackSubscription.current_period_end || null,
+                  currentPeriodStart: periodDates.periodStart,
+                  currentPeriodEnd: periodDates.periodEnd,
                   status: paystackSubscription.status,
                   updatedAt: new Date().toISOString(),
                 } as any)
@@ -1593,14 +1671,17 @@ async function handleChargeSuccess(data: any, supabase: any) {
               subscriptionId: existingSub.id,
             });
 
+            // Calculate period dates from Paystack subscription data
+            const periodDates = calculatePeriodDates(paystackSubscription);
+
             // Update subscription with details from Paystack API
             const { error: apiUpdateError } = await supabase
               .from("subscriptions")
               .update({
                 paystacksubscriptioncode: paystackSubscription.subscription_code,
                 nextpaymentdate: paystackSubscription.next_payment_date,
-                currentPeriodStart: paystackSubscription.current_period_start || null,
-                currentPeriodEnd: paystackSubscription.current_period_end || null,
+                currentPeriodStart: periodDates.periodStart,
+                currentPeriodEnd: periodDates.periodEnd,
                 status: paystackSubscription.status,
                 updatedAt: new Date().toISOString(),
               } as any)
@@ -1790,14 +1871,25 @@ async function handleChargeSuccess(data: any, supabase: any) {
                     subscriptionId: newSub.id,
                   });
 
-                  // Update subscription with details from Paystack API
+                  // Calculate period dates from Paystack subscription data
+                  const periodDates = calculatePeriodDates(paystackSubscription);
+                  
+                  console.log("[PaystackWebhook] Calculating period dates from Paystack subscription:", {
+                    subscriptionCode: paystackSubscription.subscription_code,
+                    periodStart: periodDates.periodStart,
+                    periodEnd: periodDates.periodEnd,
+                    nextPaymentDate: paystackSubscription.next_payment_date,
+                    createdAt: paystackSubscription.created_at || paystackSubscription.createdAt,
+                  });
+
+                  // Update subscription with details from Paystack API, including calculated period dates
                   const { error: apiUpdateError } = await supabase
                     .from("subscriptions")
                     .update({
                       paystacksubscriptioncode: paystackSubscription.subscription_code,
                       nextpaymentdate: paystackSubscription.next_payment_date,
-                      currentPeriodStart: paystackSubscription.current_period_start || null,
-                      currentPeriodEnd: paystackSubscription.current_period_end || null,
+                      currentPeriodStart: periodDates.periodStart,
+                      currentPeriodEnd: periodDates.periodEnd,
                       status: paystackSubscription.status,
                       updatedAt: new Date().toISOString(),
                     } as any)
@@ -1808,8 +1900,50 @@ async function handleChargeSuccess(data: any, supabase: any) {
                       error: apiUpdateError,
                       subscriptionId: newSub.id,
                     });
-      } else {
-                    console.log("[PaystackWebhook] Preliminary subscription updated successfully from Paystack API");
+                  } else {
+                    console.log("[PaystackWebhook] Preliminary subscription updated successfully from Paystack API with period dates:", {
+                      subscriptionId: newSub.id,
+                      periodStart: periodDates.periodStart,
+                      periodEnd: periodDates.periodEnd,
+                    });
+                    
+                    // Now update subscription_usage records with the correct period dates
+                    const { data: usageRecords, error: usageError } = await supabase
+                      .from("subscription_usage")
+                      .select("id, periodStart, periodEnd, transactionreference")
+                      .eq("subscriptionid", newSub.id)
+                      .eq("metric", "payment");
+
+                    if (!usageError && usageRecords && usageRecords.length > 0) {
+                      const recordsToUpdate = usageRecords.filter((record: any) => {
+                        const hasSameDate = record.periodStart && record.periodEnd && 
+                                           new Date(record.periodStart).getTime() === new Date(record.periodEnd).getTime();
+                        return !record.periodStart || !record.periodEnd || hasSameDate;
+                      });
+
+                      if (recordsToUpdate.length > 0) {
+                        console.log("[PaystackWebhook] Updating subscription_usage records with period dates from Paystack API:", {
+                          recordCount: recordsToUpdate.length,
+                          transactionReferences: recordsToUpdate.map((r: any) => r.transactionreference),
+                        });
+
+                        const { error: updateUsageError } = await supabase
+                          .from("subscription_usage")
+                          .update({
+                            periodStart: periodDates.periodStart,
+                            periodEnd: periodDates.periodEnd,
+                          })
+                          .in("id", recordsToUpdate.map((r: any) => r.id));
+
+                        if (updateUsageError) {
+                          console.error("[PaystackWebhook] Error updating subscription_usage period dates from Paystack API:", {
+                            error: updateUsageError,
+                          });
+                        } else {
+                          console.log("[PaystackWebhook] Successfully updated subscription_usage records with period dates from Paystack API");
+                        }
+                      }
+                    }
                   }
                 } else {
                   console.log("[PaystackWebhook] Subscription exists in Paystack but not yet queryable, will wait for subscription.create webhook");
@@ -1834,14 +1968,25 @@ async function handleChargeSuccess(data: any, supabase: any) {
                     subscriptionId: newSub.id,
                   });
 
-                  // Update subscription with details from Paystack API
+                  // Calculate period dates from Paystack subscription data
+                  const periodDates = calculatePeriodDates(paystackSubscription);
+                  
+                  console.log("[PaystackWebhook] Calculating period dates from Paystack subscription:", {
+                    subscriptionCode: paystackSubscription.subscription_code,
+                    periodStart: periodDates.periodStart,
+                    periodEnd: periodDates.periodEnd,
+                    nextPaymentDate: paystackSubscription.next_payment_date,
+                    createdAt: paystackSubscription.created_at || paystackSubscription.createdAt,
+                  });
+
+                  // Update subscription with details from Paystack API, including calculated period dates
                   const { error: apiUpdateError } = await supabase
                     .from("subscriptions")
                     .update({
                       paystacksubscriptioncode: paystackSubscription.subscription_code,
                       nextpaymentdate: paystackSubscription.next_payment_date,
-                      currentPeriodStart: paystackSubscription.current_period_start || null,
-                      currentPeriodEnd: paystackSubscription.current_period_end || null,
+                      currentPeriodStart: periodDates.periodStart,
+                      currentPeriodEnd: periodDates.periodEnd,
                       status: paystackSubscription.status,
                       updatedAt: new Date().toISOString(),
                     } as any)
@@ -1853,7 +1998,49 @@ async function handleChargeSuccess(data: any, supabase: any) {
                       subscriptionId: newSub.id,
                     });
                   } else {
-                    console.log("[PaystackWebhook] Preliminary subscription updated successfully from Paystack API");
+                    console.log("[PaystackWebhook] Preliminary subscription updated successfully from Paystack API with period dates:", {
+                      subscriptionId: newSub.id,
+                      periodStart: periodDates.periodStart,
+                      periodEnd: periodDates.periodEnd,
+                    });
+                    
+                    // Now update subscription_usage records with the correct period dates
+                    const { data: usageRecords, error: usageError } = await supabase
+                      .from("subscription_usage")
+                      .select("id, periodStart, periodEnd, transactionreference")
+                      .eq("subscriptionid", newSub.id)
+                      .eq("metric", "payment");
+
+                    if (!usageError && usageRecords && usageRecords.length > 0) {
+                      const recordsToUpdate = usageRecords.filter((record: any) => {
+                        const hasSameDate = record.periodStart && record.periodEnd && 
+                                           new Date(record.periodStart).getTime() === new Date(record.periodEnd).getTime();
+                        return !record.periodStart || !record.periodEnd || hasSameDate;
+                      });
+
+                      if (recordsToUpdate.length > 0) {
+                        console.log("[PaystackWebhook] Updating subscription_usage records with period dates from Paystack API:", {
+                          recordCount: recordsToUpdate.length,
+                          transactionReferences: recordsToUpdate.map((r: any) => r.transactionreference),
+                        });
+
+                        const { error: updateUsageError } = await supabase
+                          .from("subscription_usage")
+                          .update({
+                            periodStart: periodDates.periodStart,
+                            periodEnd: periodDates.periodEnd,
+                          })
+                          .in("id", recordsToUpdate.map((r: any) => r.id));
+
+                        if (updateUsageError) {
+                          console.error("[PaystackWebhook] Error updating subscription_usage period dates from Paystack API:", {
+                            error: updateUsageError,
+                          });
+                        } else {
+                          console.log("[PaystackWebhook] Successfully updated subscription_usage records with period dates from Paystack API");
+                        }
+                      }
+                    }
                   }
                 } else {
                   console.log("[PaystackWebhook] Subscription not yet available in Paystack API, will wait for subscription.create webhook");
@@ -1879,13 +2066,16 @@ async function handleChargeSuccess(data: any, supabase: any) {
                   subscriptionId: newSub.id,
                 });
 
+                // Calculate period dates from Paystack subscription data
+                const periodDates = calculatePeriodDates(paystackSubscription);
+
                 const { error: apiUpdateError } = await supabase
                   .from("subscriptions")
                   .update({
                     paystacksubscriptioncode: paystackSubscription.subscription_code,
                     nextpaymentdate: paystackSubscription.next_payment_date,
-                    currentPeriodStart: paystackSubscription.current_period_start || null,
-                    currentPeriodEnd: paystackSubscription.current_period_end || null,
+                    currentPeriodStart: periodDates.periodStart,
+                    currentPeriodEnd: periodDates.periodEnd,
                     status: paystackSubscription.status,
                     updatedAt: new Date().toISOString(),
                   } as any)
@@ -1917,14 +2107,17 @@ async function handleChargeSuccess(data: any, supabase: any) {
                 subscriptionId: newSub.id,
               });
 
+              // Calculate period dates from Paystack subscription data
+              const periodDates = calculatePeriodDates(paystackSubscription);
+
               // Update subscription with details from Paystack API
               const { error: apiUpdateError } = await supabase
                 .from("subscriptions")
                 .update({
                   paystacksubscriptioncode: paystackSubscription.subscription_code,
                   nextpaymentdate: paystackSubscription.next_payment_date,
-                  currentPeriodStart: paystackSubscription.current_period_start || null,
-                  currentPeriodEnd: paystackSubscription.current_period_end || null,
+                  currentPeriodStart: periodDates.periodStart,
+                  currentPeriodEnd: periodDates.periodEnd,
                   status: paystackSubscription.status,
                   updatedAt: new Date().toISOString(),
                 } as any)

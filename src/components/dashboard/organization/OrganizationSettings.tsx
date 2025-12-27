@@ -132,7 +132,7 @@ export function OrganizationSettings() {
           showError(error.message || 'Failed to upload logo');
           setSaving(false);
           setLoading(false);
-          return;
+        return;
         } finally {
           setLoading(false);
           console.log('[Organization Settings] Upload process finished, loading set to false');
@@ -372,13 +372,13 @@ export function OrganizationSettings() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-col items-center space-y-4">
-                 {logoPreview ? (
+                {logoPreview ? (
                    <div className="relative w-32 h-32 rounded-lg border-2 border-dashed border-gray-300 overflow-hidden group">
-                     <img
-                       src={logoPreview}
-                       alt="Organization logo"
-                       className="w-full h-full object-cover"
-                     />
+                    <img
+                      src={logoPreview}
+                      alt="Organization logo"
+                      className="w-full h-full object-cover"
+                    />
                      {loading && (
                        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
                          <Loader2 className="h-6 w-6 text-white animate-spin" />
@@ -430,7 +430,7 @@ export function OrganizationSettings() {
                         </>
                       ) : (
                         <>
-                          <Upload className="h-4 w-4 mr-2" />
+                      <Upload className="h-4 w-4 mr-2" />
                           <span className="text-sm">{logoFile ? 'Change Logo' : 'Upload Logo'}</span>
                         </>
                       )}
@@ -474,19 +474,19 @@ export function OrganizationSettings() {
                           </>
                         )}
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
                           setLogoFile(null);
                           setLogoPreview(logoUrl || null);
-                        }}
+                    }}
                         disabled={loading || saving}
                         className="flex-1"
-                      >
+                  >
                         <X className="h-3 w-3 mr-2" />
                         Cancel
-                      </Button>
+                  </Button>
                     </div>
                   </div>
                 )}

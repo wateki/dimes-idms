@@ -2,6 +2,44 @@ import { supabase } from '@/lib/supabaseClient';
 import type { Database } from '@/types/supabase';
 import { config } from '@/config/env';
 
+/**
+ * Check if an email is already registered in Supabase Auth
+ */
+async function checkEmailExists(email: string): Promise<boolean> {
+  console.log(`[Organization Signup] Checking if email exists: ${email}`);
+  
+  const edgeFunctionUrl = `${config.SUPABASE_URL}/functions/v1/check-email`;
+  console.log(`[Organization Signup] Calling edge function: ${edgeFunctionUrl}`);
+
+  const response = await fetch(edgeFunctionUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': config.SUPABASE_ANON_KEY || '',
+    },
+    body: JSON.stringify({ email }),
+  });
+
+  if (!response.ok) {
+    console.error(`[Organization Signup] Edge function returned error: ${response.status} ${response.statusText}`);
+    const errorText = await response.text();
+    console.error(`[Organization Signup] Error response:`, errorText);
+    throw new Error('Failed to check email existence. Please try again.');
+  }
+
+  const result = await response.json();
+  
+  // Validate response structure
+  if (typeof result.exists !== 'boolean') {
+    console.error(`[Organization Signup] Invalid response format:`, result);
+    throw new Error('Invalid response from email check service. Please try again.');
+  }
+  
+  console.log(`[Organization Signup] Email check result: exists=${result.exists}`);
+  
+  return result.exists === true;
+}
+
 export interface OrganizationSignupRequest {
   // Admin user info
   email: string;
@@ -12,7 +50,7 @@ export interface OrganizationSignupRequest {
   // Organization info
   organizationName: string;
   organizationDomain?: string;
-  subscriptionTier: 'free' | 'basic' | 'professional' | 'enterprise';
+  subscriptionTier?: 'free' | 'basic' | 'professional' | 'enterprise'; // Optional, defaults to 'free'
 }
 
 export interface OrganizationSignupResponse {
@@ -69,6 +107,13 @@ async function generateUniqueSlug(baseName: string): Promise<string> {
 
 class SupabaseOrganizationSignupService {
   /**
+   * Check if an email is already registered
+   */
+  async checkEmailExists(email: string): Promise<boolean> {
+    return checkEmailExists(email);
+  }
+
+  /**
    * Sign up a new organization with an admin user
    */
   async signupOrganization(request: OrganizationSignupRequest): Promise<OrganizationSignupResponse> {
@@ -83,6 +128,9 @@ class SupabaseOrganizationSignupService {
     console.log('[Organization Signup] Creating organization...');
     const now = new Date().toISOString();
     
+    // Default to free tier if not specified
+    const subscriptionTier = request.subscriptionTier || 'free';
+    
     // Set subscription limits based on tier
     const tierLimits: Record<string, { maxUsers: number; maxProjects: number }> = {
       free: { maxUsers: 5, maxProjects: 3 },
@@ -91,7 +139,7 @@ class SupabaseOrganizationSignupService {
       enterprise: { maxUsers: -1, maxProjects: -1 },
     };
 
-    const limits = tierLimits[request.subscriptionTier] || tierLimits.free;
+    const limits = tierLimits[subscriptionTier] || tierLimits.free;
 
     const organizationId = crypto.randomUUID();
     const { data: organization, error: orgError } = await supabase
@@ -101,8 +149,8 @@ class SupabaseOrganizationSignupService {
         name: request.organizationName,
         slug: slug,
         domain: request.organizationDomain || null,
-        subscriptionTier: request.subscriptionTier,
-        subscriptionStatus: request.subscriptionTier === 'free' ? 'active' : 'trialing',
+        subscriptionTier: subscriptionTier, // Always start with free, can be updated later
+        subscriptionStatus: 'active', // Always active for free tier initially
         maxUsers: limits.maxUsers,
         maxProjects: limits.maxProjects === -1 ? null : limits.maxProjects,
         isActive: true,
@@ -160,11 +208,11 @@ class SupabaseOrganizationSignupService {
     const authUserId = authData.user.id;
     console.log('[Organization Signup] Auth user created:', authUserId);
 
-    // Note: User needs to confirm email before we can create profile
-    // We'll handle profile creation in a separate endpoint after email confirmation
+    // Note: User profile will be created after email confirmation via edge function
+    // This is called in completeSignup after the user confirms their email
 
-    // Return early - user needs to confirm email before we can create profile
-    // Profile creation will happen after email confirmation via completeSignup
+    // Return with organization and auth user created
+    // Profile and role assignment will happen after email confirmation
     return {
       organizationId: organization.id,
       userId: '', // Will be set after email confirmation
@@ -174,156 +222,102 @@ class SupabaseOrganizationSignupService {
 
   /**
    * Complete organization signup after email confirmation
-   * This should be called after the user confirms their email
+   * This calls the edge function to create the user profile
    */
   async completeSignup(organizationId: string): Promise<OrganizationSignupResponse> {
     console.log('[Organization Signup] Completing signup for organization:', organizationId);
 
     // Get current authenticated user
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    if (!authUser) {
+    const { data: { user: authUser }, error: userError } = await supabase.auth.getUser();
+    if (userError || !authUser) {
       throw new Error('User not authenticated. Please confirm your email first.');
     }
 
     const authUserId = authUser.id;
-    const userMetadata = authUser.user_metadata || {};
-    const firstName = userMetadata.firstName || '';
-    const lastName = userMetadata.lastName || '';
+    console.log('[Organization Signup] User authenticated:', authUserId);
 
-    console.log('[Organization Signup] Creating user profile for authenticated user:', authUserId);
-
-    // Step 1: Verify organization exists and get it
-    const { data: organization, error: orgError } = await supabase
-      .from('organizations')
-      .select('*')
-      .eq('id', organizationId)
-      .single();
-
-    if (orgError || !organization) {
-      throw new Error('Organization not found');
+    // Get session token for the edge function
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('No session available. Please try logging in again.');
     }
 
-    // Step 2: Check if user profile already exists
-    const { data: existingProfile } = await supabase
-      .from('users')
-      .select('id')
-      .eq('auth_user_id', authUserId)
-      .single();
+    // Call edge function to create user profile
+    const edgeFunctionUrl = `${config.SUPABASE_URL}/functions/v1/create-user-profile`;
+    console.log('[Organization Signup] Calling edge function to create user profile...');
 
-    if (existingProfile) {
-      console.log('[Organization Signup] User profile already exists:', existingProfile.id);
-      return {
-        organizationId: organization.id,
-        userId: existingProfile.id,
-        authUserId: authUserId,
-      };
-    }
+    const response = await fetch(edgeFunctionUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+        'apikey': config.SUPABASE_ANON_KEY || '',
+      },
+    });
 
-    // Step 3: Create user profile linked to organization
-    console.log('[Organization Signup] Creating user profile...');
-    const now = new Date().toISOString();
-    const { data: userProfile, error: profileError } = await supabase
-      .from('users')
-      .insert({
-        id: crypto.randomUUID(),
-        auth_user_id: authUserId,
-        email: authUser.email || '',
-        firstName: firstName,
-        lastName: lastName,
-        passwordHash: '', // Not used with Supabase Auth
-        organizationid: organization.id,
-        isActive: true,
-        createdAt: now,
-        updatedAt: now,
-      } as unknown as Database['public']['Tables']['users']['Insert'])
-      .select()
-      .single();
-
-    if (profileError || !userProfile) {
-      console.error('[Organization Signup] Failed to create user profile:', profileError);
-      // Clean up organization if profile creation fails
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[Organization Signup] Edge function returned error:', response.status, errorText);
+      let errorMessage = 'Failed to create user profile. Please try again.';
       try {
-        await supabase.from('organizations').delete().eq('id', organization.id);
-        console.log('[Organization Signup] Cleaned up organization after profile creation failure');
-      } catch (cleanupError) {
-        console.error('[Organization Signup] Failed to cleanup organization:', cleanupError);
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.error || errorMessage;
+      } catch {
+        // Use default error message
       }
-      throw new Error(profileError?.message || 'Failed to create user profile');
+      throw new Error(errorMessage);
     }
 
-    console.log('[Organization Signup] User profile created:', userProfile.id);
+    const result = await response.json();
+    console.log('[Organization Signup] Edge function response:', result);
 
-    // Step 6: Assign global admin role to the user
-    console.log('[Organization Signup] Assigning global admin role...');
-    // Get the global admin role for this organization
-    const { data: adminRole, error: roleError } = await supabase
-      .from('roles')
-      .select('id')
-      .eq('name', 'global-admin')
-      .eq('organizationid', organization.id)
-      .eq('isActive', true)
-      .single();
-
-    if (roleError || !adminRole) {
-      console.warn('[Organization Signup] Global admin role not found, skipping role assignment');
-      // Continue without role assignment - user can be assigned later
-    } else {
-      const { error: assignError } = await supabase
-        .from('user_roles')
-        .insert({
-          id: crypto.randomUUID(),
-          userId: userProfile.id,
-          roleId: adminRole.id,
-          organizationid: organization.id,
-          isActive: true,
-          createdAt: now,
-          updatedAt: now,
-        } as unknown as Database['public']['Tables']['user_roles']['Insert']);
-
-      if (assignError) {
-        console.warn('[Organization Signup] Failed to assign admin role:', assignError);
-        // Continue without role assignment - user can be assigned later
-      } else {
-        console.log('[Organization Signup] Admin role assigned successfully');
-      }
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to create user profile');
     }
 
-    // Step 4: Create subscription record if not free tier
-    const subscriptionTier = organization.subscriptionTier || 'free';
-    if (subscriptionTier !== 'free') {
-      console.log('[Organization Signup] Creating subscription record...');
-      const periodStart = new Date();
-      const periodEnd = new Date();
-      periodEnd.setMonth(periodEnd.getMonth() + 1); // 1 month trial
-
-      const { error: subError } = await supabase
-        .from('subscriptions')
-        .insert({
-          id: crypto.randomUUID(),
-          organizationId: organization.id,
-          tier: subscriptionTier,
-          status: 'trialing',
-          currentPeriodStart: periodStart.toISOString(),
-          currentPeriodEnd: periodEnd.toISOString(),
-          createdAt: now,
-          updatedAt: now,
-        } as unknown as Database['public']['Tables']['subscriptions']['Insert']);
-
-      if (subError) {
-        console.warn('[Organization Signup] Failed to create subscription record:', subError);
-        // Continue - subscription can be created later
-      } else {
-        console.log('[Organization Signup] Subscription record created');
-      }
-    }
-
-    console.log('[Organization Signup] Organization signup completed successfully');
+    console.log('[Organization Signup] User profile created successfully');
 
     return {
-      organizationId: organization.id,
-      userId: userProfile.id,
+      organizationId: result.organizationId || organizationId,
+      userId: result.userId,
       authUserId: authUserId,
     };
+  }
+
+  /**
+   * Update organization subscription tier
+   * Can be called during signup before user is fully authenticated
+   */
+  async updateOrganizationSubscriptionTier(organizationId: string, subscriptionTier: 'free' | 'basic' | 'professional' | 'enterprise'): Promise<void> {
+    console.log('[Organization Signup] Updating organization subscription tier:', { organizationId, subscriptionTier });
+
+    // Set subscription limits based on tier
+    const tierLimits: Record<string, { maxUsers: number; maxProjects: number }> = {
+      free: { maxUsers: 5, maxProjects: 3 },
+      basic: { maxUsers: 25, maxProjects: 20 },
+      professional: { maxUsers: 100, maxProjects: -1 }, // -1 means unlimited
+      enterprise: { maxUsers: -1, maxProjects: -1 },
+    };
+
+    const limits = tierLimits[subscriptionTier] || tierLimits.free;
+
+    const { error } = await supabase
+      .from('organizations')
+      .update({
+        subscriptionTier: subscriptionTier,
+        subscriptionStatus: subscriptionTier === 'free' ? 'active' : 'trialing',
+        maxUsers: limits.maxUsers,
+        maxProjects: limits.maxProjects === -1 ? null : limits.maxProjects,
+        updatedAt: new Date().toISOString(),
+      })
+      .eq('id', organizationId);
+
+    if (error) {
+      console.error('[Organization Signup] Failed to update subscription tier:', error);
+      throw new Error(error.message || 'Failed to update subscription tier');
+    }
+
+    console.log('[Organization Signup] Subscription tier updated successfully');
   }
 }
 

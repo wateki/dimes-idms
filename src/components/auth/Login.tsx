@@ -92,9 +92,7 @@ export const Login: React.FC<LoginProps> = () => {
   };
 
   // Demo credentials for testing
-  const demoCredentials = [
-    { email: 'admin@icsafrica.org', password: 'admin123', role: 'Global Administrator' },
-  ];
+
 
   return (
     <div className="min-h-screen w-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
@@ -103,7 +101,7 @@ export const Login: React.FC<LoginProps> = () => {
         <Card className="shadow-lg">
           <CardHeader className="space-y-2 text-center">
             <img src="/logo.png" alt="ICS Logo" className="h-12 w-auto mx-auto mb-4" />
-            <CardTitle className="text-2xl font-bold text-gray-900">IDMS Dashboard</CardTitle>
+            <CardTitle className="text-2xl font-bold text-gray-900">DIMES IDMS Login</CardTitle>
             <p className="text-sm text-gray-600">Sign in to your account</p>
            
           </CardHeader>

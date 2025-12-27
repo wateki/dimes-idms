@@ -331,11 +331,36 @@ async function handleInitializeSubscription(
     );
   }
 
+  // Get frontend URL for redirect after payment
+  // Note: In production, this must be an HTTPS URL. Paystack will redirect users here after payment.
+  // If callback_url is not working, check:
+  // 1. FRONTEND_URL environment variable is set correctly in Supabase Edge Function settings
+  // 2. The URL uses HTTPS in production (not http://localhost)
+  // 3. No default callback URL is set in Paystack Dashboard that might override this
+  const frontendUrl = Deno.env.get("FRONTEND_URL") || Deno.env.get("VITE_APP_URL") || "http://localhost:5173";
+  const callbackUrl = `${frontendUrl}/dashboard/organization/subscription`;
+  
+  console.log("[PaystackBilling] Setting callback URL for redirect:", {
+    frontendUrl,
+    callbackUrl,
+    envVarUsed: Deno.env.get("FRONTEND_URL") ? "FRONTEND_URL" : (Deno.env.get("VITE_APP_URL") ? "VITE_APP_URL" : "default localhost"),
+  });
+
+  // Get or create customer and ensure organizationId is stored in customer metadata
+  // This ensures the organizationId is available in subscription.create webhooks
+  // Paystack will automatically link the transaction to this customer by email
+  await getOrCreatePaystackCustomerWithMetadata(
+    email,
+    organizationId,
+    paystackSecretKey
+  );
+
   const transactionData: any = {
     email,
     plan: planCode,
     amount: amount, // Amount in cents (required by Paystack)
     currency: "KES",
+    callback_url: callbackUrl, // Redirect to subscription page after payment
     metadata: {
       organizationId,
       ...metadata,
@@ -348,6 +373,7 @@ async function handleInitializeSubscription(
     amount,
     amountInKES: amount / 100, // Convert cents to KES for logging
     currency: transactionData.currency,
+    callback_url: callbackUrl, // Log callback URL being sent
   });
 
   console.log("[PaystackBilling] Paystack request data:", {
@@ -357,6 +383,7 @@ async function handleInitializeSubscription(
     currency: transactionData.currency,
     hasAmount: !!transactionData.amount,
     amount: transactionData.amount,
+    callback_url: transactionData.callback_url, // Ensure callback_url is included
     fullRequestBody: JSON.stringify(transactionData), // Log full request for debugging
   });
 
@@ -1351,7 +1378,90 @@ async function handleGetSubscriptionLink(
   );
 }
 
-// Helper: Get or create Paystack customer
+// Helper: Get or create Paystack customer with organizationId metadata
+async function getOrCreatePaystackCustomerWithMetadata(
+  email: string,
+  organizationId: string,
+  paystackSecretKey: string
+): Promise<string> {
+  // First, try to find existing customer
+  const listResponse = await fetch(
+    `https://api.paystack.co/customer?email=${encodeURIComponent(email)}`,
+    {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${paystackSecretKey}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  const listData = await listResponse.json();
+
+  if (listData.status && listData.data && listData.data.length > 0) {
+    const customerCode = listData.data[0].customer_code;
+    
+    // Update customer metadata to include organizationId if not already set
+    // This ensures organizationId is available in subscription.create webhooks
+    // Paystack API: PUT /customer/{code}
+    const updateResponse = await fetch(`https://api.paystack.co/customer/${encodeURIComponent(customerCode)}`, {
+      method: "PUT",
+      headers: {
+        "Authorization": `Bearer ${paystackSecretKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        metadata: {
+          organizationId,
+          ...(listData.data[0].metadata || {}), // Preserve existing metadata
+        },
+      }),
+    });
+
+    const updateData = await updateResponse.json();
+    if (!updateData.status) {
+      console.warn("[PaystackBilling] Failed to update customer metadata:", updateData.message);
+      // Continue anyway - customer code is still valid
+    } else {
+      console.log("[PaystackBilling] Customer metadata updated with organizationId:", {
+        customerCode,
+        organizationId,
+      });
+    }
+    
+    return customerCode;
+  }
+
+  // Create new customer with organizationId in metadata
+  const createResponse = await fetch("https://api.paystack.co/customer", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${paystackSecretKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      email,
+      metadata: {
+        organizationId,
+      },
+    }),
+  });
+
+  const createData = await createResponse.json();
+
+  if (!createData.status) {
+    throw new Error(createData.message || "Failed to create customer");
+  }
+
+  console.log("[PaystackBilling] Customer created with organizationId metadata:", {
+    customerCode: createData.data.customer_code,
+    organizationId,
+  });
+
+  return createData.data.customer_code;
+}
+
+// Helper: Get or create Paystack customer (original function for backward compatibility)
 async function getOrCreatePaystackCustomer(
   email: string,
   paystackSecretKey: string

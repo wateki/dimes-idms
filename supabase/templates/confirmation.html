@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Confirm Your Email Address</title>
+  <!--[if mso]>
+  <style type="text/css">
+    body, table, td, a { font-family: Arial, sans-serif !important; }
+  </style>
+  <![endif]-->
+</head>
+<body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f3f4f6; padding: 40px 0;">
+    <tr>
+      <td align="center">
+        <!-- Main Container -->
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-width: 600px; width: 100%;">
+          
+          <!-- Header with Logo/Branding -->
+          <tr>
+            <td style="padding: 40px 40px 30px; text-align: center; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); border-radius: 8px 8px 0 0;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td align="center">
+                    <!-- Logo/Brand Name -->
+                    <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">DIMES Dashboard</h1>
+                    <p style="margin: 8px 0 0; color: #e0e7ff; font-size: 14px; font-weight: 400;">Organization Management Platform</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Main Content -->
+          <tr>
+            <td style="padding: 40px;">
+              <!-- Welcome Message -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td style="padding-bottom: 24px;">
+                    <h2 style="margin: 0 0 16px; color: #111827; font-size: 24px; font-weight: 600; line-height: 1.3;">Confirm Your Email Address</h2>
+                    <p style="margin: 0; color: #4b5563; font-size: 16px; line-height: 1.6;">
+                      Thank you for signing up! We're excited to have you on board. To complete your registration and activate your organization account, please confirm your email address by clicking the button below.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Confirmation Button -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td align="center" style="padding: 32px 0;">
+                    <!--[if mso]>
+                    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ .ConfirmationURL }}" style="height:50px;v-text-anchor:middle;width:240px;" arcsize="8%" stroke="f" fillcolor="#2563eb">
+                      <w:anchorlock/>
+                      <center style="color:#ffffff;font-family:sans-serif;font-size:16px;font-weight:bold;">Confirm Email Address</center>
+                    </v:roundrect>
+                    <![endif]-->
+                    <a href="{{ .ConfirmationURL }}" style="display: inline-block; padding: 14px 32px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 600; line-height: 1.5; text-align: center; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);">
+                      Confirm Email Address
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Alternative Link -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td style="padding: 16px 0 24px;">
+                    <p style="margin: 0 0 12px; color: #6b7280; font-size: 14px; line-height: 1.6;">
+                      If the button doesn't work, you can copy and paste this link into your browser:
+                    </p>
+                    <p style="margin: 0; word-break: break-all;">
+                      <a href="{{ .ConfirmationURL }}" style="color: #2563eb; text-decoration: underline; font-size: 14px; line-height: 1.6;">{{ .ConfirmationURL }}</a>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Additional Information -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td style="padding: 24px; background-color: #eff6ff; border-left: 4px solid #2563eb; border-radius: 4px;">
+                    <p style="margin: 0 0 8px; color: #1e40af; font-size: 14px; font-weight: 600;">
+                      Important Information:
+                    </p>
+                    <ul style="margin: 0; padding-left: 20px; color: #1e3a8a; font-size: 14px; line-height: 1.8;">
+                      <li>This confirmation link will expire in 24 hours</li>
+                      <li>If you didn't create an account, you can safely ignore this email</li>
+                      <li>After confirming, you'll be able to complete your organization setup</li>
+                    </ul>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Security Note -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td style="padding-top: 32px;">
+                    <p style="margin: 0; color: #9ca3af; font-size: 12px; line-height: 1.6; text-align: center;">
+                      For security reasons, never share this confirmation link with anyone. If you have any questions, please contact our support team.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 32px 40px; background-color: #f9fafb; border-top: 1px solid #e5e7eb; border-radius: 0 0 8px 8px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td align="center" style="padding-bottom: 16px;">
+                    <p style="margin: 0; color: #6b7280; font-size: 14px; line-height: 1.6;">
+                      This email was sent to <strong style="color: #111827;">{{ .Email }}</strong>
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="padding: 16px 0; border-top: 1px solid #e5e7eb;">
+                    <p style="margin: 0 0 8px; color: #9ca3af; font-size: 12px; line-height: 1.6;">
+                      &copy; 2025 ICS Dashboard. All rights reserved.
+                    </p>
+                    <p style="margin: 0; color: #9ca3af; font-size: 12px; line-height: 1.6;">
+                      <a href="{{ .SiteURL }}" style="color: #2563eb; text-decoration: none;">Visit our website</a> | 
+                      <a href="{{ .SiteURL }}/support" style="color: #2563eb; text-decoration: none;">Support</a> | 
+                      <a href="{{ .SiteURL }}/privacy" style="color: #2563eb; text-decoration: none;">Privacy Policy</a>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Spacer -->
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+          <tr>
+            <td style="padding: 20px 0;">
+              <p style="margin: 0; color: #9ca3af; font-size: 12px; line-height: 1.6; text-align: center;">
+                If you're having trouble with this email, please reply to this message for assistance.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+
+

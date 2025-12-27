@@ -48,6 +48,8 @@ import { FeedbackRoutes } from '@/components/dashboard/feedback/FeedbackRoutes';
 // New all-outcomes and all-outputs pages will be created as OutcomesDetails and OutputsDetails
 import { Toaster as ShadToaster } from '@/components/ui/toaster';
 import { createEnhancedPermissionManager } from '@/lib/permissions';
+import { Analytics } from '@vercel/analytics/react';
+
 
 function ProtectedRoute({ roles }: { roles?: string[] }) {
   const { user, isAuthenticated, isLoading, isRefreshing } = useAuth();
@@ -264,6 +266,7 @@ function AppWithNotifications() {
         onRemove={removeNotification} 
       />
       <ShadToaster />
+      <Analytics />
     </>
   );
 }

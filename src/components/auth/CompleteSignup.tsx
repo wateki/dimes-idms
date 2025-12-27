@@ -25,8 +25,8 @@ export function CompleteSignup() {
         const result = await supabaseOrganizationSignupService.completeSignup(orgId);
         console.log('[Complete Signup] Signup completed:', result);
 
-        // Redirect to guided setup
-        navigate(`/signup/setup?orgId=${result.organizationId}&userId=${result.userId}`);
+        // Redirect to pricing/plan selection step (step 3) with organization ID
+        navigate(`/signup?step=3&orgId=${result.organizationId}`);
       } catch (err: any) {
         console.error('[Complete Signup] Error completing signup:', err);
         setError(err.message || 'Failed to complete signup. Please try again.');

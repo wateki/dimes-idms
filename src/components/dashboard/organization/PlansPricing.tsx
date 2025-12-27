@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSubscriptionPaymentListener } from '@/hooks/useSubscriptionPaymentListener';
 import { supabaseOrganizationService } from '@/services/supabaseOrganizationService';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,10 @@ export function PlansPricing() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [isAnnual, setIsAnnual] = useState(false);
+  const [waitingForPayment, setWaitingForPayment] = useState(false);
+
+  // Listen for subscription status changes when waiting for payment
+  useSubscriptionPaymentListener(waitingForPayment);
 
   useEffect(() => {
     if (organization) {
@@ -356,7 +361,8 @@ export function PlansPricing() {
         reference: result.reference,
       });
       
-      // Redirect to Paystack payment page
+      // Set waiting for payment flag and redirect to Paystack payment page
+      setWaitingForPayment(true);
       window.location.href = result.authorization_url;
     } catch (error: any) {
       console.error('[Subscription] Failed to initialize subscription:', {

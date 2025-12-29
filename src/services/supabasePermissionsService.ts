@@ -26,14 +26,15 @@ class SupabasePermissionsService {
   }
 
   async getAllPermissions(params: { resource?: string; scope?: string; action?: string } = {}): Promise<Permission[]> {
-    // Multi-tenant: Filter by organizationId
-    const organizationId = await this.getCurrentUserOrganizationId();
+    // Permissions are system-wide defaults (organizationid IS NULL)
+    // They can be assigned to organization-scoped roles
+    // RLS policies ensure users only access resources within their organization
     
     let query = supabase
       .from('permissions')
       .select('*')
       .eq('isActive', true)
-      .eq('organizationid', organizationId); // Filter by organization
+      .is('organizationid', null); // Get global/system permissions
 
     if (params.resource) {
       query = query.eq('resource', params.resource);
@@ -120,13 +121,13 @@ class SupabasePermissionsService {
       throw new Error('Role not found or access denied');
     }
 
-    // Verify permissions exist and belong to organization
+    // Verify permissions exist (they are global/system permissions)
     const { data: permissions, error: permError } = await supabase
       .from('permissions')
       .select('id')
       .in('id', permissionIds)
       .eq('isActive', true)
-      .eq('organizationid', organizationId); // Filter by organization
+      .is('organizationid', null); // Permissions are global/system-wide
 
     if (permError) {
       throw new Error(permError.message || 'Failed to verify permissions');

@@ -155,7 +155,7 @@ interface FormContextType {
   projectForms: Record<string, Form[]>;
 }
 
-const FormContext = createContext<FormContextType | undefined>(undefined);
+export const FormContext = createContext<FormContextType | undefined>(undefined);
 
 interface FormProviderProps {
   children: ReactNode;

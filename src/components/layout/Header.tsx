@@ -6,11 +6,22 @@ import { Breadcrumbs } from './Breadcrumbs';
 import { ProjectSwitcher } from './ProjectSwitcher';
 import { UserMenu } from './UserMenu';
 import { useDashboard } from '@/contexts/DashboardContext';
-import { useForm } from '@/contexts/FormContext';
+import { useContext } from 'react';
+import { FormContext } from '@/contexts/FormContext';
 
 export function Header() {
   const { setSidebarOpen } = useDashboard();
-  const { isOnline, syncStatus } = useForm();
+  
+  // Safely access FormContext - it might not be available in all layouts
+  const formContext = useContext(FormContext);
+  const isOnline = formContext?.isOnline ?? true;
+  const syncStatus = formContext?.syncStatus ?? { 
+    pendingItems: 0, 
+    isSyncing: false, 
+    failedItems: 0, 
+    lastSyncTime: null, 
+    syncProgress: 0 
+  };
 
   return (
     <header className="bg-background border-b border-border mobile-header">

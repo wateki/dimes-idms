@@ -1,5 +1,5 @@
-import React from 'react';
-import { useForm } from '@/contexts/FormContext';
+import React, { useContext } from 'react';
+import { FormContext } from '@/contexts/FormContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -16,6 +16,14 @@ import {
 } from 'lucide-react';
 
 export function OfflineSyncIndicator() {
+  // Safely access FormContext - it might not be available in all layouts
+  const formContext = useContext(FormContext);
+  
+  // If FormContext is not available, don't render the component
+  if (!formContext) {
+    return null;
+  }
+  
   const {
     isOnline,
     syncStatus,
@@ -24,7 +32,7 @@ export function OfflineSyncIndicator() {
     clearOfflineQueue,
     getOfflineQueue,
     getFailedItems
-  } = useForm();
+  } = formContext;
 
   const queue = getOfflineQueue();
   const failedItems = getFailedItems();

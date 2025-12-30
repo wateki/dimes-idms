@@ -65,10 +65,11 @@ const transformQuestionData = (question: any) => {
 };
 
 // Helper function to get all questions (main + conditional) in the correct order
-// For repeatable sections, includes instance columns
+// For repeatable sections, includes instance columns based on actual response data
 const getAllQuestionsInOrder = (
   form: Form,
-  maxInstances?: number
+  maxInstances?: number,
+  responses?: FlattenedResponse[]
 ): Array<{
   question: FormQuestion;
   isConditional: boolean;
@@ -94,12 +95,17 @@ const getAllQuestionsInOrder = (
   const repeatableSections = getRepeatableSections(form);
   const repeatableSectionIds = new Set(repeatableSections.map(s => s.id));
 
+  // Check if responses actually contain instance-scoped data
+  const hasInstanceScopedData = responses?.some(response => 
+    Object.keys(response.data).some(key => key.includes('_instance_'))
+  ) ?? false;
+
   form.sections.forEach(section => {
     const isRepeatable = repeatableSectionIds.has(section.id);
     
     section.questions.forEach(question => {
-      if (isRepeatable && maxInstances) {
-        // For repeatable sections, create columns for each instance
+      if (isRepeatable && maxInstances && maxInstances > 1 && hasInstanceScopedData) {
+        // For repeatable sections with actual instance data, create columns for each instance
         for (let instanceIndex = 0; instanceIndex < maxInstances; instanceIndex++) {
           allQuestions.push({
             question,
@@ -131,12 +137,16 @@ const getAllQuestionsInOrder = (
           }
         }
       } else {
-        // Non-repeatable section - add question once
+        // Non-repeatable section OR repeatable section without multiple instances - add question once
         allQuestions.push({
           question,
           isConditional: false,
-          isRepeatable: false,
-          sectionId: section.id
+          isRepeatable: isRepeatable,
+          sectionId: section.id,
+          // For single-instance repeatable sections, still create instance key if data exists
+          instanceKey: (isRepeatable && hasInstanceScopedData && maxInstances && maxInstances >= 1) 
+            ? `${question.id}_instance_0` 
+            : undefined
         });
 
         // Add conditional questions
@@ -149,8 +159,11 @@ const getAllQuestionsInOrder = (
                   isConditional: true,
                   parentQuestion: question,
                   parentOption: option,
-                  isRepeatable: false,
-                  sectionId: section.id
+                  isRepeatable: isRepeatable,
+                  sectionId: section.id,
+                  instanceKey: (isRepeatable && hasInstanceScopedData && maxInstances && maxInstances >= 1) 
+                    ? `${condQuestion.id}_instance_0` 
+                    : undefined
                 });
               });
             }
@@ -205,25 +218,22 @@ const parseRepeatableMetadata = (source: string | null | undefined): {
 };
 
 // Helper function to group responses by submission (for repeatable sections)
-// Responses from the same submission are grouped together
+// Since we now store repeatable sections as single responses with instance-scoped IDs,
+// we only need to group old-format responses that have explicit repeatable metadata
 const groupResponsesBySubmission = (responses: FormResponse[], form?: Form): Map<string, FormResponse[]> => {
   const groups = new Map<string, FormResponse[]>();
   
-  // Check if the form has repeatable sections
-  const hasRepeatableSections = form ? getRepeatableSections(form).length > 0 : false;
-  
   console.log('🔍 Grouping responses:', {
     responseCount: responses.length,
-    hasRepeatableSections,
     formHasSections: !!form
   });
   
   responses.forEach(response => {
     const metadata = parseRepeatableMetadata(response.source);
     
-    if (metadata.isRepeatable && metadata.originalSource) {
+    if (metadata.isRepeatable && metadata.originalSource && metadata.instanceIndex !== undefined) {
+      // Old format: Multiple responses with repeatable metadata - group them together
       // Group by originalSource + respondentEmail + startedAt (rounded to nearest second)
-      // This identifies responses from the same submission
       const startedAtRounded = response.startedAt 
         ? new Date(response.startedAt).setMilliseconds(0) 
         : 0;
@@ -233,58 +243,20 @@ const groupResponsesBySubmission = (responses: FormResponse[], form?: Form): Map
         groups.set(groupKey, []);
       }
       groups.get(groupKey)!.push(response);
-      console.log('✅ Grouped response with metadata:', { responseId: response.id, groupKey, metadata });
-    } else if (hasRepeatableSections) {
-      // Fallback: For forms with repeatable sections, try to group responses by email + time proximity
-      // This handles cases where responses don't have proper source metadata
-      const respondentKey = response.respondentEmail || 'anonymous';
-      const startedAt = response.startedAt ? new Date(response.startedAt) : new Date(0);
-      
-      // Look for existing groups within 30 seconds
-      let foundGroup: string | null = null;
-      const timeWindow = 30000; // 30 seconds
-      
-      groups.forEach((groupResponses, groupKey) => {
-        if (foundGroup) return; // Already found a group
-        
-        // Skip single_ groups for this check
-        if (groupKey.startsWith('single_')) return;
-        
-        const firstResponse = groupResponses[0];
-        const firstStartedAt = firstResponse.startedAt ? new Date(firstResponse.startedAt) : new Date(0);
-        const timeDiff = Math.abs(startedAt.getTime() - firstStartedAt.getTime());
-        
-        if (firstResponse.respondentEmail === response.respondentEmail && timeDiff <= timeWindow) {
-          foundGroup = groupKey;
-          console.log('📍 Found existing group by proximity:', { 
-            responseId: response.id, 
-            groupKey, 
-            timeDiff,
-            email: response.respondentEmail 
-          });
-        }
-      });
-      
-      if (foundGroup) {
-        groups.get(foundGroup)!.push(response);
-      } else {
-        // Create new group for this potential submission
-        const groupKey = `proximity_${respondentKey}_${startedAt.getTime()}`;
-        groups.set(groupKey, [response]);
-        console.log('🆕 Created new proximity group:', { responseId: response.id, groupKey });
-      }
+      console.log('✅ Grouped old-format response with metadata:', { responseId: response.id, groupKey, metadata });
     } else {
-      // Non-repeatable form or no metadata - each response is its own group
+      // New format: Single response (may contain instance-scoped IDs) - each response is its own group
       const groupKey = `single_${response.id}`;
       groups.set(groupKey, [response]);
-      console.log('📝 Single response group:', { responseId: response.id, groupKey });
+      console.log('📝 Single response group (new format):', { responseId: response.id, groupKey });
     }
   });
   
-  // Sort responses within each group by startedAt (fallback for responses without instanceIndex)
+  // Sort responses within each group by instanceIndex (for old format only)
   groups.forEach((groupResponses, key) => {
-    if (key.startsWith('single_')) return; // Don't sort single responses
+    if (key.startsWith('single_')) return; // Don't sort single responses (new format)
     
+    // Only sort old-format grouped responses
     groupResponses.sort((a, b) => {
       const metaA = parseRepeatableMetadata(a.source);
       const metaB = parseRepeatableMetadata(b.source);
@@ -303,14 +275,13 @@ const groupResponsesBySubmission = (responses: FormResponse[], form?: Form): Map
   
   console.log('📊 Final groups:', {
     totalGroups: groups.size,
+    oldFormatGroups: Array.from(groups.entries()).filter(([key]) => !key.startsWith('single_')).length,
+    newFormatGroups: Array.from(groups.entries()).filter(([key]) => key.startsWith('single_')).length,
     groupSummary: Array.from(groups.entries()).map(([key, responses]) => ({
       groupKey: key,
       responseCount: responses.length,
-      emails: [...new Set(responses.map(r => r.respondentEmail || 'anonymous'))],
-      timeSpan: responses.length > 1 ? {
-        first: responses[0].startedAt,
-        last: responses[responses.length - 1].startedAt
-      } : 'single'
+      isOldFormat: !key.startsWith('single_'),
+      emails: [...new Set(responses.map(r => r.respondentEmail || 'anonymous'))]
     }))
   });
   
@@ -354,9 +325,10 @@ const flattenGroupedResponses = (
   
   // Get repeatable sections
   const repeatableSections = getRepeatableSections(form);
+  const hasRepeatableSections = repeatableSections.length > 0;
   
-  // If single response and not repeatable, return as-is
-  if (groupedResponses.length === 1 && !metadata.isRepeatable) {
+  // If single response and form has no repeatable sections, return as-is
+  if (groupedResponses.length === 1 && !hasRepeatableSections && !metadata.isRepeatable) {
     return {
       id: firstResponse.id,
       respondentEmail: firstResponse.respondentEmail,
@@ -364,6 +336,79 @@ const flattenGroupedResponses = (
       submittedAt: firstResponse.submittedAt || null,
       startedAt: firstResponse.startedAt || null,
       data: firstResponse.data,
+      attachments: firstResponse.attachments || [],
+      originalResponses: [firstResponse]
+    };
+  }
+  
+  // If form has repeatable sections but only one response, check if it actually contains repeatable section data
+  if (groupedResponses.length === 1 && hasRepeatableSections) {
+    const flattenedData: Record<string, any> = {};
+    
+    // Check if the response contains data that looks like it's already instance-scoped
+    const hasInstanceScopedData = Object.keys(firstResponse.data).some(key => key.includes('_instance_'));
+    
+    if (hasInstanceScopedData) {
+      // Data is already instance-scoped (e.g., from new mobile submissions), use as-is
+      console.log('🔍 Single response already has instance-scoped data, using as-is');
+      return {
+        id: firstResponse.id,
+        respondentEmail: firstResponse.respondentEmail,
+        isComplete: firstResponse.isComplete,
+        submittedAt: firstResponse.submittedAt || null,
+        startedAt: firstResponse.startedAt || null,
+        data: firstResponse.data,
+        attachments: firstResponse.attachments || [],
+        originalResponses: [firstResponse]
+      };
+    }
+    
+    // Check if the response contains data for repeatable section questions (base IDs)
+    const hasRepeatableData = repeatableSections.some(section => 
+      section.questions.some(question => firstResponse.data[question.id] !== undefined)
+    );
+    
+    if (hasRepeatableData) {
+      // Response contains base question IDs for repeatable sections - convert to instance-scoped
+      console.log('🔍 Single response has repeatable data, converting to instance-scoped keys');
+      
+      // Get non-repeatable section data (use as-is)
+      const nonRepeatableSections = form.sections.filter(
+        section => !(section as any).conditional?.repeatable
+      );
+      
+      nonRepeatableSections.forEach(section => {
+        section.questions.forEach(question => {
+          if (firstResponse.data[question.id] !== undefined) {
+            flattenedData[question.id] = firstResponse.data[question.id];
+          }
+        });
+      });
+      
+      // Add repeatable section data with instance suffix (instance 0)
+      repeatableSections.forEach(section => {
+        section.questions.forEach(question => {
+          if (firstResponse.data[question.id] !== undefined) {
+            const instanceKey = `${question.id}_instance_0`;
+            flattenedData[instanceKey] = firstResponse.data[question.id];
+          }
+        });
+      });
+    } else {
+      // Response doesn't contain repeatable data - use original data as-is for non-repeatable sections
+      console.log('🔍 Single response has no repeatable data, using original structure');
+      
+      // Just use the original data structure - don't create empty instance keys
+      Object.assign(flattenedData, firstResponse.data);
+    }
+    
+    return {
+      id: firstResponse.id,
+      respondentEmail: firstResponse.respondentEmail,
+      isComplete: firstResponse.isComplete,
+      submittedAt: firstResponse.submittedAt || null,
+      startedAt: firstResponse.startedAt || null,
+      data: flattenedData,
       attachments: firstResponse.attachments || [],
       originalResponses: [firstResponse]
     };
@@ -1030,19 +1075,68 @@ export function FormResponseViewer() {
             status: statusFilter as 'all' | 'complete' | 'incomplete'
           });
           
+          // Filter out responses with no data and log them
+          const responsesWithData = result.responses.filter(r => {
+            const hasData = r.data && Object.keys(r.data).length > 0;
+            if (!hasData) {
+              console.warn('⚠️ FormResponseViewer: Filtering out response with no data:', {
+                id: r.id,
+                isComplete: r.isComplete,
+                source: r.source,
+                submittedAt: r.submittedAt,
+                dataKeys: Object.keys(r.data || {})
+              });
+            }
+            return hasData;
+          });
+          
+          console.log('📋 FormResponseViewer: Filtered responses:', {
+            originalCount: result.responses.length,
+            filteredCount: responsesWithData.length,
+            emptyResponsesCount: result.responses.length - responsesWithData.length
+          });
+
           // Group and flatten responses for display
           const repeatableSections = getRepeatableSections(form);
           console.log('🔍 Repeatable sections found:', repeatableSections.map(s => ({ id: s.id, title: s.title })));
           
-          const grouped = groupResponsesBySubmission(result.responses, form);
+          // Log raw response data structure
+          console.log('📋 [FormResponseViewer] Raw responses from API:', {
+            responseCount: result.responses.length,
+            responsesSummary: result.responses.map(r => ({
+              id: r.id,
+              dataKeys: Object.keys(r.data || {}),
+              dataCount: Object.keys(r.data || {}).length,
+              hasInstanceData: Object.keys(r.data || {}).some(k => k.includes('_instance_')),
+              source: r.source
+            })),
+            sampleResponse: result.responses[0] ? {
+              id: result.responses[0].id,
+              formId: result.responses[0].formId,
+              isComplete: result.responses[0].isComplete,
+              source: result.responses[0].source,
+              dataKeys: Object.keys(result.responses[0].data || {}),
+              dataCount: Object.keys(result.responses[0].data || {}).length,
+              dataSample: Object.entries(result.responses[0].data || {}).slice(0, 5).reduce((acc, [key, value]) => {
+                acc[key] = typeof value === 'object' ? JSON.stringify(value).substring(0, 50) : value;
+                return acc;
+              }, {} as Record<string, any>),
+              hasAttachments: !!(result.responses[0].attachments && result.responses[0].attachments.length > 0)
+            } : null
+          });
+          
+          const grouped = groupResponsesBySubmission(responsesWithData, form);
           console.log('🔍 Grouped responses:', {
-            totalRawResponses: result.responses.length,
+            totalRawResponses: responsesWithData.length,
+            originalRawResponses: result.responses.length,
+            filteredOutCount: result.responses.length - responsesWithData.length,
             groupCount: grouped.size,
             groups: Array.from(grouped.entries()).map(([key, responses]) => ({
               groupKey: key,
               responseCount: responses.length,
               firstResponseSource: responses[0]?.source,
-              responseIds: responses.map(r => r.id)
+              responseIds: responses.map(r => r.id),
+              firstResponseDataKeys: responses[0] ? Object.keys(responses[0].data || {}) : []
             }))
           });
           
@@ -1050,13 +1144,38 @@ export function FormResponseViewer() {
           const flattened: FlattenedResponse[] = [];
           grouped.forEach((groupResponses, groupKey) => {
             console.log(`🔍 Processing group ${groupKey} with ${groupResponses.length} responses`);
+            console.log(`📋 [FormResponseViewer] Group responses data:`, {
+              groupKey,
+              responseCount: groupResponses.length,
+              responsesData: groupResponses.map(r => ({
+                id: r.id,
+                dataKeys: Object.keys(r.data || {}),
+                dataCount: Object.keys(r.data || {}).length,
+                dataSample: Object.entries(r.data || {}).slice(0, 3).reduce((acc, [key, value]) => {
+                  acc[key] = typeof value === 'object' ? JSON.stringify(value).substring(0, 50) : value;
+                  return acc;
+                }, {} as Record<string, any>)
+              }))
+            });
             const flattenedResponse = flattenGroupedResponses(groupResponses, form);
             if (flattenedResponse) {
-              console.log(`✅ Flattened response created:`, {
-                id: flattenedResponse.id,
-                dataKeys: Object.keys(flattenedResponse.data),
-                originalResponseCount: flattenedResponse.originalResponses.length
-              });
+            console.log(`✅ Flattened response created:`, {
+              id: flattenedResponse.id,
+              originalResponseIds: flattenedResponse.originalResponses.map(r => r.id),
+              originalDataSummary: flattenedResponse.originalResponses.map(r => ({
+                id: r.id,
+                dataKeys: Object.keys(r.data || {}),
+                dataCount: Object.keys(r.data || {}).length,
+                source: r.source
+              })),
+              dataKeys: Object.keys(flattenedResponse.data),
+              dataCount: Object.keys(flattenedResponse.data).length,
+              dataSample: Object.entries(flattenedResponse.data).slice(0, 5).reduce((acc, [key, value]) => {
+                acc[key] = typeof value === 'object' ? JSON.stringify(value).substring(0, 50) : value;
+                return acc;
+              }, {} as Record<string, any>),
+              originalResponseCount: flattenedResponse.originalResponses.length
+            });
               flattened.push(flattenedResponse);
             } else {
               console.log('❌ Failed to create flattened response for group', groupKey);
@@ -1154,16 +1273,18 @@ export function FormResponseViewer() {
   
   const flattenedResponsesForView = responses; // responses are now already flattened
 
-  // Memoize all questions in order (only recalculate when form or maxInstances change)
+  // Memoize all questions in order (only recalculate when form, maxInstances, or responses change)
   const allQuestionsInOrder = useMemo(() => {
     if (!form) return [];
-    const questions = getAllQuestionsInOrder(form, overallMaxInstances);
+    const questions = getAllQuestionsInOrder(form, overallMaxInstances, responses);
     console.log('🔍 Generated all questions in order (memoized):', {
       overallMaxInstances,
-      totalColumns: questions.length
+      totalColumns: questions.length,
+      hasInstanceScopedData: responses.some(r => Object.keys(r.data).some(k => k.includes('_instance_'))),
+      sampleResponseDataKeys: responses[0] ? Object.keys(responses[0].data) : []
     });
     return questions;
-  }, [form, overallMaxInstances]);
+  }, [form, overallMaxInstances, responses]);
 
   // Handler functions
   const handleEditResponse = (rowData: any) => {
@@ -1502,7 +1623,7 @@ export function FormResponseViewer() {
       ];
       
       // Add question headers with instance columns for repeatable sections
-      const allQuestions = getAllQuestionsInOrder(form, overallMaxInstances);
+      const allQuestions = getAllQuestionsInOrder(form, overallMaxInstances, flattenedResponses);
       allQuestions.forEach(({question, isConditional, parentQuestion, parentOption, isRepeatable, instanceIndex, instanceKey}) => {
         let headerTitle = question.title;
         
@@ -1991,6 +2112,27 @@ export function FormResponseViewer() {
                           </TableCell>
                             
                             {/* Question response cells - matching the header structure exactly */}
+                            {(() => {
+                              // Log row data structure for debugging
+                              if (row.rowIndex === 0 && row.isExisting) {
+                                console.log('🔍 [FormResponseViewer] Rendering first row:', {
+                                  rowIndex: row.rowIndex,
+                                  responseId: row.responseId,
+                                  dataKeys: Object.keys(row.data),
+                                  dataCount: Object.keys(row.data).length,
+                                  dataSample: Object.entries(row.data).slice(0, 5).reduce((acc, [key, value]) => {
+                                    acc[key] = typeof value === 'object' ? JSON.stringify(value).substring(0, 50) : value;
+                                    return acc;
+                                  }, {} as Record<string, any>),
+                                  allQuestionIds: allQuestionsInOrder.map(q => ({ 
+                                    questionId: q.question.id, 
+                                    instanceKey: q.instanceKey,
+                                    cellKey: q.instanceKey || q.question.id
+                                  }))
+                                });
+                              }
+                              return null;
+                            })()}
                             {allQuestionsInOrder.map(({ question, isConditional, parentQuestion, instanceKey }) => {
                               const cellKey = instanceKey || question.id;
                               

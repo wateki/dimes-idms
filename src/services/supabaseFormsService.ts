@@ -145,9 +145,38 @@ class SupabaseFormsService {
           const primaryActivity = linkedActivities.length > 0 ? linkedActivities[0] : null;
 
           // Prepare config including options/statements and linked activities
+          // Extract frontend-specific fields and store them in config (similar to backend prepareQuestionForStorage)
           const questionConfig: any = {
             ...(question.config || {}),
             isConditional: question.isConditional || false,
+            // Extract options, statements, and other config properties from question object
+            options: question.options || question.config?.options || [],
+            statements: question.statements || question.config?.statements || [],
+            allowOther: question.allowOther ?? question.config?.allowOther,
+            minSelections: question.minSelections ?? question.config?.minSelections,
+            maxSelections: question.maxSelections ?? question.config?.maxSelections,
+            displayType: question.displayType || question.config?.displayType,
+            enableHighAccuracy: question.enableHighAccuracy ?? question.config?.enableHighAccuracy,
+            timeout: question.timeout ?? question.config?.timeout,
+            accuracy: question.accuracy ?? question.config?.accuracy,
+            allowManualInput: question.allowManualInput ?? question.config?.allowManualInput,
+            captureAddress: question.captureAddress ?? question.config?.captureAddress,
+            showMap: question.showMap ?? question.config?.showMap,
+            maxFiles: question.maxFiles ?? question.config?.maxFiles,
+            maxFileSize: question.maxFileSize ?? question.config?.maxFileSize,
+            allowedFormats: question.allowedFormats || question.config?.allowedFormats,
+            allowMultiple: question.allowMultiple ?? question.config?.allowMultiple,
+            previewSize: question.previewSize ?? question.config?.previewSize,
+            compressionQuality: question.compressionQuality ?? question.config?.compressionQuality,
+            quality: question.quality ?? question.config?.quality,
+            autoCompress: question.autoCompress ?? question.config?.autoCompress,
+            showPreview: question.showPreview ?? question.config?.showPreview,
+            min: question.min ?? question.config?.min,
+            max: question.max ?? question.config?.max,
+            step: question.step ?? question.config?.step,
+            placeholder: question.placeholder || question.config?.placeholder,
+            defaultScaleType: question.defaultScaleType || question.config?.defaultScaleType,
+            defaultLabels: question.defaultLabels || question.config?.defaultLabels,
           };
           if (linkedActivities.length > 0) {
             questionConfig.linkedActivities = linkedActivities;
@@ -211,14 +240,124 @@ class SupabaseFormsService {
 
     if (error) throw new Error(`Failed to fetch forms: ${error.message}`);
 
+    // Fetch response counts and last response dates for all forms in a single query
+    const formIds = (forms || []).map((f: any) => f.id);
+    const responseStatsMap = new Map<string, { count: number; lastResponseAt: string | null }>();
+    
+    if (formIds.length > 0) {
+      // Get response counts grouped by formId
+      const { data: responseCounts, error: countError } = await supabase
+        .from('form_responses')
+        .select('formId, submittedAt')
+        .eq('organizationid', organizationId)
+        .in('formId', formIds);
+      
+      if (!countError && responseCounts) {
+        // Group by formId and calculate stats
+        const groupedByForm = responseCounts.reduce((acc: any, response: any) => {
+          const formId = response.formId;
+          if (!acc[formId]) {
+            acc[formId] = { count: 0, lastResponseAt: null };
+          }
+          acc[formId].count++;
+          
+          // Track the latest submittedAt
+          if (response.submittedAt) {
+            const currentLast = acc[formId].lastResponseAt;
+            if (!currentLast || new Date(response.submittedAt) > new Date(currentLast)) {
+              acc[formId].lastResponseAt = response.submittedAt;
+            }
+          }
+          return acc;
+        }, {});
+        
+        // Convert to Map for easy lookup
+        Object.entries(groupedByForm).forEach(([formId, stats]: [string, any]) => {
+          responseStatsMap.set(formId, stats);
+        });
+      }
+    }
+
     // Transform the data to match expected structure
-    return (forms || []).map((form: any) => ({
-      ...form,
-      sections: (form.sections || []).map((section: any) => ({
-        ...section,
-        questions: section.questions || [],
-      })).sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
-    }));
+    // Use the fetched response stats instead of making per-form queries
+    const transformedForms = (forms || []).map((form: any) => {
+      const stats = responseStatsMap.get(form.id) || { count: 0, lastResponseAt: null };
+      const actualResponseCount = stats.count;
+      const lastResponseAt = stats.lastResponseAt || form.lastResponseAt;
+      
+      // Update form if counts don't match (background sync)
+      if (actualResponseCount !== (form.responseCount || 0)) {
+        console.log('🔄 [supabaseFormsService.getProjectForms] Syncing responseCount for form:', {
+          formId: form.id,
+          storedCount: form.responseCount || 0,
+          actualCount: actualResponseCount,
+          updating: true
+        });
+        
+        // Update in background (don't await to avoid blocking)
+        supabase
+          .from('forms')
+          .update({ 
+            responseCount: actualResponseCount,
+            lastResponseAt: lastResponseAt || null
+          })
+          .eq('id', form.id)
+          .then(({ error }) => {
+            if (error) {
+              console.error('❌ Failed to sync responseCount for form:', form.id, error);
+            } else {
+              console.log('✅ Synced responseCount for form:', form.id, 'to', actualResponseCount);
+            }
+          });
+      }
+      
+      return {
+        ...form,
+        responseCount: actualResponseCount, // Use actual count
+        lastResponseAt, // Use actual last response date
+        sections: (form.sections || []).map((section: any) => ({
+          ...section,
+          questions: (section.questions || []).map((question: any) => {
+            // Transform question to extract options and other config properties
+            if (!question.config) return question;
+            
+            const config = typeof question.config === 'string' ? JSON.parse(question.config) : question.config;
+            
+            return {
+              ...question,
+              options: config.options || [],
+              // Extract other config properties that might be expected at top level
+              placeholder: config.placeholder,
+              min: config.min,
+              max: config.max,
+              step: config.step,
+              allowOther: config.allowOther,
+              maxSelections: config.maxSelections,
+              displayType: config.displayType,
+              statements: config.statements,
+              defaultScaleType: config.defaultScaleType,
+              defaultLabels: config.defaultLabels,
+              // Preserve the original config
+              config
+            };
+          }),
+        })).sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
+      };
+    });
+    
+    console.log('📋 [supabaseFormsService.getProjectForms] Loaded forms:', {
+      projectId,
+      formsCount: transformedForms.length,
+      formsWithResponseCount: transformedForms.map(f => ({
+        id: f.id,
+        title: f.title,
+        responseCount: f.responseCount,
+        lastResponseAt: f.lastResponseAt,
+        status: f.status
+      }))
+    });
+    
+    return transformedForms;
   }
 
   async getForm(projectId: string, formId: string): Promise<FormWithSections> {
@@ -243,12 +382,35 @@ class SupabaseFormsService {
 
     if (error) throw new Error(`Failed to fetch form: ${error.message}`);
 
-    // Transform the data
+    // Transform the data - extract options and other config properties from questions
     return {
       ...form,
       sections: (form.sections || []).map((section: any) => ({
         ...section,
-        questions: (section.questions || []).sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
+        questions: (section.questions || []).map((question: any) => {
+          // Transform question to extract options and other config properties
+          if (!question.config) return question;
+          
+          const config = typeof question.config === 'string' ? JSON.parse(question.config) : question.config;
+          
+          return {
+            ...question,
+            options: config.options || [],
+            // Extract other config properties that might be expected at top level
+            placeholder: config.placeholder,
+            min: config.min,
+            max: config.max,
+            step: config.step,
+            allowOther: config.allowOther,
+            maxSelections: config.maxSelections,
+            displayType: config.displayType,
+            statements: config.statements,
+            defaultScaleType: config.defaultScaleType,
+            defaultLabels: config.defaultLabels,
+            // Preserve the original config
+            config
+          };
+        }).sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
       })).sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
     };
   }
@@ -446,11 +608,35 @@ class SupabaseFormsService {
       throw new Error('Form has expired');
     }
 
+    // Transform the data - extract options and other config properties from questions
     return {
       ...form,
       sections: (form.sections || []).map((section: any) => ({
         ...section,
-        questions: (section.questions || []).sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
+        questions: (section.questions || []).map((question: any) => {
+          // Transform question to extract options and other config properties
+          if (!question.config) return question;
+          
+          const config = typeof question.config === 'string' ? JSON.parse(question.config) : question.config;
+          
+          return {
+            ...question,
+            options: config.options || [],
+            // Extract other config properties that might be expected at top level
+            placeholder: config.placeholder,
+            min: config.min,
+            max: config.max,
+            step: config.step,
+            allowOther: config.allowOther,
+            maxSelections: config.maxSelections,
+            displayType: config.displayType,
+            statements: config.statements,
+            defaultScaleType: config.defaultScaleType,
+            defaultLabels: config.defaultLabels,
+            // Preserve the original config
+            config
+          };
+        }).sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
       })).sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
     };
   }
@@ -471,11 +657,35 @@ class SupabaseFormsService {
 
     if (error) throw new Error(`Failed to fetch secure form: ${error.message}`);
 
+    // Transform the data - extract options and other config properties from questions
     return {
       ...form,
       sections: (form.sections || []).map((section: any) => ({
         ...section,
-        questions: (section.questions || []).sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
+        questions: (section.questions || []).map((question: any) => {
+          // Transform question to extract options and other config properties
+          if (!question.config) return question;
+          
+          const config = typeof question.config === 'string' ? JSON.parse(question.config) : question.config;
+          
+          return {
+            ...question,
+            options: config.options || [],
+            // Extract other config properties that might be expected at top level
+            placeholder: config.placeholder,
+            min: config.min,
+            max: config.max,
+            step: config.step,
+            allowOther: config.allowOther,
+            maxSelections: config.maxSelections,
+            displayType: config.displayType,
+            statements: config.statements,
+            defaultScaleType: config.defaultScaleType,
+            defaultLabels: config.defaultLabels,
+            // Preserve the original config
+            config
+          };
+        }).sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
       })).sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
     };
   }
@@ -587,13 +797,37 @@ class SupabaseFormsService {
     }
 
     // Update form response count
-    await supabase
+    const currentResponseCount = form.responseCount || 0;
+    const newResponseCount = currentResponseCount + 1;
+    const lastResponseAt = new Date().toISOString();
+    
+    console.log('📊 [supabaseFormsService.createResponse] Updating form response count:', {
+      formId: responseData.formId,
+      currentResponseCount,
+      newResponseCount,
+      lastResponseAt
+    });
+    
+    const { error: updateError, data: updatedForm } = await supabase
       .from('forms')
       .update({ 
-        responseCount: (form.responseCount || 0) + 1,
-        lastResponseAt: new Date().toISOString(),
+        responseCount: newResponseCount,
+        lastResponseAt: lastResponseAt,
       })
-      .eq('id', responseData.formId);
+      .eq('id', responseData.formId)
+      .select()
+      .single();
+    
+    if (updateError) {
+      console.error('❌ [supabaseFormsService.createResponse] Failed to update form response count:', updateError);
+      // Don't throw - response was created successfully, just count update failed
+    } else {
+      console.log('✅ [supabaseFormsService.createResponse] Form response count updated:', {
+        formId: responseData.formId,
+        newResponseCount: updatedForm?.responseCount,
+        lastResponseAt: updatedForm?.lastResponseAt
+      });
+    }
 
     // Note: Usage tracking is now handled by database trigger (track_form_response_insert)
     // This ensures atomicity and better performance. All responses are tracked (complete and incomplete).
@@ -683,21 +917,93 @@ class SupabaseFormsService {
       .eq('organizationid', organizationId) // Filter by organization
       .eq('isComplete', false);
 
+    console.log('📋 [supabaseFormsService.getFormResponses] Raw responses from Supabase:', {
+      responseCount: responses?.length || 0,
+      emptyResponsesCount: responses?.filter(r => !r.questionResponses || r.questionResponses.length === 0).length || 0,
+      responsesWithData: responses?.filter(r => r.questionResponses && r.questionResponses.length > 0).length || 0,
+      responsesSummary: responses?.map(r => ({
+        id: r.id,
+        isComplete: r.isComplete,
+        source: r.source,
+        questionResponsesCount: r.questionResponses?.length || 0,
+        startedAt: r.startedAt,
+        submittedAt: r.submittedAt
+      })) || [],
+      sampleResponse: responses?.[0] ? {
+        id: responses[0].id,
+        formId: responses[0].formId,
+        isComplete: responses[0].isComplete,
+        source: responses[0].source,
+        questionResponsesCount: responses[0].questionResponses?.length || 0,
+        questionResponsesSample: responses[0].questionResponses?.slice(0, 3).map((qr: any) => ({
+          questionId: qr.questionId,
+          value: qr.value,
+          valueType: typeof qr.value
+        })) || []
+      } : null
+    });
+
+    const mappedResponses = (responses || []).map((r: any) => {
+      // Aggregate question responses into data object
+      const data: Record<string, any> = {};
+      if (r.questionResponses && Array.isArray(r.questionResponses)) {
+        r.questionResponses.forEach((qr: any) => {
+          // Parse JSONB value if it's a string, otherwise use as-is
+          let parsedValue = qr.value;
+          if (typeof qr.value === 'string') {
+            try {
+              parsedValue = JSON.parse(qr.value);
+            } catch (e) {
+              // Not JSON, use as string
+              parsedValue = qr.value;
+            }
+          }
+          data[qr.questionId] = parsedValue;
+        });
+      }
+      
+      const hasData = Object.keys(data).length > 0;
+      if (!hasData) {
+        console.warn('⚠️ [supabaseFormsService.getFormResponses] Response has no question data:', {
+          responseId: r.id,
+          isComplete: r.isComplete,
+          source: r.source,
+          startedAt: r.startedAt,
+          submittedAt: r.submittedAt,
+          questionResponsesRaw: r.questionResponses,
+          possibleCause: r.questionResponses ? 'Question responses exist but failed to map' : 'No question responses in database'
+        });
+      } else {
+        console.log('📋 [supabaseFormsService.getFormResponses] Mapped response:', {
+          responseId: r.id,
+          dataKeys: Object.keys(data),
+          dataCount: Object.keys(data).length,
+          dataSample: Object.entries(data).slice(0, 3).reduce((acc, [key, value]) => {
+            acc[key] = typeof value === 'object' ? JSON.stringify(value).substring(0, 50) : value;
+            return acc;
+          }, {} as Record<string, any>)
+        });
+      }
+      
+      return {
+        ...r,
+        data,
+        attachments: r.attachments || [],
+      };
+    });
+
+    console.log('📊 [supabaseFormsService.getFormResponses] Final result:', {
+      totalResponses: mappedResponses.length,
+      totalCount: count || 0,
+      stats: {
+        totalAll: totalAll || 0,
+        totalComplete: totalComplete || 0,
+        totalIncomplete: totalIncomplete || 0,
+      }
+    });
+
     return {
-      responses: (responses || []).map((r: any) => {
-        // Aggregate question responses into data object
-        const data: Record<string, any> = {};
-        if (r.questionResponses) {
-          r.questionResponses.forEach((qr: any) => {
-            data[qr.questionId] = qr.value;
-          });
-        }
-        return {
-          ...r,
-          data,
-          attachments: r.attachments || [],
-        };
-      }),
+      responses: mappedResponses,
       total: count || 0,
       page,
       limit,

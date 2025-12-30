@@ -32,7 +32,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { createEnhancedPermissionManager } from '@/lib/permissions';
-import { useForm } from '@/contexts/FormContext';
+import { useForm, FormContext } from '@/contexts/FormContext';
+import { useContext } from 'react';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { toast } from '@/hooks/use-toast';
 import { Form } from './form-creation-wizard/types';
@@ -54,7 +55,22 @@ export function FormManagement() {
   const { projectId } = useParams();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const permissionManager = createEnhancedPermissionManager({ user, isAuthenticated, isLoading: authLoading });
-  const { getProjectForms, loadProjectForms, duplicateForm, deleteForm, projectForms } = useForm();
+  
+  // Safely access FormContext - it should be available but handle gracefully if not
+  const formContext = useContext(FormContext);
+  if (!formContext) {
+    console.error('FormManagement: FormContext is not available. FormProvider must wrap this component.');
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-lg font-medium text-gray-900 mb-2">Form Context Error</p>
+          <p className="text-gray-600">FormProvider is required for this component to work.</p>
+        </div>
+      </div>
+    );
+  }
+  
+  const { getProjectForms, loadProjectForms, duplicateForm, deleteForm, projectForms } = formContext;
   
   // Get forms from context for the current project
   const forms = projectId ? (projectForms[projectId] || []) : [];
@@ -80,8 +96,16 @@ export function FormManagement() {
         
         try {
           // Load forms using context method - this will update the context state
-          await loadProjectForms(projectId);
-          console.log('✅ FormManagement: Loaded forms from context');
+          const loadedForms = await loadProjectForms(projectId);
+          console.log('✅ FormManagement: Loaded forms from context:', {
+            formsCount: loadedForms.length,
+            formsWithResponseCount: loadedForms.map(f => ({
+              id: f.id,
+              title: f.title,
+              responseCount: f.responseCount,
+              lastResponseAt: f.lastResponseAt
+            }))
+          });
         } catch (error) {
           console.error('Error loading forms:', error);
           toast({
@@ -539,7 +563,17 @@ export function FormManagement() {
             <div className="flex items-center">
               <Users className="w-8 h-8 text-purple-600" />
               <div className="ml-4">
-                <p className="text-2xl font-bold">{forms.reduce((sum, form) => sum + form.responseCount, 0)}</p>
+                <p className="text-2xl font-bold">
+                  {(() => {
+                    const total = forms.reduce((sum, form) => sum + (form.responseCount || 0), 0);
+                    console.log('📊 [FormManagement] Calculating total responses:', {
+                      formsCount: forms.length,
+                      formsWithResponseCount: forms.map(f => ({ id: f.id, title: f.title, responseCount: f.responseCount })),
+                      total
+                    });
+                    return total;
+                  })()}
+                </p>
                 <p className="text-xs text-gray-500">Total Responses</p>
               </div>
             </div>

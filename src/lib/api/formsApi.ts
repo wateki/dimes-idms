@@ -15,7 +15,7 @@ function convertSupabaseFormToForm(supabaseForm: any): Form {
 
 // Helper function to convert Supabase form response (with string dates) to FormResponse type (with Date objects)
 function convertSupabaseResponseToFormResponse(supabaseResponse: any): FormResponse {
-  return {
+  const converted = {
     ...supabaseResponse,
     startedAt: new Date(supabaseResponse.startedAt),
     submittedAt: supabaseResponse.submittedAt ? new Date(supabaseResponse.submittedAt) : undefined,
@@ -24,6 +24,19 @@ function convertSupabaseResponseToFormResponse(supabaseResponse: any): FormRespo
       uploadedAt: new Date(att.uploadedAt),
     })) || [],
   } as FormResponse;
+  
+  console.log('🔄 [formsApi.convertSupabaseResponseToFormResponse] Converting response:', {
+    responseId: supabaseResponse.id,
+    hasData: !!supabaseResponse.data,
+    dataKeys: supabaseResponse.data ? Object.keys(supabaseResponse.data) : [],
+    dataCount: supabaseResponse.data ? Object.keys(supabaseResponse.data).length : 0,
+    dataSample: supabaseResponse.data ? Object.entries(supabaseResponse.data).slice(0, 3).reduce((acc, [key, value]) => {
+      acc[key] = typeof value === 'object' ? JSON.stringify(value).substring(0, 50) : value;
+      return acc;
+    }, {} as Record<string, any>) : null
+  });
+  
+  return converted;
 }
 
 // Helper function to convert Supabase template to FormTemplate type

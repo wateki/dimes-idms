@@ -57,7 +57,7 @@
   }
   
   .ps-menu-button.ps-active {
-    @apply bg-emerald-50 text-emerald-700 border-emerald-200;
+    @apply bg-green-50 text-green-700 border-green-200;
   }
   
   .ps-submenu-content {
@@ -184,58 +184,89 @@ button:focus-visible {
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Background & Foreground - Using light grays and whites */
+    --background: 0 0% 97%; /* #F7F7F7 */
+    --foreground: 0 0% 12%; /* #1F1F1F */
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 0 0% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 152 76% 35%; /* emerald-600 */
+    --popover-foreground: 0 0% 12%;
+    
+    /* Primary - Medium Emerald Green (#499951, #53A551, #579D47) */
+    --primary: 125 35% 45%; /* #499951 - primary green */
     --primary-foreground: 0 0% 100%;
-    --secondary: 150 40% 96%;
-    --secondary-foreground: 222.2 84% 4.9%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222.2 84% 4.9%;
-    --destructive: 2 71% 42%;
+    
+    /* Secondary - Light Emerald Green (#D3FBD6, #76EFB2) */
+    --secondary: 130 60% 90%; /* #D3FBD6 - light green */
+    --secondary-foreground: 125 35% 25%; /* #285627 - dark green */
+    
+    /* Muted - Cool Grays (#DCE3DC, #B4BCB4, #8F958F) */
+    --muted: 120 5% 88%; /* #DCE3DC - light cool gray */
+    --muted-foreground: 0 0% 45%; /* #6E6E6E - medium gray */
+    
+    /* Accent - Warm Orange/Golden (#F89736, #FDB437) */
+    --accent: 30 90% 60%; /* #F89736 - vibrant orange */
+    --accent-foreground: 0 0% 100%;
+    
+    /* Destructive - Reddish Brown (#C37628, #91561B) */
+    --destructive: 25 65% 45%; /* #91561B - dark brown-red */
     --destructive-foreground: 0 0% 100%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 152 76% 35%;
-    --chart-1: 152 76% 35%;
-    --chart-2: 140 40% 45%;
-    --chart-3: 110 30% 35%;
-    --chart-4: 170 35% 45%;
-    --chart-5: 95 30% 40%;
+    
+    /* Borders & Inputs - Light Grays (#CFCFCF, #A7A7A7) */
+    --border: 0 0% 81%; /* #CFCFCF */
+    --input: 0 0% 81%;
+    --ring: 125 35% 45%; /* Match primary */
+    
+    /* Chart Colors - Using palette greens and oranges */
+    --chart-1: 125 35% 45%; /* #499951 - primary green */
+    --chart-2: 30 90% 60%; /* #F89736 - orange */
+    --chart-3: 40 95% 55%; /* #FDB437 - golden */
+    --chart-4: 100 65% 60%; /* #90C75F - lime green */
+    --chart-5: 140 30% 50%; /* #579D47 - forest green */
+    
     --radius: 0.5rem;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 152 64% 30%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 152 64% 30%;
-    --chart-1: 152 76% 35%;
-    --chart-2: 140 40% 45%;
-    --chart-3: 110 30% 35%;
-    --chart-4: 170 35% 45%;
-    --chart-5: 95 30% 40%;
+    /* Dark mode - Using dark greens and grays from palette */
+    --background: 0 0% 12%; /* #1F1F1F - very dark gray */
+    --foreground: 0 0% 97%; /* #F7F7F7 - light gray */
+    --card: 0 0% 15%; /* Slightly lighter than background */
+    --card-foreground: 0 0% 97%;
+    --popover: 0 0% 15%;
+    --popover-foreground: 0 0% 97%;
+    
+    /* Primary - Darker green for dark mode (#34713A, #3D7D3C) */
+    --primary: 125 35% 35%; /* #34713A - darker green */
+    --primary-foreground: 0 0% 100%;
+    
+    /* Secondary - Dark olive green (#395223, #547736) */
+    --secondary: 100 30% 25%; /* #395223 - dark olive */
+    --secondary-foreground: 0 0% 97%;
+    
+    /* Muted - Dark cool grays (#2B2D2B, #4A4D4A) */
+    --muted: 120 3% 18%; /* #2B2D2B - dark cool gray */
+    --muted-foreground: 0 0% 65%; /* #A7A7A7 - medium gray */
+    
+    /* Accent - Darker orange (#C37628, #91561B) */
+    --accent: 25 65% 40%; /* #C37628 - darker orange */
+    --accent-foreground: 0 0% 100%;
+    
+    /* Destructive - Dark brown (#62390F, #371D05) */
+    --destructive: 25 75% 20%; /* #62390F - dark brown */
+    --destructive-foreground: 0 0% 100%;
+    
+    /* Borders & Inputs - Dark grays */
+    --border: 120 3% 25%; /* #4A4D4A - dark cool gray */
+    --input: 120 3% 25%;
+    --ring: 125 35% 35%; /* Match primary */
+    
+    /* Chart Colors - Adjusted for dark mode */
+    --chart-1: 125 35% 50%; /* Lighter green for visibility */
+    --chart-2: 30 85% 55%; /* Orange */
+    --chart-3: 40 90% 60%; /* Golden */
+    --chart-4: 100 60% 65%; /* Lime green */
+    --chart-5: 140 35% 55%; /* Forest green */
   }
 }
 

@@ -95,7 +95,7 @@ export const Login: React.FC<LoginProps> = () => {
 
 
   return (
-    <div className="min-h-screen w-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div className="min-h-screen w-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 to-emerald-50/50 p-4">
       <div className="w-full max-w-md space-y-6">
         {/* Main Login Form */}
         <Card className="shadow-lg">
@@ -219,7 +219,7 @@ export const Login: React.FC<LoginProps> = () => {
         <div className="text-center pt-4">
           <p className="text-sm text-muted-foreground">
             Don't have an organization account?{' '}
-            <a href="/signup" className="text-blue-600 hover:underline font-medium">
+            <a href="/signup" className="text-emerald-600 hover:underline font-medium">
               Create one now
             </a>
           </p>

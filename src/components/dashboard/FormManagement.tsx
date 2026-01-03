@@ -34,6 +34,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { createEnhancedPermissionManager } from '@/lib/permissions';
 import { useForm, FormContext } from '@/contexts/FormContext';
 import { useContext } from 'react';
+import { useDashboard } from '@/contexts/DashboardContext';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { toast } from '@/hooks/use-toast';
 import { Form } from './form-creation-wizard/types';
@@ -54,6 +55,7 @@ export function FormManagement() {
   const navigate = useNavigate();
   const { projectId } = useParams();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { currentProject } = useDashboard();
   const permissionManager = createEnhancedPermissionManager({ user, isAuthenticated, isLoading: authLoading });
   
   // Safely access FormContext - it should be available but handle gracefully if not
@@ -130,8 +132,8 @@ export function FormManagement() {
 
 
   
-  // Get project name from context or use a default
-  const projectName = projectId ? `Project ${projectId.toUpperCase()}` : 'Unknown Project';
+  // Get project name from DashboardContext or fallback to project ID
+  const projectName = currentProject?.name || (projectId ? `Project ${projectId.toUpperCase()}` : 'Unknown Project');
 
   // Save filters to localStorage when they change
   useEffect(() => {

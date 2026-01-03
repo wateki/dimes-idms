@@ -42,6 +42,11 @@ import { StrategicPlanEdit } from '@/components/dashboard/StrategicPlanEdit';
 import { Profile } from '@/components/dashboard/Profile';
 import { PublicFormFiller } from '@/components/public/PublicFormFiller';
 import { PublicLanding } from '@/components/public/PublicLanding';
+import { LandingPage } from '@/components/public/LandingPage';
+import { AboutPage } from '@/components/public/AboutPage';
+import { FeaturesPage } from '@/components/public/FeaturesPage';
+import { PricingPage } from '@/components/public/PricingPage';
+import { SupportPage } from '@/components/public/SupportPage';
 import { PublicFeedbackSubmission } from '@/components/public/PublicFeedbackSubmission';
 import { ProjectsApiTest } from '@/components/dashboard/ProjectsApiTest';
 import { FeedbackRoutes } from '@/components/dashboard/feedback/FeedbackRoutes';
@@ -150,10 +155,14 @@ function AppWithNotifications() {
   
   return (
     <>
-      <Routes>
+        <Routes>
           {/* Public routes - no context providers that require auth */}
           <Route path="/login" element={<Login />} />
-          <Route path="/" element={<Login />} />
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/features" element={<FeaturesPage />} />
+          <Route path="/pricing" element={<PricingPage />} />
+          <Route path="/support" element={<SupportPage />} />
           
           {/* Organization signup routes */}
           <Route path="/signup" element={<OrganizationSignup />} />

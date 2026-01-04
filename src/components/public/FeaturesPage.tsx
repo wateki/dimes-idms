@@ -212,6 +212,9 @@ export function FeaturesPage() {
               <Link to="/support" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
                 Support
               </Link>
+              <Link to="/contact" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
+                Contact
+              </Link>
               <Button variant="ghost" onClick={() => navigate('/login')}>
                 Sign In
               </Button>
@@ -245,6 +248,9 @@ export function FeaturesPage() {
                 </Link>
                 <Link to="/support" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
                   Support
+                </Link>
+                <Link to="/contact" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
+                  Contact
                 </Link>
                 <Button variant="ghost" className="justify-start" onClick={() => { navigate('/login'); setMobileMenuOpen(false); }}>
                   Sign In
@@ -315,7 +321,7 @@ export function FeaturesPage() {
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">And More</h2>
             <p className="text-xl text-gray-600">
-              Additional features that make IDMS the complete solution for your organization
+              Additional features that make DIMES the complete solution for your organization
             </p>
           </div>
 
@@ -349,7 +355,7 @@ export function FeaturesPage() {
             Ready to Experience These Features?
           </h2>
           <p className="text-xl text-emerald-50 mb-8">
-            Start your free trial and see how IDMS can transform your organization
+            Start your free trial and see how DIMES can transform your organization
           </p>
           <Button 
             size="lg" 

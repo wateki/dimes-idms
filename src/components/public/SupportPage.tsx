@@ -16,7 +16,7 @@ import { Footer } from '@/components/shared/Footer';
 
 const testimonials = [
   {
-    quote: "Dimes IDMS support doesn't just answer tickets, they open doors. Onboarding was a masterclass.",
+    quote: "Dimes System support doesn't just answer tickets, they open doors. Onboarding was a masterclass.",
     name: 'Fatima N., Digital MEAL Lead',
     org: 'Save Africa Coalition',
   },
@@ -26,7 +26,7 @@ const testimonials = [
     org: 'OneWorld Responders',
   },
   {
-    quote: 'Training with Dimes IDMS got us reporting results—even our field teams rave about it.',
+    quote: 'Training with DIMES System got us reporting results—even our field teams rave about it.',
     name: 'Josephine K., Project Manager',
     org: 'Global Youth Fund',
   },
@@ -116,6 +116,9 @@ export function SupportPage() {
               <Link to="/support" className="text-sm font-medium text-emerald-600">
                 Support
               </Link>
+              <Link to="/contact" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
+                Contact
+              </Link>
               <Button variant="ghost" onClick={() => navigate('/login')}>
                 Sign In
               </Button>
@@ -150,6 +153,9 @@ export function SupportPage() {
                 <Link to="/support" className="text-sm font-medium text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
                   Support
                 </Link>
+                <Link to="/contact" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
+                  Contact
+                </Link>
                 <Button variant="ghost" className="justify-start" onClick={() => { navigate('/login'); setMobileMenuOpen(false); }}>
                   Sign In
                 </Button>
@@ -178,7 +184,7 @@ export function SupportPage() {
             Enterprise-grade support that scales with your organization. From implementation to optimization, 
             we're committed to your long-term success.
           </div>
-          <Button size="lg" className="text-lg px-8 py-6 h-auto bg-emerald-600 hover:bg-emerald-700 shadow-lg" onClick={() => navigate('/signup')}>
+          <Button size="lg" className="text-lg px-8 py-6 h-auto bg-emerald-600 hover:bg-emerald-700 shadow-lg" onClick={() => navigate('/contact')}>
             Talk to Our Team
             <ArrowRight className="ml-2 w-5 h-5" />
           </Button>
@@ -191,7 +197,7 @@ export function SupportPage() {
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">Comprehensive Support Ecosystem</h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Multi-channel support designed to ensure your success at every stage of your journey with Dimes IDMS.
+              Multi-channel support designed to ensure your success at every stage of your journey with DIMES System.
             </p>
           </div>
           
@@ -270,7 +276,7 @@ export function SupportPage() {
             <CardHeader className="pb-4">
               <h2 className="text-4xl font-bold mb-3 text-gray-900">Ready to Get Started?</h2>
               <CardDescription className="text-xl text-gray-700">
-                Join humanitarian organizations worldwide who trust Dimes IDMS to power their data infrastructure.
+                Join humanitarian organizations worldwide who trust DIMES System to power their data infrastructure.
               </CardDescription>
             </CardHeader>
             <CardContent>

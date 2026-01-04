@@ -53,10 +53,11 @@ export function useSubscriptionPaymentListener(isWaitingForPayment: boolean) {
 
   useEffect(() => {
     // Track the initial subscription status
-    if (organization && !previousStatusRef.current) {
+    // Use organization?.id and organization?.subscriptionStatus to prevent infinite loops
+    if (organization?.id && organization?.subscriptionStatus && !previousStatusRef.current) {
       previousStatusRef.current = organization.subscriptionStatus;
     }
-  }, [organization]);
+  }, [organization?.id, organization?.subscriptionStatus]);
 
   useEffect(() => {
     if (!shouldListen || !organization?.id || hasNavigatedRef.current) {

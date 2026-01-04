@@ -7,16 +7,16 @@ export function Footer() {
       <div className="container mx-auto max-w-6xl">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           <div>
-            <div className="flex items-center space-x-2 mb-4">
+            <div className="flex items-center space-x-2 ">
               <img 
-                src="/logo.jpg" 
+                src="/logo.png" 
                 alt="Dimes IDMS Logo" 
-                className="w-8 h-8 object-contain"
+                className="w-20 h-20 object-contain"
               />
-              <span className="text-white dark:text-gray-100 font-bold">Dimes IDMS</span>
+              
             </div>
             <p className="text-sm">
-              Integrated Data Management System for humanitarian organizations
+              DIMES System - Integrated Data Management System for humanitarian organizations
             </p>
           </div>
           <div>
@@ -41,7 +41,7 @@ export function Footer() {
             <h3 className="text-white dark:text-gray-100 font-semibold mb-4">Company</h3>
             <ul className="space-y-2 text-sm">
               <li><Link to="/about" className="hover:text-emerald-400 dark:hover:text-emerald-300 transition-colors">About</Link></li>
-              <li><a href="#" className="hover:text-emerald-400 dark:hover:text-emerald-300 transition-colors">Contact</a></li>
+              <li><Link to="/contact" className="hover:text-emerald-400 dark:hover:text-emerald-300 transition-colors">Contact</Link></li>
               <li><a href="#" className="hover:text-emerald-400 dark:hover:text-emerald-300 transition-colors">Privacy</a></li>
               <li><a href="#" className="hover:text-emerald-400 dark:hover:text-emerald-300 transition-colors">Terms</a></li>
             </ul>

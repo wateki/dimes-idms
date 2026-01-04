@@ -93,6 +93,9 @@ export function AboutPage() {
               <Link to="/support" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
                 Support
               </Link>
+              <Link to="/contact" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
+                Contact
+              </Link>
               <Button variant="ghost" onClick={() => navigate('/login')}>
                 Sign In
               </Button>
@@ -126,6 +129,9 @@ export function AboutPage() {
                 </Link>
                 <Link to="/support" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
                   Support
+                </Link>
+                <Link to="/contact" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
+                  Contact
                 </Link>
                 <Button variant="ghost" className="justify-start" onClick={() => { navigate('/login'); setMobileMenuOpen(false); }}>
                   Sign In
@@ -167,13 +173,13 @@ export function AboutPage() {
           <Card className="border-2 border-emerald-100 bg-gradient-to-br from-white to-emerald-50/30">
             <CardContent className="p-8">
               <p className="text-lg text-gray-700 leading-relaxed">
-                Dimes IDMS was born from a simple truth: humanitarian organizations shouldn't struggle with data. 
+                Dimes System was born from a simple truth: humanitarian organizations shouldn't struggle with data. 
                 We built a platform that harmonizes information across teams, projects, and partners—automatically 
                 and reliably—so you can focus on your mission, not your spreadsheets.
               </p>
               <p className="text-lg text-gray-700 leading-relaxed mt-6">
                 Whether you're coordinating multi-country programs or tracking impact across partners, 
-                Dimes IDMS works quietly in the background, ensuring your data is always accurate, accessible, and actionable.
+                Dimes System works quietly in the background, ensuring your data is always accurate, accessible, and actionable.
               </p>
             </CardContent>
           </Card>
@@ -213,11 +219,11 @@ export function AboutPage() {
         </div>
       </section>
 
-      {/* Why IDMS */}
+      {/* Why DIMES */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-grid-pattern">
         <div className="container mx-auto max-w-4xl">
           <div className="text-center mb-12">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Why IDMS?</h2>
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Why DIMES?</h2>
           </div>
 
           <div className="space-y-6">
@@ -232,7 +238,7 @@ export function AboutPage() {
               },
               {
                 title: 'Silent Operation',
-                description: 'IDMS works quietly in the background, harmonizing data and synchronizing information so you can focus on your mission, not on managing infrastructure.',
+                description: 'DIMES works quietly in the background, harmonizing data and synchronizing information so you can focus on your mission, not on managing infrastructure.',
               },
               {
                 title: 'Mobile-First Approach',
@@ -259,7 +265,7 @@ export function AboutPage() {
             Ready to Transform Your Organization?
           </h2>
           <p className="text-xl text-emerald-50 mb-8">
-            Join humanitarian organizations worldwide who trust IDMS
+            Join humanitarian organizations worldwide who trust DIMES
           </p>
           <Button 
             size="lg" 

@@ -225,6 +225,9 @@ export function LandingPage() {
               <Link to="/support" className="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
                 Support
               </Link>
+              <Link to="/contact" className="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+                Contact
+              </Link>
               <Button variant="ghost" onClick={() => navigate('/login')}>
                 Sign In
               </Button>
@@ -264,6 +267,9 @@ export function LandingPage() {
                 </Link>
                 <Link to="/support" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
                   Support
+                </Link>
+                <Link to="/contact" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
+                  Contact
                 </Link>
                 <Button variant="ghost" className="justify-start" onClick={() => { navigate('/login'); setMobileMenuOpen(false); }}>
                   Sign In
@@ -348,7 +354,7 @@ export function LandingPage() {
                 <div className="aspect-video bg-gradient-to-br from-emerald-100 via-emerald-50 to-white relative overflow-hidden">
                   <img 
                     src="/home-screenshot.png" 
-                    alt="Dimes IDMS Dashboard - Data harmonization and analytics platform"
+                    alt="Dimes Cloud System Dashboard - Data harmonization and analytics platform"
                     className="w-full h-full object-cover"
                   />
                 </div>
@@ -498,7 +504,7 @@ export function LandingPage() {
               The Silent Partner Your Organization Needs
             </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              IDMS doesn't disrupt your workflow—it enhances it. Working quietly in the background, 
+              DIMES doesn't disrupt your workflow—it enhances it. Working quietly in the background, 
               harmonizing data, synchronizing organizations, and ensuring your organization's data infrastructure 
               is always ready when you need it.
             </p>
@@ -608,7 +614,7 @@ export function LandingPage() {
               Built for Your Organization
             </h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Whether you're a humanitarian organization, MEAL organization, or project management organization, IDMS adapts to your workflow
+              Whether you're a humanitarian organization, MEAL organization, or project management organization, DIMES adapts to your workflow
             </p>
           </div>
 
@@ -665,7 +671,7 @@ export function LandingPage() {
             Ready to Transform Your Data Operations?
           </h2>
           <p className="text-xl text-green-50 mb-8 max-w-2xl mx-auto">
-            Join humanitarian organizations worldwide who trust IDMS to harmonize their data 
+            Join humanitarian organizations worldwide who trust DIMES to harmonize their data 
             and streamline their MEAL operations.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">

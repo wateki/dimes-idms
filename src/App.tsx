@@ -47,6 +47,7 @@ import { AboutPage } from '@/components/public/AboutPage';
 import { FeaturesPage } from '@/components/public/FeaturesPage';
 import { PricingPage } from '@/components/public/PricingPage';
 import { SupportPage } from '@/components/public/SupportPage';
+import { ContactPage } from '@/components/public/ContactPage';
 import { PublicFeedbackSubmission } from '@/components/public/PublicFeedbackSubmission';
 import { ProjectsApiTest } from '@/components/dashboard/ProjectsApiTest';
 import { FeedbackRoutes } from '@/components/dashboard/feedback/FeedbackRoutes';
@@ -163,6 +164,7 @@ function AppWithNotifications() {
           <Route path="/features" element={<FeaturesPage />} />
           <Route path="/pricing" element={<PricingPage />} />
           <Route path="/support" element={<SupportPage />} />
+          <Route path="/contact" element={<ContactPage />} />
           
           {/* Organization signup routes */}
           <Route path="/signup" element={<OrganizationSignup />} />

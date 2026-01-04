@@ -44,7 +44,7 @@ export function PricingPage() {
         'Up to 1 project',
         '5 forms and reports',
         '500 form submissions',
-        'Dimes Mobile App Access',
+        'Dimes Collect Mobile App Access',
         'Email support',
         'Basic features',
       ],
@@ -54,15 +54,15 @@ export function PricingPage() {
     {
       name: 'Basic',
       icon: Building2,
-      monthlyPrice: 99,
-      annualPrice: 1069, // 99 * 12 * 0.9 (10% discount)
+      monthlyPrice: 150,
+      annualPrice: 1620, // 150 * 12 * 0.9 (10% discount)
       description: 'For small to medium organizations',
       features: [
-        'Up to 5 users',
-        'Up to 3 projects',
+        'Up to 7 users',
+        'Up to 4 projects',
         'Unlimited forms and reports',
         '2500 form submissions per month',
-        'Dimes Mobile App Access',
+        'Dimes Collect Mobile App Access',
         'Priority support',
         'Advanced features',
       ],
@@ -80,7 +80,7 @@ export function PricingPage() {
         'Up to 10 projects',
         'Unlimited forms and reports',
         '10,000 form submissions per month',
-        'Dimes Mobile App Access',
+        'Dimes Collect Mobile App Access',
         'Dedicated Server Instance',
         'Priority support',
         'Advanced analytics',
@@ -100,7 +100,7 @@ export function PricingPage() {
         'Unlimited projects',
         'Unlimited forms and reports',
         'Unlimited form submissions per month',
-        'Dimes Mobile App Access',
+        'Dimes Collect Mobile App Access',
         'Multi-region Dedicated Server Instances',
         'Dedicated support',
         'Advanced analytics',
@@ -143,6 +143,9 @@ export function PricingPage() {
               <Link to="/support" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
                 Support
               </Link>
+              <Link to="/contact" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
+                Contact
+              </Link>
               <Button variant="ghost" onClick={() => navigate('/login')}>
                 Sign In
               </Button>
@@ -176,6 +179,9 @@ export function PricingPage() {
                 </Link>
                 <Link to="/support" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
                   Support
+                </Link>
+                <Link to="/contact" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
+                  Contact
                 </Link>
                 <Button variant="ghost" className="justify-start" onClick={() => { navigate('/login'); setMobileMenuOpen(false); }}>
                   Sign In

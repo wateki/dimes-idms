@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -26,13 +26,8 @@ export function PlansPricing() {
   // Listen for subscription status changes when waiting for payment
   useSubscriptionPaymentListener(waitingForPayment);
 
-  useEffect(() => {
-    if (organization) {
-      loadSubscription();
-    }
-  }, [organization]);
-
-  const loadSubscription = async () => {
+  // Memoize loadSubscription to prevent unnecessary re-renders
+  const loadSubscription = useCallback(async () => {
     try {
       setLoading(true);
       const sub = await supabaseOrganizationService.getSubscription();
@@ -42,13 +37,20 @@ export function PlansPricing() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // Plan code to amount mapping (amounts in cents for KES)
-  // Monthly plans (amounts in cents for USD)
+  // Use organization?.id instead of organization object to prevent infinite loops
+  useEffect(() => {
+    if (organization?.id) {
+      loadSubscription();
+    }
+  }, [organization?.id, loadSubscription]);
+
+  // Plan code to amount mapping (amounts in cents for USD)
+  // Monthly plans (amounts in cents for USD) - matching PricingPage.tsx
   const monthlyPlanAmounts: Record<string, number> = {
     'PLN_FREE': 0,                    // Free plan (local only, not in Paystack)
-    'PLN_5jjsgz1ivndtnxp': 9900,     // Basic Plan: $99 = 9,900 cents
+    'PLN_5jjsgz1ivndtnxp': 15000,    // Basic Plan: $150 = 15,000 cents
     'PLN_a7qqm2p4q9ejdpt': 40000,    // Professional Plan: $400 = 40,000 cents
     'PLN_9jsfo4c1d35od5q': 80000,    // Enterprise Plan: $800 = 80,000 cents
   };
@@ -60,9 +62,9 @@ export function PlansPricing() {
     'PLN_9jsfo4c1d35od5q': 'PLN_2w2w7d02awcarg9',   // Enterprise annual
   };
 
-  // Calculate annual amounts (monthly * 12 * 0.9 for 10% savings)
+  // Calculate annual amounts (monthly * 12 * 0.9 for 10% savings) - matching PricingPage.tsx
   const annualPlanAmounts: Record<string, number> = {
-    'PLN_f5n4d3g6x7cb3or': Math.round(9900 * 12 * 0.9),      // Basic annual: $1,069.20 = 106,920 cents
+    'PLN_f5n4d3g6x7cb3or': Math.round(15000 * 12 * 0.9),      // Basic annual: $1,620 = 162,000 cents
     'PLN_zekf4yw2rvdy957': Math.round(40000 * 12 * 0.9),    // Professional annual: $4,320 = 432,000 cents
     'PLN_2w2w7d02awcarg9': Math.round(80000 * 12 * 0.9),    // Enterprise annual: $8,640 = 864,000 cents
   };
@@ -114,54 +116,66 @@ export function PlansPricing() {
   // Determine if current subscription is annual or monthly
   // Try multiple possible field names (database uses lowercase, but might be transformed)
   // Also check paystackDetails which contains the full Paystack subscription object
-  const currentSubscriptionPlanCode = subscription?.paystackPlanCode || 
-                                     subscription?.paystackplancode || 
-                                     subscription?.paystack_plan_code ||
-                                     subscription?.planCode ||
-                                     subscription?.plan_code ||
-                                     subscription?.paystackDetails?.subscription?.plan?.plan_code ||
-                                     subscription?.paystackDetails?.plan?.plan_code ||
-                                     subscription?.paystackDetails?.plan_code;
-  const isCurrentSubscriptionAnnual = currentSubscriptionPlanCode 
-    ? isAnnualPlanCode(currentSubscriptionPlanCode)
-    : false;
+  const currentSubscriptionPlanCode = useMemo(() => 
+    subscription?.paystackPlanCode || 
+    subscription?.paystackplancode || 
+    subscription?.paystack_plan_code ||
+    subscription?.planCode ||
+    subscription?.plan_code ||
+    subscription?.paystackDetails?.subscription?.plan?.plan_code ||
+    subscription?.paystackDetails?.plan?.plan_code ||
+    subscription?.paystackDetails?.plan_code,
+    [subscription]
+  );
+  
+  const isCurrentSubscriptionAnnual = useMemo(() => 
+    currentSubscriptionPlanCode ? isAnnualPlanCode(currentSubscriptionPlanCode) : false,
+    [currentSubscriptionPlanCode]
+  );
 
-  // Plan definitions matching Paystack plans
-  const plans = [
+  // Memoize subscription tier to prevent unnecessary recalculations
+  const subscriptionTier = useMemo(() => organization?.subscriptionTier, [organization?.subscriptionTier]);
+
+  // Plan definitions matching Paystack plans - memoized to prevent infinite loops
+  const plans = useMemo(() => [
     {
       code: 'PLN_FREE',
       name: 'Free',
       price: '$0',
       period: 'month',
       amount: planAmounts['PLN_FREE'],
-      maxUsers: 5,
-      maxProjects: 3,
+      maxUsers: 2,
+      maxProjects: 1,
       features: [
-        'Up to 5 users',
-        'Up to 3 projects',
-        'Unlimited forms and reports',
+        'Up to 2 users',
+        'Up to 1 project',
+        '5 forms and reports',
+        '500 form submissions',
+        'Dimes Collect Mobile App Access',
         'Email support',
         'Basic features',
       ],
-      isCurrent: organization?.subscriptionTier === 'free',
+      isCurrent: subscriptionTier === 'free',
     },
     {
       code: 'PLN_5jjsgz1ivndtnxp',
       name: 'Basic',
-      price: '$99',
+      price: '$150',
       period: 'month',
       amount: planAmounts['PLN_5jjsgz1ivndtnxp'],
-      maxUsers: 20,
-      maxProjects: 10,
+      maxUsers: 7,
+      maxProjects: 4,
       features: [
-        'Up to 20 users',
-        'Up to 10 projects',
+        'Up to 7 users',
+        'Up to 4 projects',
         'Unlimited forms and reports',
+        '2500 form submissions per month',
+        'Dimes Collect Mobile App Access',
         'Priority support',
         'Advanced features',
       ],
       isCurrent: (() => {
-        const tierMatch = organization?.subscriptionTier === 'basic';
+        const tierMatch = subscriptionTier === 'basic';
         if (!tierMatch) return false;
         if (!currentSubscriptionPlanCode) return true; // Fallback if no plan code
         // Only show as current if toggle matches subscription type
@@ -183,12 +197,15 @@ export function PlansPricing() {
       price: '$400',
       period: 'month',
       amount: planAmounts['PLN_a7qqm2p4q9ejdpt'],
-      maxUsers: 50,
-      maxProjects: 25,
+      maxUsers: 20,
+      maxProjects: 10,
       features: [
-        'Up to 50 users',
-        'Up to 25 projects',
+        'Up to 20 users',
+        'Up to 10 projects',
         'Unlimited forms and reports',
+        '10,000 form submissions per month',
+        'Dimes Collect Mobile App Access',
+        'Dedicated Server Instance',
         'Priority support',
         'Advanced analytics',
         'Custom integrations',
@@ -222,6 +239,9 @@ export function PlansPricing() {
         'Unlimited users',
         'Unlimited projects',
         'Unlimited forms and reports',
+        'Unlimited form submissions per month',
+        'Dimes Collect Mobile App Access',
+        'Multi-region Dedicated Server Instances',
         'Dedicated support',
         'Advanced analytics',
         'Custom integrations',
@@ -229,7 +249,7 @@ export function PlansPricing() {
         'Custom training',
       ],
       isCurrent: (() => {
-        const tierMatch = organization?.subscriptionTier === 'enterprise';
+        const tierMatch = subscriptionTier === 'enterprise';
         if (!tierMatch) return false;
         if (!currentSubscriptionPlanCode) return true; // Fallback if no plan code
         const planCodeMatch = currentSubscriptionPlanCode.includes('9jsfo4c1d35od5q') || 
@@ -245,7 +265,7 @@ export function PlansPricing() {
         }
       })(),
     },
-  ];
+  ], [subscriptionTier, currentSubscriptionPlanCode, isCurrentSubscriptionAnnual, isAnnual]);
 
   const handleInitializeSubscription = async (planCode: string) => {
     if (!user?.email) {
@@ -440,16 +460,16 @@ export function PlansPricing() {
           // Only show current badge for paid plans, not for Free
           const showCurrentBadge = plan.isCurrent && !isFree;
           return (
-            <Card 
-              key={plan.code} 
-              className={`relative ${
-                isPopular 
-                  ? 'ring-2 ring-teal-500 border-teal-500 shadow-lg' 
-                  : plan.isCurrent && !isFree
-                    ? 'ring-2 ring-primary' 
-                    : ''
-              }`}
-            >
+            <div key={plan.code} className="flex flex-col h-full">
+              <Card 
+                className={`relative flex flex-col h-full ${
+                  isPopular 
+                    ? 'ring-2 ring-teal-500 border-teal-500 shadow-lg' 
+                    : plan.isCurrent && !isFree
+                      ? 'ring-2 ring-primary' 
+                      : ''
+                }`}
+              >
               {showCurrentBadge && (
                 <Badge className="absolute top-4 right-4" variant="default">
                   CURRENT
@@ -491,8 +511,8 @@ export function PlansPricing() {
                   )}
                 </div>
               </CardHeader>
-              <CardContent>
-                <ul className="space-y-3 mb-6">
+              <CardContent className="flex flex-col flex-1 min-w-0 overflow-hidden">
+                <ul className="space-y-3 mb-6 flex-1 min-w-0">
                   {plan.features.map((feature, index) => (
                     <li key={index} className="flex items-start">
                       <Check className="h-5 w-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
@@ -501,7 +521,7 @@ export function PlansPricing() {
                   ))}
                 </ul>
                 {plan.isCurrent ? (
-                  <Button disabled variant="outline" className="w-full">
+                  <Button disabled variant="outline" className="w-full mt-auto">
                     Current Plan
                   </Button>
                 ) : (
@@ -510,7 +530,7 @@ export function PlansPricing() {
                       const selectedPlanCode = getPlanCode(plan.code);
                       handleInitializeSubscription(selectedPlanCode);
                     }}
-                    className={`w-full ${
+                    className={`w-full mt-auto ${
                       isPopular 
                         ? 'bg-teal-600 hover:bg-teal-700 text-white' 
                         : ''
@@ -538,6 +558,7 @@ export function PlansPricing() {
                 )}
               </CardContent>
             </Card>
+            </div>
           );
         })}
       </div>

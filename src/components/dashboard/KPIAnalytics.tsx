@@ -66,9 +66,7 @@ export function KPIAnalytics() {
           <CardContent className="pt-6">
             <div className="text-center text-muted-foreground">
               <p>KPI data is not available for this project yet.</p>
-              <p className="text-sm mt-2">
-                Available projects with KPI data: MaMeb, VACIS Kenya, VACIS Tanzania, CDW, Kuimarisha, NPPP, AACL
-              </p>
+             
             </div>
           </CardContent>
         </Card>

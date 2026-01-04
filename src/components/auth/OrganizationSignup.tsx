@@ -25,12 +25,12 @@ function PlanSelectionSignup({
 }) {
   const [isAnnual, setIsAnnual] = useState(false);
 
-  // Plan code to amount mapping (amounts in cents for KES) - same as PlansPricing
+  // Plan code to amount mapping (amounts in cents for USD) - same as PlansPricing
   const monthlyPlanAmounts: Record<string, number> = {
     'PLN_FREE': 0,
-    'PLN_5jjsgz1ivndtnxp': 700000,
-    'PLN_a7qqm2p4q9ejdpt': 3599900,
-    'PLN_9jsfo4c1d35od5q': 9599900,
+    'PLN_5jjsgz1ivndtnxp': 9900,   // Basic: $99 = 9,900 cents
+    'PLN_a7qqm2p4q9ejdpt': 40000,  // Professional: $400 = 40,000 cents
+    'PLN_9jsfo4c1d35od5q': 80000,  // Enterprise: $800 = 80,000 cents
   };
 
   const annualPlanCodes: Record<string, string> = {
@@ -40,9 +40,9 @@ function PlanSelectionSignup({
   };
 
   const annualPlanAmounts: Record<string, number> = {
-    'PLN_f5n4d3g6x7cb3or': Math.round(700000 * 12 * 0.9),
-    'PLN_zekf4yw2rvdy957': Math.round(3599900 * 12 * 0.9),
-    'PLN_2w2w7d02awcarg9': Math.round(9599900 * 12 * 0.9),
+    'PLN_f5n4d3g6x7cb3or': Math.round(9900 * 12 * 0.9),    // Basic annual: $1,069.20 = 106,920 cents
+    'PLN_zekf4yw2rvdy957': Math.round(40000 * 12 * 0.9),   // Professional annual: $4,320 = 432,000 cents
+    'PLN_2w2w7d02awcarg9': Math.round(80000 * 12 * 0.9),  // Enterprise annual: $8,640 = 864,000 cents
   };
 
   const planAmounts: Record<string, number> = {
@@ -60,21 +60,21 @@ function PlanSelectionSignup({
 
   const getAnnualPrice = (monthlyAmount: number): string => {
     const annualAmount = Math.round(monthlyAmount * 12 * 0.9);
-    const kes = annualAmount / 100;
-    return `KSh ${kes.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const usd = annualAmount / 100;
+    return `$${usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   const getMonthlyEquivalent = (monthlyAmount: number): string => {
     const annualAmount = Math.round(monthlyAmount * 12 * 0.9);
     const monthlyEquivalent = annualAmount / 12 / 100;
-    return `KSh ${monthlyEquivalent.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `$${monthlyEquivalent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   const plans: Plan[] = [
     {
       code: 'PLN_FREE',
       name: 'Free',
-      price: 'KSh 0',
+      price: '$0',
       period: 'month',
       amount: planAmounts['PLN_FREE'],
       maxUsers: 5,
@@ -90,7 +90,7 @@ function PlanSelectionSignup({
     {
       code: 'PLN_5jjsgz1ivndtnxp',
       name: 'Basic',
-      price: 'KSh 7,000',
+      price: '$99',
       period: 'month',
       amount: planAmounts['PLN_5jjsgz1ivndtnxp'],
       maxUsers: 20,
@@ -106,7 +106,7 @@ function PlanSelectionSignup({
     {
       code: 'PLN_a7qqm2p4q9ejdpt',
       name: 'Professional',
-      price: 'KSh 35,999',
+      price: '$400',
       period: 'month',
       amount: planAmounts['PLN_a7qqm2p4q9ejdpt'],
       maxUsers: 50,
@@ -123,7 +123,7 @@ function PlanSelectionSignup({
     {
       code: 'PLN_9jsfo4c1d35od5q',
       name: 'Enterprise',
-      price: 'KSh 95,999',
+      price: '$800',
       period: 'month',
       amount: planAmounts['PLN_9jsfo4c1d35od5q'],
       maxUsers: -1,
@@ -443,14 +443,14 @@ export function OrganizationSignup() {
         return;
       }
 
-      // Get plan amounts for payment
+      // Get plan amounts for payment (in cents for USD)
       const planAmounts: Record<string, number> = {
-        'PLN_5jjsgz1ivndtnxp': 700000, // Basic monthly (in cents)
-        'PLN_f5n4d3g6x7cb3or': Math.round(700000 * 12 * 0.9), // Basic annual
-        'PLN_a7qqm2p4q9ejdpt': 3599900, // Professional monthly
-        'PLN_zekf4yw2rvdy957': Math.round(3599900 * 12 * 0.9), // Professional annual
-        'PLN_9jsfo4c1d35od5q': 9599900, // Enterprise monthly
-        'PLN_2w2w7d02awcarg9': Math.round(9599900 * 12 * 0.9), // Enterprise annual
+        'PLN_5jjsgz1ivndtnxp': 9900, // Basic monthly: $99 = 9,900 cents
+        'PLN_f5n4d3g6x7cb3or': Math.round(9900 * 12 * 0.9), // Basic annual: $1,069.20 = 106,920 cents
+        'PLN_a7qqm2p4q9ejdpt': 40000, // Professional monthly: $400 = 40,000 cents
+        'PLN_zekf4yw2rvdy957': Math.round(40000 * 12 * 0.9), // Professional annual: $4,320 = 432,000 cents
+        'PLN_9jsfo4c1d35od5q': 80000, // Enterprise monthly: $800 = 80,000 cents
+        'PLN_2w2w7d02awcarg9': Math.round(80000 * 12 * 0.9), // Enterprise annual: $8,640 = 864,000 cents
       };
 
       const amount = planAmounts[planCode] || 0;
@@ -478,7 +478,17 @@ export function OrganizationSignup() {
   };
 
   return (
-    <div className="min-h-screen w-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-3 sm:p-4 md:p-6">
+    <div 
+      className="min-h-screen w-screen flex items-center justify-center bg-grid-pattern p-3 sm:p-4 md:p-6"
+      style={{
+        backgroundImage: `
+          linear-gradient(to bottom, var(--gradient-start), var(--gradient-middle), var(--gradient-end)),
+          linear-gradient(0deg, transparent 24%, var(--grid-color) 25%, var(--grid-color) 26%, transparent 27%, transparent 74%, var(--grid-color) 75%, var(--grid-color) 76%, transparent 77%, transparent),
+          linear-gradient(90deg, transparent 24%, var(--grid-color) 25%, var(--grid-color) 26%, transparent 27%, transparent 74%, var(--grid-color) 75%, var(--grid-color) 76%, transparent 77%, transparent)
+        `,
+        backgroundSize: '100% 100%, 120px 120px, 120px 120px'
+      }}
+    >
       <div className="w-full max-w-6xl">
         <Card className="shadow-xl">
           <CardHeader className="text-center pb-4 px-4 sm:px-6 pt-6 sm:pt-8">

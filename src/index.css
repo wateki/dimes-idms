@@ -31,6 +31,35 @@
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 4;
   }
+  
+  /* Grid background pattern */
+  .bg-grid-pattern {
+    --grid-color: #E1E1E1;
+    --gradient-start: rgba(209, 250, 229, 0.3);
+    --gradient-middle: rgba(255, 255, 255, 0.5);
+    --gradient-end: rgba(209, 250, 229, 0.2);
+    background-color: #F3F3F3;
+    background-image: 
+      linear-gradient(0deg, transparent 24%, var(--grid-color) 25%, var(--grid-color) 26%, transparent 27%, transparent 74%, var(--grid-color) 75%, var(--grid-color) 76%, transparent 77%, transparent),
+      linear-gradient(90deg, transparent 24%, var(--grid-color) 25%, var(--grid-color) 26%, transparent 27%, transparent 74%, var(--grid-color) 75%, var(--grid-color) 76%, transparent 77%, transparent);
+    background-size: 120px 120px;
+  }
+  
+  /* Fade-in animation for price transitions */
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .animate-fade-in {
+    animation: fade-in 0.4s ease-out;
+  }
 }
 
 /* Mobile responsive sidebar styles */
@@ -116,9 +145,9 @@
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  color-scheme: light;
+  color: #213547;
+  background-color: #ffffff;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -157,7 +186,7 @@ button {
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
+  background-color: #f9f9f9;
   cursor: pointer;
   transition: border-color 0.25s;
 }
@@ -167,19 +196,6 @@ button:hover {
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
 }
 
 @layer base {
@@ -225,48 +241,6 @@ button:focus-visible {
     --chart-5: 140 30% 50%; /* #579D47 - forest green */
     
     --radius: 0.5rem;
-  }
-
-  .dark {
-    /* Dark mode - Using dark greens and grays from palette */
-    --background: 0 0% 12%; /* #1F1F1F - very dark gray */
-    --foreground: 0 0% 97%; /* #F7F7F7 - light gray */
-    --card: 0 0% 15%; /* Slightly lighter than background */
-    --card-foreground: 0 0% 97%;
-    --popover: 0 0% 15%;
-    --popover-foreground: 0 0% 97%;
-    
-    /* Primary - Darker green for dark mode (#34713A, #3D7D3C) */
-    --primary: 125 35% 35%; /* #34713A - darker green */
-    --primary-foreground: 0 0% 100%;
-    
-    /* Secondary - Dark olive green (#395223, #547736) */
-    --secondary: 100 30% 25%; /* #395223 - dark olive */
-    --secondary-foreground: 0 0% 97%;
-    
-    /* Muted - Dark cool grays (#2B2D2B, #4A4D4A) */
-    --muted: 120 3% 18%; /* #2B2D2B - dark cool gray */
-    --muted-foreground: 0 0% 65%; /* #A7A7A7 - medium gray */
-    
-    /* Accent - Darker orange (#C37628, #91561B) */
-    --accent: 25 65% 40%; /* #C37628 - darker orange */
-    --accent-foreground: 0 0% 100%;
-    
-    /* Destructive - Dark brown (#62390F, #371D05) */
-    --destructive: 25 75% 20%; /* #62390F - dark brown */
-    --destructive-foreground: 0 0% 100%;
-    
-    /* Borders & Inputs - Dark grays */
-    --border: 120 3% 25%; /* #4A4D4A - dark cool gray */
-    --input: 120 3% 25%;
-    --ring: 125 35% 35%; /* Match primary */
-    
-    /* Chart Colors - Adjusted for dark mode */
-    --chart-1: 125 35% 50%; /* Lighter green for visibility */
-    --chart-2: 30 85% 55%; /* Orange */
-    --chart-3: 40 90% 60%; /* Golden */
-    --chart-4: 100 60% 65%; /* Lime green */
-    --chart-5: 140 35% 55%; /* Forest green */
   }
 }
 

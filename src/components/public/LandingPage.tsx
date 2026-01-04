@@ -23,9 +23,14 @@ import {
   Crown,
   Building2,
   Menu,
-  X
+  X,
+  Map,
+  Upload,
+  FileCheck,
+  FolderKanban
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Footer } from '@/components/shared/Footer';
 
 const features = [
   {
@@ -37,8 +42,36 @@ const features = [
   },
   {
     icon: Target,
-    title: 'MEAL Excellence',
-    description: 'Comprehensive Monitoring, Evaluation, Accountability, and Learning framework built for humanitarian organizations.',
+    title: 'Integrated KPI Analytics',
+    description: 'Track and visualize Key Performance Indicators in real-time. Link organizational goals with project objectives for comprehensive performance monitoring.',
+    color: 'text-emerald-600',
+    bgColor: 'bg-emerald-50',
+  },
+  {
+    icon: Map,
+    title: 'Spatial Analytics & Mapping',
+    description: 'Visualize project data geographically with advanced spatial analytics. Map interventions, track coverage, and analyze geographic patterns.',
+    color: 'text-emerald-600',
+    bgColor: 'bg-emerald-50',
+  },
+  {
+    icon: Upload,
+    title: 'Data Import & Integration',
+    description: 'Import data from multiple sources seamlessly. Support for Excel, CSV, KoboToolbox, ODK, and custom integrations.',
+    color: 'text-emerald-600',
+    bgColor: 'bg-emerald-50',
+  },
+  {
+    icon: FolderKanban,
+    title: 'Inbuilt FCRM System',
+    description: 'Field Case Relationship Management built-in. Track cases, manage beneficiary relationships, and monitor interventions from the field.',
+    color: 'text-emerald-600',
+    bgColor: 'bg-emerald-50',
+  },
+  {
+    icon: FileCheck,
+    title: 'Review & Approval Workflows',
+    description: 'Integrated reports upload with built-in review and approval workflows. Ensure data quality and accountability at every step.',
     color: 'text-emerald-600',
     bgColor: 'bg-emerald-50',
   },
@@ -57,13 +90,6 @@ const features = [
     bgColor: 'bg-emerald-50',
   },
   {
-    icon: BarChart3,
-    title: 'Real-Time Analytics',
-    description: 'Transform raw data into actionable insights with interactive dashboards and automated reporting.',
-    color: 'text-emerald-600',
-    bgColor: 'bg-emerald-50',
-  },
-  {
     icon: Shield,
     title: 'Enterprise Security',
     description: 'Bank-level security with role-based access control, audit trails, and compliance-ready data governance.',
@@ -74,14 +100,17 @@ const features = [
 
 export function LandingPage() {
   const navigate = useNavigate();
-  const [isVisible, setIsVisible] = useState(false);
-  const [hoveredFeature, setHoveredFeature] = useState<number | null>(null);
+  const [heroVisible, setHeroVisible] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [visibleFeatures, setVisibleFeatures] = useState<Set<number>>(new Set());
   const featuresRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setIsVisible(true);
+    // Reset and trigger animation independently for this page
+    setHeroVisible(false);
+    const heroTimer = setTimeout(() => {
+      setHeroVisible(true);
+    }, 50);
     
     // Intersection Observer for scroll animations
     const observer = new IntersectionObserver(
@@ -124,6 +153,7 @@ export function LandingPage() {
     }, 100);
 
     return () => {
+      clearTimeout(heroTimer);
       clearTimeout(timer);
       if (fallbackTimer) clearTimeout(fallbackTimer);
       observer.disconnect();
@@ -131,12 +161,14 @@ export function LandingPage() {
   }, []);
 
   const benefits = [
+    'Track KPIs and link organizational goals to projects',
+    'Visualize data geographically with spatial analytics',
+    'Import data from multiple sources seamlessly',
+    'Manage field cases with built-in FCRM system',
+    'Streamline approvals with review workflows',
     'Reduce data collection time by 60%',
-    'Eliminate manual data harmonization',
-    'Real-time project visibility',
-    'Mobile data collection anywhere',
-    'Cross-organization data sharing',
-    'Automated compliance reporting',
+    'Mobile data collection with offline capabilities',
+    'Cross-organization collaboration and data sharing',
   ];
 
   const useCases = [
@@ -163,9 +195,9 @@ export function LandingPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-grid-pattern">
       {/* Navigation */}
-      <nav className="fixed top-0 w-full bg-white/95 backdrop-blur-md border-b border-emerald-100 z-50">
+      <nav className="fixed top-0 w-full bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-emerald-100 dark:border-gray-800 z-50">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <Link to="/" className="flex items-center">
@@ -181,16 +213,16 @@ export function LandingPage() {
               <Link to="/" className="text-sm font-medium text-emerald-600">
                 Home
               </Link>
-              <Link to="/features" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
+              <Link to="/features" className="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
                 Features
               </Link>
-              <Link to="/pricing" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
+              <Link to="/pricing" className="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
                 Pricing
               </Link>
-              <Link to="/about" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
+              <Link to="/about" className="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
                 About
               </Link>
-              <Link to="/support" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
+              <Link to="/support" className="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
                 Support
               </Link>
               <Button variant="ghost" onClick={() => navigate('/login')}>
@@ -216,7 +248,7 @@ export function LandingPage() {
 
           {/* Mobile Menu */}
           {mobileMenuOpen && (
-            <div className="md:hidden py-4 border-t border-emerald-100">
+            <div className="md:hidden py-4 border-t border-emerald-100 dark:border-gray-800">
               <div className="flex flex-col space-y-3">
                 <Link to="/" className="text-sm font-medium text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
                   Home
@@ -246,24 +278,24 @@ export function LandingPage() {
       </nav>
 
       {/* Hero Section */}
-      <section className="pt-24 pb-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-emerald-50 via-white to-emerald-50/30 overflow-hidden">
+      <section className="pt-24 pb-16 px-4 sm:px-6 lg:px-8 bg-grid-pattern overflow-hidden relative" style={{ backgroundImage: 'linear-gradient(to bottom, rgba(209, 250, 229, 0.3), rgba(255, 255, 255, 0.5), rgba(209, 250, 229, 0.2)), linear-gradient(0deg, transparent 24%, #E1E1E1 25%, #E1E1E1 26%, transparent 27%, transparent 74%, #E1E1E1 75%, #E1E1E1 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, #E1E1E1 25%, #E1E1E1 26%, transparent 27%, transparent 74%, #E1E1E1 75%, #E1E1E1 76%, transparent 77%, transparent)', backgroundSize: '100% 100%, 120px 120px, 120px 120px' }}>
         <div className="container mx-auto max-w-7xl">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             {/* Left Column - Text Content */}
             <div className={cn(
               "transition-all duration-1000",
-              isVisible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-10"
+              heroVisible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-10"
             )}>
               <div className="inline-flex items-center px-4 py-2 rounded-full bg-emerald-100 text-emerald-700 text-sm font-medium mb-6">
                 <Sparkles className="w-4 h-4 mr-2" />
                 Trusted by humanitarian organizations worldwide
               </div>
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6 leading-tight">
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 dark:text-gray-100 mb-6 leading-tight">
                 Your Data Infrastructure,
                 <br />
                 <span className="bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">Simplified</span>
               </h1>
-              <p className="text-lg sm:text-xl text-gray-600 mb-8 leading-relaxed">
+              <p className="text-lg sm:text-xl text-gray-600 dark:text-gray-300 mb-8 leading-relaxed">
                 Enterprise-grade data harmonization platform built for humanitarian organizations. 
                 Consolidate, standardize, and analyze data across teams and partners—all in real-time.
               </p>
@@ -310,7 +342,7 @@ export function LandingPage() {
             {/* Right Column - Hero Image */}
             <div className={cn(
               "relative transition-all duration-1000 delay-300",
-              isVisible ? "opacity-100 translate-x-0" : "opacity-0 translate-x-10"
+              heroVisible ? "opacity-100 translate-x-0" : "opacity-0 translate-x-10"
             )}>
               <div className="relative rounded-2xl overflow-hidden shadow-2xl border-8 border-white">
                 <div className="aspect-video bg-gradient-to-br from-emerald-100 via-emerald-50 to-white relative overflow-hidden">
@@ -330,52 +362,62 @@ export function LandingPage() {
       </section>
 
       {/* Features Grid */}
-      <section id="features" className="py-20 px-4 sm:px-6 lg:px-8 bg-white">
-        <div className="container mx-auto max-w-6xl">
+      <section 
+        id="features" 
+        className="py-20 px-4 sm:px-6 lg:px-8 relative overflow-hidden bg-grid-pattern"
+        style={{
+          backgroundImage: `
+            linear-gradient(to bottom, var(--gradient-start), var(--gradient-middle), var(--gradient-end)),
+            linear-gradient(0deg, transparent 24%, var(--grid-color) 25%, var(--grid-color) 26%, transparent 27%, transparent 74%, var(--grid-color) 75%, var(--grid-color) 76%, transparent 77%, transparent),
+            linear-gradient(90deg, transparent 24%, var(--grid-color) 25%, var(--grid-color) 26%, transparent 27%, transparent 74%, var(--grid-color) 75%, var(--grid-color) 76%, transparent 77%, transparent)
+          `,
+          backgroundSize: '100% 100%, 120px 120px, 120px 120px'
+        }}
+      >
+        {/* Decorative background elements */}
+        <div className="absolute bottom-0 right-0 w-96 h-96 bg-emerald-200 rounded-full opacity-20 blur-3xl"></div>
+        <div className="absolute top-20 left-0 w-96 h-96 bg-emerald-300 rounded-full opacity-10 blur-3xl"></div>
+        
+        <div className="container mx-auto max-w-6xl relative z-10">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+            <h2 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-4">
               Everything Your Organization Needs
             </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
               A complete platform for organizations, built to harmonize data and streamline project management
             </p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" ref={featuresRef}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8" ref={featuresRef}>
             {features.map((feature, index) => {
               const Icon = feature.icon;
               return (
-                <Card 
+                <div 
                   key={index}
                   data-feature-index={index}
                   className={cn(
-                    "border-2 hover:border-emerald-200 transition-all duration-500 hover:shadow-lg fade-in-up cursor-pointer",
-                    hoveredFeature === index && "scale-105 border-emerald-300",
+                    "transition-all duration-500",
                     visibleFeatures.has(index) ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
                   )}
                   style={{ 
                     transitionDelay: `${index * 100}ms`,
                     transitionProperty: 'opacity, transform'
                   }}
-                  onMouseEnter={() => setHoveredFeature(index)}
-                  onMouseLeave={() => setHoveredFeature(null)}
                 >
-                  <CardHeader>
+                  <div className="flex gap-6">
                     <div className={cn(
-                      "w-12 h-12 rounded-lg flex items-center justify-center mb-4 transition-transform duration-300",
-                      feature.bgColor,
-                      hoveredFeature === index && "scale-110"
+                      "w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100 border border-emerald-200"
                     )}>
-                      <Icon className={cn("w-6 h-6 transition-transform duration-300", feature.color, hoveredFeature === index && "scale-110")} />
+                      <Icon className="w-8 h-8 text-emerald-600" />
                     </div>
-                    <CardTitle className="text-xl">{feature.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <CardDescription className="text-base">
-                      {feature.description}
-                    </CardDescription>
-                  </CardContent>
-                </Card>
+                    <div className="flex-1">
+                      <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3">{feature.title}</h3>
+                      <p className="text-base text-gray-600 dark:text-gray-300 leading-relaxed">
+                        {feature.description}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               );
             })}
           </div>
@@ -383,7 +425,7 @@ export function LandingPage() {
       </section>
 
       {/* Mobile App Highlight */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-emerald-50 to-emerald-50/50">
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-grid-pattern relative" style={{ backgroundImage: 'linear-gradient(to bottom, var(--gradient-start), var(--gradient-middle), var(--gradient-end)), linear-gradient(0deg, transparent 24%, var(--grid-color) 25%, var(--grid-color) 26%, transparent 27%, transparent 74%, var(--grid-color) 75%, var(--grid-color) 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, var(--grid-color) 25%, var(--grid-color) 26%, transparent 27%, transparent 74%, var(--grid-color) 75%, var(--grid-color) 76%, transparent 77%, transparent)', backgroundSize: '100% 100%, 120px 120px, 120px 120px' }}>
         <div className="container mx-auto max-w-6xl">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div className="order-2 lg:order-1">
@@ -391,10 +433,10 @@ export function LandingPage() {
                 <Smartphone className="w-4 h-4 mr-2" />
                 Mobile App Available
               </div>
-              <h2 className="text-4xl font-bold text-gray-900 mb-6">
+              <h2 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-6">
                 Collect Data Anywhere, Anytime
               </h2>
-              <p className="text-lg text-gray-600 mb-8">
+              <p className="text-lg text-gray-600 dark:text-gray-300 mb-8">
                 <strong>Dimes Collect</strong> complements the platform with powerful offline-first mobile data collection. 
                 Your field teams can work without connectivity, and data syncs automatically when they're back online.
               </p>
@@ -449,7 +491,7 @@ export function LandingPage() {
       </section>
 
       {/* Value Proposition */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white">
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-grid-pattern">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">
@@ -466,17 +508,63 @@ export function LandingPage() {
             <Card className="border-2 hover:border-emerald-200 transition-all">
               <CardHeader>
                 <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center mb-4">
-                  <Zap className="w-6 h-6 text-emerald-600" />
+                  <Target className="w-6 h-6 text-emerald-600" />
                 </div>
-                <CardTitle className="text-2xl">Project Management Built-In</CardTitle>
+                <CardTitle className="text-2xl">KPI Analytics & Goal Alignment</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600 mb-4">
-                  Manage projects, activities, and outcomes with a comprehensive project management approach. 
-                  Track KPIs, monitor progress, and generate reports—all in one platform.
+                  Link organizational goals with project objectives. Track KPIs in real-time and monitor 
+                  performance across all levels with integrated analytics and spatial mapping.
                 </p>
                 <ul className="space-y-2">
-                  {['Activity planning and tracking', 'Outcome and output management', 'KPI monitoring', 'Automated reporting'].map((item, i) => (
+                  {['Real-time KPI tracking', 'Goal-to-project linkage', 'Spatial analytics & mapping', 'Performance benchmarking'].map((item, i) => (
+                    <li key={i} className="flex items-center text-sm text-gray-600">
+                      <ChevronRight className="w-4 h-4 text-emerald-600 mr-2" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 hover:border-emerald-200 transition-all">
+              <CardHeader>
+                <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center mb-4">
+                  <FileCheck className="w-6 h-6 text-emerald-600" />
+                </div>
+                <CardTitle className="text-2xl">FCRM & Workflow Management</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600 mb-4">
+                  Built-in Field Case Relationship Management with integrated review and approval workflows. 
+                  Upload reports, manage cases, and ensure accountability at every step.
+                </p>
+                <ul className="space-y-2">
+                  {['Inbuilt FCRM system', 'Review & approval workflows', 'Report upload & versioning', 'Case tracking & management'].map((item, i) => (
+                    <li key={i} className="flex items-center text-sm text-gray-600">
+                      <ChevronRight className="w-4 h-4 text-emerald-600 mr-2" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 hover:border-emerald-200 transition-all">
+              <CardHeader>
+                <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center mb-4">
+                  <Upload className="w-6 h-6 text-emerald-600" />
+                </div>
+                <CardTitle className="text-2xl">Data Import & Integration</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600 mb-4">
+                  Import data from multiple sources seamlessly. Support for Excel, CSV, KoboToolbox, ODK, 
+                  and custom APIs with automated validation and mapping.
+                </p>
+                <ul className="space-y-2">
+                  {['Multi-format data import', 'KoboToolbox & ODK integration', 'Custom API connections', 'Automated data validation'].map((item, i) => (
                     <li key={i} className="flex items-center text-sm text-gray-600">
                       <ChevronRight className="w-4 h-4 text-emerald-600 mr-2" />
                       {item}
@@ -491,7 +579,7 @@ export function LandingPage() {
                 <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center mb-4">
                   <Network className="w-6 h-6 text-emerald-600" />
                 </div>
-                <CardTitle className="text-2xl">Data Harmonization Across Organizations</CardTitle>
+                <CardTitle className="text-2xl">Cross-Organization Collaboration</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600 mb-4">
@@ -513,7 +601,7 @@ export function LandingPage() {
       </section>
 
       {/* Use Cases */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-50">
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-grid-pattern">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">
@@ -548,7 +636,7 @@ export function LandingPage() {
       </section>
 
       {/* Benefits */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white">
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-grid-pattern">
         <div className="container mx-auto max-w-4xl">
           <div className="text-center mb-12">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">
@@ -606,55 +694,7 @@ export function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="py-12 px-4 sm:px-6 lg:px-8 bg-gray-900 text-gray-400">
-        <div className="container mx-auto max-w-6xl">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-            <div>
-              <div className="flex items-center space-x-2 mb-4">
-                <img 
-                  src="/logo.jpg" 
-                  alt="Dimes IDMS Logo" 
-                  className="w-8 h-8 object-contain"
-                />
-                <span className="text-white font-bold">Dimes IDMS</span>
-              </div>
-              <p className="text-sm">
-                Integrated Data Management System for humanitarian organizations
-              </p>
-            </div>
-            <div>
-              <h3 className="text-white font-semibold mb-4">Product</h3>
-              <ul className="space-y-2 text-sm">
-                <li><Link to="/features" className="hover:text-emerald-400 transition-colors">Features</Link></li>
-                <li><a href="#" className="hover:text-emerald-400 transition-colors">Mobile App</a></li>
-                <li><Link to="/pricing" className="hover:text-emerald-400 transition-colors">Pricing</Link></li>
-                <li><a href="#" className="hover:text-emerald-400 transition-colors">Security</a></li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="text-white font-semibold mb-4">Resources</h3>
-              <ul className="space-y-2 text-sm">
-                <li><Link to="/support" className="hover:text-emerald-400 transition-colors">Documentation</Link></li>
-                <li><Link to="/support" className="hover:text-emerald-400 transition-colors">Support</Link></li>
-                <li><a href="#" className="hover:text-emerald-400 transition-colors">API</a></li>
-                <li><a href="#" className="hover:text-emerald-400 transition-colors">Blog</a></li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="text-white font-semibold mb-4">Company</h3>
-              <ul className="space-y-2 text-sm">
-                <li><Link to="/about" className="hover:text-emerald-400 transition-colors">About</Link></li>
-                <li><a href="#" className="hover:text-emerald-400 transition-colors">Contact</a></li>
-                <li><a href="#" className="hover:text-emerald-400 transition-colors">Privacy</a></li>
-                <li><a href="#" className="hover:text-emerald-400 transition-colors">Terms</a></li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-gray-800 pt-8 text-center text-sm">
-            <p>&copy; {new Date().getFullYear()} Dimes IDMS. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

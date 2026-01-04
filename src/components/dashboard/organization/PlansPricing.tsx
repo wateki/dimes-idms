@@ -45,12 +45,12 @@ export function PlansPricing() {
   };
 
   // Plan code to amount mapping (amounts in cents for KES)
-  // Monthly plans
+  // Monthly plans (amounts in cents for USD)
   const monthlyPlanAmounts: Record<string, number> = {
     'PLN_FREE': 0,                    // Free plan (local only, not in Paystack)
-    'PLN_5jjsgz1ivndtnxp': 700000,   // Basic Plan: KSh 7,000 = 700,000 cents
-    'PLN_a7qqm2p4q9ejdpt': 3599900,  // Professional Plan: KSh 35,999 = 3,599,900 cents
-    'PLN_9jsfo4c1d35od5q': 9599900,  // Enterprise Plan: KSh 95,999 = 9,599,900 cents
+    'PLN_5jjsgz1ivndtnxp': 9900,     // Basic Plan: $99 = 9,900 cents
+    'PLN_a7qqm2p4q9ejdpt': 40000,    // Professional Plan: $400 = 40,000 cents
+    'PLN_9jsfo4c1d35od5q': 80000,    // Enterprise Plan: $800 = 80,000 cents
   };
 
   // Annual plan codes
@@ -62,9 +62,9 @@ export function PlansPricing() {
 
   // Calculate annual amounts (monthly * 12 * 0.9 for 10% savings)
   const annualPlanAmounts: Record<string, number> = {
-    'PLN_f5n4d3g6x7cb3or': Math.round(700000 * 12 * 0.9),      // Basic annual: 7,560,000 cents (KSh 75,600)
-    'PLN_zekf4yw2rvdy957': Math.round(3599900 * 12 * 0.9),    // Professional annual: 38,878,920 cents (KSh 388,789.20)
-    'PLN_2w2w7d02awcarg9': Math.round(9599900 * 12 * 0.9),    // Enterprise annual: 103,678,920 cents (KSh 1,036,789.20)
+    'PLN_f5n4d3g6x7cb3or': Math.round(9900 * 12 * 0.9),      // Basic annual: $1,069.20 = 106,920 cents
+    'PLN_zekf4yw2rvdy957': Math.round(40000 * 12 * 0.9),    // Professional annual: $4,320 = 432,000 cents
+    'PLN_2w2w7d02awcarg9': Math.round(80000 * 12 * 0.9),    // Enterprise annual: $8,640 = 864,000 cents
   };
 
   // Combined plan amounts mapping
@@ -85,15 +85,15 @@ export function PlansPricing() {
   // Helper function to calculate annual price with savings
   const getAnnualPrice = (monthlyAmount: number): string => {
     const annualAmount = Math.round(monthlyAmount * 12 * 0.9);
-    const kes = annualAmount / 100;
-    return `KSh ${kes.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const usd = annualAmount / 100;
+    return `$${usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   // Helper function to get monthly equivalent for annual plans
   const getMonthlyEquivalent = (monthlyAmount: number): string => {
     const annualAmount = Math.round(monthlyAmount * 12 * 0.9);
     const monthlyEquivalent = annualAmount / 12 / 100;
-    return `KSh ${monthlyEquivalent.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `$${monthlyEquivalent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   // Helper function to check if a plan code is annual
@@ -131,7 +131,7 @@ export function PlansPricing() {
     {
       code: 'PLN_FREE',
       name: 'Free',
-      price: 'KSh 0',
+      price: '$0',
       period: 'month',
       amount: planAmounts['PLN_FREE'],
       maxUsers: 5,
@@ -148,7 +148,7 @@ export function PlansPricing() {
     {
       code: 'PLN_5jjsgz1ivndtnxp',
       name: 'Basic',
-      price: 'KSh 7,000',
+      price: '$99',
       period: 'month',
       amount: planAmounts['PLN_5jjsgz1ivndtnxp'],
       maxUsers: 20,
@@ -180,7 +180,7 @@ export function PlansPricing() {
     {
       code: 'PLN_a7qqm2p4q9ejdpt',
       name: 'Professional',
-      price: 'KSh 35,999',
+      price: '$400',
       period: 'month',
       amount: planAmounts['PLN_a7qqm2p4q9ejdpt'],
       maxUsers: 50,
@@ -213,7 +213,7 @@ export function PlansPricing() {
     {
       code: 'PLN_9jsfo4c1d35od5q',
       name: 'Enterprise',
-      price: 'KSh 95,999',
+      price: '$800',
       period: 'month',
       amount: planAmounts['PLN_9jsfo4c1d35od5q'],
       maxUsers: -1, // Unlimited

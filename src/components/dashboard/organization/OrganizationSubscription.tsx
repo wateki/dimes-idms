@@ -360,10 +360,10 @@ function BillingHistoryCard() {
   const getPlanPrice = (planCode: string | null | undefined): string => {
     if (!planCode) return 'N/A';
     
-    if (planCode.includes('FREE') || planCode === 'PLN_FREE') return 'KSh 0';
-    if (planCode.includes('5jjsgz1ivndtnxp')) return 'KSh 7,000';
-    if (planCode.includes('a7qqm2p4q9ejdpt')) return 'KSh 35,999';
-    if (planCode.includes('9jsfo4c1d35od5q')) return 'KSh 95,999';
+    if (planCode.includes('FREE') || planCode === 'PLN_FREE') return '$0';
+    if (planCode.includes('5jjsgz1ivndtnxp')) return '$99';
+    if (planCode.includes('a7qqm2p4q9ejdpt')) return '$400';
+    if (planCode.includes('9jsfo4c1d35od5q')) return '$800';
     
     return 'N/A';
   };
@@ -402,9 +402,9 @@ function BillingHistoryCard() {
 
   const formatAmount = (amount: number | null): string => {
     if (!amount) return 'N/A';
-    // Amount is in cents (smallest currency unit), convert to Kenyan Shillings
-    const kes = amount / 100;
-    return `KSh ${kes.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    // Amount is in cents (smallest currency unit), convert to USD
+    const usd = amount / 100;
+    return `$${usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   const formatDate = (dateString: string | null | undefined): string => {
@@ -477,8 +477,8 @@ function BillingHistoryCard() {
 
     const formatAmountLocal = (amount: number | null): string => {
       if (!amount) return 'N/A';
-      const kes = amount / 100;
-      return `KSh ${kes.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      const usd = amount / 100;
+      return `$${usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     };
 
     const formatDateLocal = (dateString: string | null | undefined): string => {
@@ -596,8 +596,8 @@ function BillingHistoryCard() {
 
     const formatAmountLocal = (amount: number | null): string => {
       if (!amount) return 'N/A';
-      const kes = amount / 100;
-      return `KSh ${kes.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      const usd = amount / 100;
+      return `$${usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     };
 
     const formatDateLocal = (dateString: string | null | undefined): string => {

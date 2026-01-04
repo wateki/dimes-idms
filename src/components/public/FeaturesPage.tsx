@@ -17,15 +17,92 @@ import {
   FileText,
   Users,
   Globe,
-  Activity
+  Activity,
+  Map,
+  Upload,
+  FileCheck,
+  Link as LinkIcon,
+  FolderKanban
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { cn } from '@/lib/utils';
+import { Footer } from '@/components/shared/Footer';
 
 export function FeaturesPage() {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [heroVisible, setHeroVisible] = useState(false);
+
+  useEffect(() => {
+    // Reset and trigger animation independently for this page
+    setHeroVisible(false);
+    const timer = setTimeout(() => {
+      setHeroVisible(true);
+    }, 50);
+    return () => clearTimeout(timer);
+  }, []);
 
   const mainFeatures = [
+    {
+      icon: Target,
+      title: 'Integrated KPI Analytics & Goal Linkage',
+      description: 'Connect organizational goals with project objectives. Track Key Performance Indicators in real-time with comprehensive performance monitoring across all levels.',
+      details: [
+        'Link organizational goals to project objectives',
+        'Real-time KPI dashboard and tracking',
+        'Performance benchmarking and trends',
+        'Automated indicator calculations',
+        'Goal cascade from organization to activity level',
+      ],
+    },
+    {
+      icon: Map,
+      title: 'Spatial Analytics & Geographic Mapping',
+      description: 'Visualize project data geographically with advanced spatial analytics. Map interventions, track coverage areas, and analyze geographic patterns.',
+      details: [
+        'Interactive project mapping',
+        'Geographic coverage analysis',
+        'Spatial pattern identification',
+        'Location-based reporting',
+        'GIS integration support',
+      ],
+    },
+    {
+      icon: Upload,
+      title: 'Advanced Data Import & Integration',
+      description: 'Import data from multiple sources seamlessly. Support for various formats and platforms including Excel, CSV, KoboToolbox, ODK, and custom APIs.',
+      details: [
+        'Excel and CSV import with mapping',
+        'KoboToolbox and ODK integration',
+        'Custom API connections',
+        'Automated data validation',
+        'Bulk data upload capabilities',
+      ],
+    },
+    {
+      icon: FolderKanban,
+      title: 'Inbuilt FCRM System',
+      description: 'Field Case Relationship Management built directly into the platform. Track cases, manage beneficiary relationships, and monitor field interventions.',
+      details: [
+        'Case management and tracking',
+        'Beneficiary relationship mapping',
+        'Field intervention monitoring',
+        'Case workflow automation',
+        'Referral management system',
+      ],
+    },
+    {
+      icon: FileCheck,
+      title: 'Review & Approval Workflows',
+      description: 'Integrated reports upload with built-in review and approval workflows. Multi-level approvals ensure data quality and accountability.',
+      details: [
+        'Multi-level approval workflows',
+        'Report upload and versioning',
+        'Automated review notifications',
+        'Audit trail for all approvals',
+        'Customizable workflow stages',
+      ],
+    },
     {
       icon: Database,
       title: 'Unified Data Harmonization',
@@ -35,17 +112,6 @@ export function FeaturesPage() {
         'Automated data standardization',
         'Cross-organization data mapping',
         'Real-time data synchronization',
-      ],
-    },
-    {
-      icon: Target,
-      title: 'MEAL Excellence',
-      description: 'Comprehensive Monitoring, Evaluation, Accountability, and Learning framework built specifically for humanitarian organizations.',
-      details: [
-        'Indicator tracking and management',
-        'Outcome and output monitoring',
-        'Automated reporting workflows',
-        'Impact assessment tools',
       ],
     },
     {
@@ -68,17 +134,6 @@ export function FeaturesPage() {
         'Secure data sharing protocols',
         'Role-based access control',
         'Cross-partner analytics',
-      ],
-    },
-    {
-      icon: BarChart3,
-      title: 'Real-Time Analytics',
-      description: 'Transform raw data into actionable insights with interactive dashboards and automated reporting.',
-      details: [
-        'Interactive dashboards',
-        'Custom report generation',
-        'Data visualization tools',
-        'Automated KPI tracking',
       ],
     },
     {
@@ -106,6 +161,11 @@ export function FeaturesPage() {
       description: 'Work seamlessly with your team members across projects and organizations.',
     },
     {
+      icon: BarChart3,
+      title: 'Real-Time Analytics',
+      description: 'Transform raw data into actionable insights with interactive dashboards and automated reporting.',
+    },
+    {
       icon: Globe,
       title: 'Multi-Language Support',
       description: 'Support for multiple languages to serve organizations working globally.',
@@ -115,12 +175,17 @@ export function FeaturesPage() {
       title: 'Activity Tracking',
       description: 'Track activities, subactivities, and their contributions to project outcomes.',
     },
+    {
+      icon: Zap,
+      title: 'MEAL Excellence',
+      description: 'Comprehensive Monitoring, Evaluation, Accountability, and Learning framework.',
+    },
   ];
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-grid-pattern">
       {/* Navigation */}
-      <nav className="fixed top-0 w-full bg-white/95 backdrop-blur-md border-b border-emerald-100 z-50">
+      <nav className="fixed top-0 w-full bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-emerald-100 dark:border-gray-800 z-50">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <Link to="/" className="flex items-center">
@@ -194,8 +259,11 @@ export function FeaturesPage() {
       </nav>
 
       {/* Hero */}
-      <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-emerald-50 to-white">
-        <div className="container mx-auto max-w-4xl text-center">
+      <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 bg-grid-pattern relative" style={{ backgroundImage: 'linear-gradient(to bottom, var(--gradient-start), var(--gradient-middle), var(--gradient-end)), linear-gradient(0deg, transparent 24%, var(--grid-color) 25%, var(--grid-color) 26%, transparent 27%, transparent 74%, var(--grid-color) 75%, var(--grid-color) 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, var(--grid-color) 25%, var(--grid-color) 26%, transparent 27%, transparent 74%, var(--grid-color) 75%, var(--grid-color) 76%, transparent 77%, transparent)', backgroundSize: '100% 100%, 120px 120px, 120px 120px' }}>
+        <div className={cn(
+          "container mx-auto max-w-4xl text-center transition-all duration-1000",
+          heroVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+        )}>
           <h1 className="text-5xl sm:text-6xl font-bold text-gray-900 mb-6">
             Powerful Features for Your Organization
           </h1>
@@ -206,7 +274,7 @@ export function FeaturesPage() {
       </section>
 
       {/* Main Features */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white">
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-grid-pattern">
         <div className="container mx-auto max-w-6xl">
           <div className="space-y-12">
             {mainFeatures.map((feature, index) => {
@@ -242,7 +310,7 @@ export function FeaturesPage() {
       </section>
 
       {/* Additional Features */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-50">
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-grid-pattern">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">And More</h2>
@@ -296,50 +364,7 @@ export function FeaturesPage() {
       </section>
 
       {/* Footer */}
-      <footer className="py-12 px-4 sm:px-6 lg:px-8 bg-gray-900 text-gray-400">
-        <div className="container mx-auto max-w-6xl">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-            <div>
-              <div className="flex items-center space-x-2 mb-4">
-                <img 
-                  src="/logo.jpg" 
-                  alt="Dimes IDMS Logo" 
-                  className="w-8 h-8 object-contain"
-                />
-                <span className="text-white font-bold">Dimes IDMS</span>
-              </div>
-              <p className="text-sm">
-                Integrated Data Management System for humanitarian organizations
-              </p>
-            </div>
-            <div>
-              <h3 className="text-white font-semibold mb-4">Product</h3>
-              <ul className="space-y-2 text-sm">
-                <li><Link to="/features" className="hover:text-emerald-400 transition-colors">Features</Link></li>
-                <li><a href="#" className="hover:text-emerald-400 transition-colors">Mobile App</a></li>
-                <li><Link to="/pricing" className="hover:text-emerald-400 transition-colors">Pricing</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="text-white font-semibold mb-4">Resources</h3>
-              <ul className="space-y-2 text-sm">
-                <li><Link to="/support" className="hover:text-emerald-400 transition-colors">Documentation</Link></li>
-                <li><Link to="/support" className="hover:text-emerald-400 transition-colors">Support</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="text-white font-semibold mb-4">Company</h3>
-              <ul className="space-y-2 text-sm">
-                <li><Link to="/about" className="hover:text-emerald-400 transition-colors">About</Link></li>
-                <li><a href="#" className="hover:text-emerald-400 transition-colors">Contact</a></li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-gray-800 pt-8 text-center text-sm">
-            <p>&copy; {new Date().getFullYear()} Dimes IDMS. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

@@ -95,7 +95,17 @@ export const Login: React.FC<LoginProps> = () => {
 
 
   return (
-    <div className="min-h-screen w-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 to-emerald-50/50 p-4">
+    <div 
+      className="min-h-screen w-screen flex items-center justify-center bg-grid-pattern p-4"
+      style={{
+        backgroundImage: `
+          linear-gradient(to bottom, var(--gradient-start), var(--gradient-middle), var(--gradient-end)),
+          linear-gradient(0deg, transparent 24%, var(--grid-color) 25%, var(--grid-color) 26%, transparent 27%, transparent 74%, var(--grid-color) 75%, var(--grid-color) 76%, transparent 77%, transparent),
+          linear-gradient(90deg, transparent 24%, var(--grid-color) 25%, var(--grid-color) 26%, transparent 27%, transparent 74%, var(--grid-color) 75%, var(--grid-color) 76%, transparent 77%, transparent)
+        `,
+        backgroundSize: '100% 100%, 120px 120px, 120px 120px'
+      }}
+    >
       <div className="w-full max-w-md space-y-6">
         {/* Main Login Form */}
         <Card className="shadow-lg">

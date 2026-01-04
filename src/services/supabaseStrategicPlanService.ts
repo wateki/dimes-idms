@@ -2,6 +2,8 @@ import { supabase } from '@/lib/supabaseClient';
 import type { Database } from '@/types/supabase';
 import { supabaseAuthService } from './supabaseAuthService';
 import { supabaseUsageTrackingService } from './supabaseUsageTrackingService';
+import { getCurrentUserOrganizationId } from './getCurrentUserOrganizationId';
+import { userProfileCache } from './userProfileCache';
 
 type StrategicPlanRow = Database['public']['Tables']['strategic_plans']['Row'];
 type StrategicGoalRow = Database['public']['Tables']['strategic_goals']['Row'];
@@ -57,20 +59,10 @@ export interface StrategicPlan {
 
 class SupabaseStrategicPlanService {
   /**
-   * Get current user's organizationId
+   * Get current user's organizationId (uses shared cache helper)
    */
   private async getCurrentUserOrganizationId(): Promise<string> {
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
-      throw new Error('User is not associated with an organization');
-    }
-
-    return userProfile.organizationId;
+    return getCurrentUserOrganizationId();
   }
 
   private async formatStrategicPlan(plan: StrategicPlanRow): Promise<StrategicPlan> {
@@ -176,13 +168,9 @@ class SupabaseStrategicPlanService {
     startYear?: number,
     endYear?: number
   ): Promise<StrategicPlan> {
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
@@ -201,9 +189,9 @@ class SupabaseStrategicPlanService {
         startYear: startYear || currentYear,
         endYear: endYear || currentYear + 4,
         isActive: false,
-        organizationid: userProfile.organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
-        createdBy: userProfile.id,
-        updatedBy: userProfile.id,
+        organizationid: cachedProfile.organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
+        createdBy: cachedProfile.user.id,
+        updatedBy: cachedProfile.user.id,
         createdAt: now,
         updatedAt: now,
       })
@@ -231,9 +219,9 @@ class SupabaseStrategicPlanService {
           priority: goal.priority.toUpperCase() as Database['public']['Enums']['StrategicPriority'],
           targetOutcome: goal.targetOutcome || null,
           order: goalIndex,
-          organizationid: userProfile.organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
-          createdBy: userProfile.id,
-          updatedBy: userProfile.id,
+          organizationid: cachedProfile.organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
+          createdBy: cachedProfile.user.id,
+          updatedBy: cachedProfile.user.id,
           createdAt: now,
           updatedAt: now,
         });
@@ -255,11 +243,11 @@ class SupabaseStrategicPlanService {
             title: subGoal.title,
             description: subGoal.description || null,
             order: subGoalIndex,
-            createdBy: userProfile.id,
-            updatedBy: userProfile.id,
+            createdBy: cachedProfile.user.id,
+            updatedBy: cachedProfile.user.id,
             createdAt: now,
             updatedAt: now,
-            organizationid: userProfile.organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
+            organizationid: cachedProfile.organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
           });
 
         if (subGoalError) {
@@ -278,9 +266,9 @@ class SupabaseStrategicPlanService {
               targetValue: subGoal.kpi.targetValue,
               unit: subGoal.kpi.unit,
               type: subGoal.kpi.type,
-              createdBy: userProfile.id,
-              updatedBy: userProfile.id,
-              organizationid: userProfile.organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
+            createdBy: cachedProfile.user.id,
+            updatedBy: cachedProfile.user.id,
+            organizationid: cachedProfile.organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
               createdAt: now,
               updatedAt: now,
             });
@@ -304,9 +292,9 @@ class SupabaseStrategicPlanService {
               activityTitle: activityLink.activityTitle,
               contribution: activityLink.contribution,
               status: activityLink.status.toUpperCase().replace('-', '_') as Database['public']['Enums']['ActivityLinkStatus'],
-              createdBy: userProfile.id,
-              updatedBy: userProfile.id,
-              organizationid: userProfile.organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
+            createdBy: cachedProfile.user.id,
+            updatedBy: cachedProfile.user.id,
+            organizationid: cachedProfile.organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
               createdAt: now,
               updatedAt: now,
             });
@@ -333,13 +321,9 @@ class SupabaseStrategicPlanService {
     // Multi-tenant: Verify ownership first
     const organizationId = await this.getCurrentUserOrganizationId();
     
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
@@ -365,7 +349,7 @@ class SupabaseStrategicPlanService {
     // Update plan
     const now = new Date().toISOString();
     const updateData: any = {
-      updatedBy: userProfile.id,
+      updatedBy: cachedProfile.user.id,
       updatedAt: now,
     };
 
@@ -401,8 +385,8 @@ class SupabaseStrategicPlanService {
           targetOutcome: goal.targetOutcome || null,
           order: goalIndex,
           organizationid: organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
-          createdBy: userProfile.id,
-          updatedBy: userProfile.id,
+          createdBy: cachedProfile.user.id,
+          updatedBy: cachedProfile.user.id,
           createdAt: now,
           updatedAt: now,
         });
@@ -425,8 +409,8 @@ class SupabaseStrategicPlanService {
             description: subGoal.description || null,
             order: subGoalIndex,
             organizationid: organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
-            createdBy: userProfile.id,
-            updatedBy: userProfile.id,
+            createdBy: cachedProfile.user.id,
+            updatedBy: cachedProfile.user.id,
             createdAt: now,
             updatedAt: now,
           });
@@ -448,8 +432,8 @@ class SupabaseStrategicPlanService {
               unit: subGoal.kpi.unit,
               type: subGoal.kpi.type,
               organizationid: organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
-              createdBy: userProfile.id,
-              updatedBy: userProfile.id,
+              createdBy: cachedProfile.user.id,
+              updatedBy: cachedProfile.user.id,
               createdAt: now,
               updatedAt: now,
             });
@@ -486,8 +470,8 @@ class SupabaseStrategicPlanService {
               contribution: activityLink.contribution,
               status: activityLink.status.toUpperCase().replace('-', '_') as Database['public']['Enums']['ActivityLinkStatus'],
               organizationid: organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
-              createdBy: userProfile.id,
-              updatedBy: userProfile.id,
+              createdBy: cachedProfile.user.id,
+              updatedBy: cachedProfile.user.id,
               createdAt: now,
               updatedAt: now,
             });
@@ -576,15 +560,16 @@ class SupabaseStrategicPlanService {
       throw new Error('Not authenticated');
     }
 
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
     // Deactivate all other plans (within organization)
     await supabase
       .from('strategic_plans')
-      .update({ isActive: false, updatedBy: userProfile.id, updatedAt: new Date().toISOString() })
+      .update({ isActive: false, updatedBy: cachedProfile.user.id, updatedAt: new Date().toISOString() })
       .eq('organizationid', organizationId) // Filter by organization
       .neq('id', id);
 
@@ -593,7 +578,7 @@ class SupabaseStrategicPlanService {
       .from('strategic_plans')
       .update({
         isActive: true,
-        updatedBy: userProfile.id,
+        updatedBy: cachedProfile.user.id,
         updatedAt: new Date().toISOString(),
       })
       .eq('id', id)

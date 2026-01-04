@@ -3,6 +3,7 @@ import type { Database } from '@/types/supabase';
 import { supabaseAuthService } from './supabaseAuthService';
 import { supabaseUsageTrackingService } from './supabaseUsageTrackingService';
 import { getCurrentUserOrganizationId } from './getCurrentUserOrganizationId';
+import { userProfileCache } from './userProfileCache';
 import type { CreateFeedbackSubmissionRequest } from '@/types/feedback';
 
 type FeedbackForm = Database['public']['Tables']['feedback_forms']['Row'];
@@ -123,13 +124,9 @@ class SupabaseFeedbackService {
   }
 
   async createForm(data: any) {
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
@@ -153,13 +150,13 @@ class SupabaseFeedbackService {
         title: data.title,
         description: data.description,
         categoryId: data.categoryId,
-        organizationid: userProfile.organizationId, // Multi-tenant: Set organizationId (database column is lowercase)
+        organizationid: cachedProfile.organizationId, // Multi-tenant: Set organizationId (database column is lowercase)
         projectId: data.projectId || null,
         isActive: data.isActive ?? true,
         allowAnonymous: data.allowAnonymous ?? false,
         requireAuthentication: data.requireAuthentication ?? false,
         settings: data.settings || {},
-        createdBy: userProfile.id,
+        createdBy: cachedProfile.user.id,
         createdAt: now,
         updatedAt: now,
       } as Database['public']['Tables']['feedback_forms']['Insert'])
@@ -430,13 +427,9 @@ class SupabaseFeedbackService {
     // Multi-tenant: Verify ownership first
     const organizationId = await this.getCurrentUserOrganizationId();
     
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
@@ -480,8 +473,8 @@ class SupabaseFeedbackService {
         submissionId: id,
         status: data.status as Database['public']['Enums']['FeedbackStatus'],
         organizationid: organizationId, // Multi-tenant: Set organizationId (database column is lowercase)
-        changedBy: userProfile.id,
-        changedByName: `${userProfile.firstName} ${userProfile.lastName}`.trim() || userProfile.email,
+        changedBy: cachedProfile.user.id,
+        changedByName: `${cachedProfile.user.firstName} ${cachedProfile.user.lastName}`.trim() || cachedProfile.user.email,
         createdAt: now,
       } as unknown as Database['public']['Tables']['feedback_status_history']['Insert']);
 
@@ -575,8 +568,8 @@ class SupabaseFeedbackService {
       throw new Error('Feedback submission not found or access denied');
     }
     
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    const userProfile = currentUser ? await supabaseAuthService.getUserProfile(currentUser.id) : null;
+    // Use cached user profile (if authenticated)
+    const cachedProfile = await userProfileCache.getCachedProfile();
 
     const now = new Date().toISOString();
     const { data: communication, error } = await supabase
@@ -588,7 +581,7 @@ class SupabaseFeedbackService {
         type: data.type || 'EMAIL' as Database['public']['Enums']['CommunicationType'],
         direction: data.direction as Database['public']['Enums']['CommunicationDirection'],
         organizationid: organizationId, // Multi-tenant: Set organizationId (database column is lowercase)
-        sentBy: userProfile?.id || null,
+        sentBy: cachedProfile?.user.id || null,
         sentTo: data.sentTo || null,
         sentAt: now,
       } as unknown as Database['public']['Tables']['feedback_communications']['Insert'])
@@ -617,13 +610,9 @@ class SupabaseFeedbackService {
       throw new Error('Feedback submission not found or access denied');
     }
     
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
@@ -636,8 +625,8 @@ class SupabaseFeedbackService {
         content: data.content,
         isInternal: data.isInternal ?? true,
         organizationid: organizationId, // Multi-tenant: Set organizationId (database column is lowercase)
-        authorId: userProfile.id,
-        authorName: `${userProfile.firstName} ${userProfile.lastName}`.trim() || userProfile.email,
+        authorId: cachedProfile.user.id,
+        authorName: `${cachedProfile.user.firstName} ${cachedProfile.user.lastName}`.trim() || cachedProfile.user.email,
         createdAt: now,
       } as unknown as Database['public']['Tables']['feedback_notes']['Insert'])
       .select()

@@ -2,6 +2,9 @@ import { supabase } from '@/lib/supabaseClient';
 import type { Database } from '@/types/supabase';
 import { supabaseAuthService } from './supabaseAuthService';
 import { supabaseUsageTrackingService } from './supabaseUsageTrackingService';
+import { getCurrentUserOrganizationId } from './getCurrentUserOrganizationId';
+import { projectsCache } from './projectsCache';
+import { userProfileCache } from './userProfileCache';
 
 type ProjectKoboTable = Database['public']['Tables']['project_kobo_tables']['Row'];
 type KoboKpiMapping = Database['public']['Tables']['kobo_kpi_mappings']['Row'];
@@ -91,36 +94,18 @@ export interface KpiCalculationResult {
 
 class SupabaseKoboDataService {
   /**
-   * Get current user's organizationId
+   * Get current user's organizationId (uses shared cache helper)
    */
   private async getCurrentUserOrganizationId(): Promise<string> {
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
-      throw new Error('User is not associated with an organization');
-    }
-
-    return userProfile.organizationId;
+    return getCurrentUserOrganizationId();
   }
 
   /**
-   * Verify project belongs to user's organization
+   * Verify project belongs to user's organization (uses cache)
    */
   private async verifyProjectOwnership(projectId: string): Promise<void> {
-    const organizationId = await this.getCurrentUserOrganizationId();
-    
-    const { data, error } = await supabase
-      .from('projects')
-      .select('id, organizationid')
-      .eq('id', projectId)
-      .eq('organizationid', organizationId)
-      .single();
-
-    if (error || !data) {
+    const hasAccess = await projectsCache.verifyProjectOwnership(projectId);
+    if (!hasAccess) {
       throw new Error('Project not found or access denied');
     }
   }
@@ -170,15 +155,13 @@ class SupabaseKoboDataService {
     // Multi-tenant: Verify project ownership first
     await this.verifyProjectOwnership(projectId);
     
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
+
+    const organizationId = await this.getCurrentUserOrganizationId();
 
     // Check if table already exists for this project (within organization)
     const { data: existing } = await supabase
@@ -186,7 +169,7 @@ class SupabaseKoboDataService {
       .select('id')
       .eq('projectId', projectId)
       .eq('tableName', data.tableName)
-      .eq('organizationid', userProfile.organizationId) // Check within organization
+      .eq('organizationid', organizationId) // Check within organization
       .single();
 
     if (existing) {
@@ -203,9 +186,9 @@ class SupabaseKoboDataService {
         displayName: data.displayName,
         description: data.description || null,
         isActive: data.isActive ?? true,
-        organizationid: userProfile.organizationId, // Multi-tenant: Set organizationid
-        createdBy: userProfile.id,
-        updatedBy: userProfile.id,
+        organizationid: organizationId, // Multi-tenant: Set organizationid
+        createdBy: cachedProfile.user.id,
+        updatedBy: cachedProfile.user.id,
         createdAt: now,
         updatedAt: now,
       } as Database['public']['Tables']['project_kobo_tables']['Insert'])
@@ -313,13 +296,16 @@ class SupabaseKoboDataService {
       throw new Error('Not authenticated');
     }
 
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
+    const organizationId = await this.getCurrentUserOrganizationId();
+
     const updateData: any = {
-      updatedBy: userProfile.id,
+      updatedBy: cachedProfile.user.id,
       updatedAt: new Date().toISOString(),
     };
 
@@ -333,7 +319,7 @@ class SupabaseKoboDataService {
       .update(updateData)
       .eq('id', tableId)
       .eq('projectId', projectId)
-      .eq('organizationid', userProfile.organizationId) // Ensure ownership
+      .eq('organizationid', organizationId) // Filter by organization
       .select()
       .single();
 
@@ -386,15 +372,13 @@ class SupabaseKoboDataService {
     // Multi-tenant: Verify project ownership first
     await this.verifyProjectOwnership(projectId);
     
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
+
+    const organizationId = await this.getCurrentUserOrganizationId();
     
     // Verify table belongs to project and organization
     const { data: table, error: tableError } = await supabase
@@ -402,7 +386,7 @@ class SupabaseKoboDataService {
       .select('id, projectId, organizationid')
       .eq('id', data.projectKoboTableId)
       .eq('projectId', projectId)
-      .eq('organizationid', userProfile.organizationId)
+      .eq('organizationid', organizationId) // Filter by organization
       .single();
 
     if (tableError || !table) {
@@ -415,7 +399,7 @@ class SupabaseKoboDataService {
       .select('id, projectId, organizationid')
       .eq('id', data.kpiId)
       .eq('projectId', projectId)
-      .eq('organizationid', userProfile.organizationId)
+      .eq('organizationid', organizationId) // Filter by organization
       .single();
 
     if (kpiError || !kpi) {
@@ -429,7 +413,7 @@ class SupabaseKoboDataService {
       .eq('projectKoboTableId', data.projectKoboTableId)
       .eq('kpiId', data.kpiId)
       .eq('columnName', data.columnName)
-      .eq('organizationid', userProfile.organizationId) // Check within organization
+      .eq('organizationid', organizationId) // Check within organization
       .single();
 
     if (existing) {
@@ -448,9 +432,9 @@ class SupabaseKoboDataService {
         timeFilterField: data.timeFilterField || null,
         timeFilterValue: data.timeFilterValue || null,
         isActive: data.isActive ?? true,
-        organizationid: userProfile.organizationId, // Multi-tenant: Set organizationid
-        createdBy: userProfile.id,
-        updatedBy: userProfile.id,
+        organizationid: organizationId, // Multi-tenant: Set organizationid
+        createdBy: cachedProfile.user.id,
+        updatedBy: cachedProfile.user.id,
         createdAt: now,
         updatedAt: now,
       } as unknown as Database['public']['Tables']['kobo_kpi_mappings']['Insert'])
@@ -529,10 +513,13 @@ class SupabaseKoboDataService {
       throw new Error('Not authenticated');
     }
 
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
+
+    const organizationId = await this.getCurrentUserOrganizationId();
 
     // Verify the mapping belongs to the project and organization
     const { data: mapping, error: mappingError } = await supabase
@@ -542,7 +529,7 @@ class SupabaseKoboDataService {
         projectKoboTable:project_kobo_tables!kobo_kpi_mappings_projectKoboTableId_fkey(projectId, organizationId)
       `)
       .eq('id', mappingId)
-      .eq('organizationid', userProfile.organizationId) // Ensure ownership
+      .eq('organizationid', organizationId) // Filter by organization
       .single();
 
     if (mappingError || !mapping || (mapping as any).projectKoboTable?.projectId !== projectId) {
@@ -550,7 +537,7 @@ class SupabaseKoboDataService {
     }
 
     const updateData: any = {
-      updatedBy: userProfile.id,
+      updatedBy: cachedProfile.user.id,
       updatedAt: new Date().toISOString(),
     };
 
@@ -565,7 +552,7 @@ class SupabaseKoboDataService {
       .from('kobo_kpi_mappings')
       .update(updateData)
       .eq('id', mappingId)
-      .eq('organizationid', userProfile.organizationId) // Ensure ownership
+      .eq('organizationid', organizationId) // Filter by organization
       .select(`
         *,
         kpi:kpis(id, name, unit),

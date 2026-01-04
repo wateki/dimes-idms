@@ -1,6 +1,9 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { Database } from '@/types/supabase';
 import { supabaseAuthService } from './supabaseAuthService';
+import { projectsCache } from './projectsCache';
+import { getCurrentUserOrganizationId } from './getCurrentUserOrganizationId';
+import { userProfileCache } from './userProfileCache';
 import type { Outcome, Activity } from '@/types/dashboard';
 
 type OutcomeRow = Database['public']['Tables']['outcomes']['Row'];
@@ -44,36 +47,18 @@ export interface CreateKPIDto {
 
 class SupabaseProjectDataService {
   /**
-   * Get current user's organizationId
+   * Get current user's organizationId (uses shared cache helper)
    */
   private async getCurrentUserOrganizationId(): Promise<string> {
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
-      throw new Error('User is not associated with an organization');
-    }
-
-    return userProfile.organizationId;
+    return getCurrentUserOrganizationId();
   }
 
   /**
-   * Verify project belongs to user's organization
+   * Verify project ownership using cache (no database query needed)
    */
   private async verifyProjectOwnership(projectId: string): Promise<void> {
-    const organizationId = await this.getCurrentUserOrganizationId();
-    
-    const { data, error } = await supabase
-      .from('projects')
-      .select('id, organizationid')
-      .eq('id', projectId)
-      .eq('organizationid', organizationId)
-      .single();
-
-    if (error || !data) {
+    const hasAccess = await projectsCache.verifyProjectOwnership(projectId);
+    if (!hasAccess) {
       throw new Error('Project not found or access denied');
     }
   }
@@ -108,7 +93,7 @@ class SupabaseProjectDataService {
 
   // Outcomes
   async getProjectOutcomes(projectId: string): Promise<Outcome[]> {
-    // Multi-tenant: Verify project ownership first
+    // Verify project ownership using cache (RLS will also enforce access)
     await this.verifyProjectOwnership(projectId);
     
     const organizationId = await this.getCurrentUserOrganizationId();
@@ -131,15 +116,13 @@ class SupabaseProjectDataService {
     // Multi-tenant: Verify project ownership first
     await this.verifyProjectOwnership(projectId);
     
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
+
+    const organizationId = await this.getCurrentUserOrganizationId();
 
     const now = new Date().toISOString();
     const { data, error } = await supabase
@@ -154,9 +137,9 @@ class SupabaseProjectDataService {
         unit: outcomeData.unit || null,
         status: (outcomeData.status || 'PLANNING') as Database['public']['Enums']['OutcomeStatus'],
         progress: outcomeData.progress || 0,
-        organizationid: userProfile.organizationId, // Multi-tenant: Set organizationId
-        createdBy: userProfile.id,
-        updatedBy: userProfile.id,
+        organizationid: organizationId, // Multi-tenant: Set organizationId
+        createdBy: cachedProfile.user.id,
+        updatedBy: cachedProfile.user.id,
         createdAt: now,
         updatedAt: now,
       } as unknown as Database['public']['Tables']['outcomes']['Insert'])
@@ -174,18 +157,14 @@ class SupabaseProjectDataService {
     // Multi-tenant: Verify project ownership first
     await this.verifyProjectOwnership(projectId);
     
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
     const updateData: any = {
-      updatedBy: userProfile.id,
+      updatedBy: cachedProfile.user.id,
       updatedAt: new Date().toISOString(),
     };
 
@@ -197,13 +176,14 @@ class SupabaseProjectDataService {
     if (updates.status !== undefined) updateData.status = updates.status as Database['public']['Enums']['OutcomeStatus'];
     if (updates.progress !== undefined) updateData.progress = updates.progress;
 
-    // Multi-tenant: Verify outcome belongs to user's organization
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { data, error } = await supabase
       .from('outcomes')
       .update(updateData)
       .eq('id', outcomeId)
       .eq('projectId', projectId)
-      .eq('organizationid', userProfile.organizationId) // Ensure ownership
+      .eq('organizationid', organizationId) // Filter by organization
       .select()
       .single();
 
@@ -215,7 +195,7 @@ class SupabaseProjectDataService {
   }
 
   async deleteProjectOutcome(projectId: string, outcomeId: string): Promise<{ success: boolean; message: string }> {
-    // Multi-tenant: Verify project ownership first
+    // Verify project ownership using cache (RLS will also enforce access)
     await this.verifyProjectOwnership(projectId);
     
     const organizationId = await this.getCurrentUserOrganizationId();
@@ -236,7 +216,7 @@ class SupabaseProjectDataService {
 
   // Activities
   async getProjectActivities(projectId: string): Promise<Activity[]> {
-    // Multi-tenant: Verify project ownership first
+    // Verify project ownership using cache (RLS will also enforce access)
     await this.verifyProjectOwnership(projectId);
     
     const organizationId = await this.getCurrentUserOrganizationId();
@@ -260,15 +240,13 @@ class SupabaseProjectDataService {
     // Multi-tenant: Verify project ownership first
     await this.verifyProjectOwnership(projectId);
     
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
+
+    const organizationId = await this.getCurrentUserOrganizationId();
 
     const now = new Date().toISOString();
     // Note: activities table uses lowercase 'organizationid' column
@@ -287,9 +265,9 @@ class SupabaseProjectDataService {
         progress: activityData.progress || 0,
         budget: activityData.budget || 0,
         spent: activityData.spent || 0,
-        organizationid: userProfile.organizationId, // Multi-tenant: Set organizationId (lowercase)
-        createdBy: userProfile.id,
-        updatedBy: userProfile.id,
+        organizationid: organizationId, // Multi-tenant: Set organizationId (lowercase)
+        createdBy: cachedProfile.user.id,
+        updatedBy: cachedProfile.user.id,
         createdAt: now,
         updatedAt: now,
       } as unknown as Database['public']['Tables']['activities']['Insert'])
@@ -307,18 +285,14 @@ class SupabaseProjectDataService {
     // Multi-tenant: Verify project ownership first
     await this.verifyProjectOwnership(projectId);
     
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
     const updateData: any = {
-      updatedBy: userProfile.id,
+      updatedBy: cachedProfile.user.id,
       updatedAt: new Date().toISOString(),
     };
 
@@ -332,13 +306,15 @@ class SupabaseProjectDataService {
     if ((updates as any).budget !== undefined) updateData.budget = (updates as any).budget;
     if ((updates as any).spent !== undefined) updateData.spent = (updates as any).spent;
 
-    // Multi-tenant: Verify activity belongs to user's organization (note: lowercase column name)
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
+    // Note: activities table uses lowercase 'organizationid' column
     const { data, error } = await supabase
       .from('activities')
       .update(updateData)
       .eq('id', activityId)
       .eq('projectId', projectId)
-      .eq('organizationid', userProfile.organizationId) // Ensure ownership (lowercase)
+      .eq('organizationid', organizationId) // Filter by organization (lowercase)
       .select()
       .single();
 
@@ -350,7 +326,7 @@ class SupabaseProjectDataService {
   }
 
   async deleteProjectActivity(projectId: string, activityId: string): Promise<{ success: boolean; message: string }> {
-    // Multi-tenant: Verify project ownership first
+    // Verify project ownership using cache (RLS will also enforce access)
     await this.verifyProjectOwnership(projectId);
     
     const organizationId = await this.getCurrentUserOrganizationId();
@@ -361,7 +337,7 @@ class SupabaseProjectDataService {
       .delete()
       .eq('id', activityId)
       .eq('projectId', projectId)
-      .eq('organizationid', organizationId); // Ensure ownership (lowercase)
+      .eq('organizationid', organizationId); // Filter by organization (lowercase)
 
     if (error) {
       throw new Error(error.message || 'Failed to delete project activity or access denied');
@@ -372,7 +348,7 @@ class SupabaseProjectDataService {
 
   // Outputs (if they exist as a separate table)
   async getProjectOutputs(projectId: string): Promise<any[]> {
-    // Multi-tenant: Verify project ownership first
+    // Verify project ownership using cache (RLS will also enforce access)
     await this.verifyProjectOwnership(projectId);
     
     const organizationId = await this.getCurrentUserOrganizationId();
@@ -397,12 +373,13 @@ class SupabaseProjectDataService {
 
   // Sub-activities
   async getProjectSubActivities(projectId: string): Promise<any[]> {
-    // Multi-tenant: Verify project ownership first
+    // Verify project ownership using cache (RLS will also enforce access)
     await this.verifyProjectOwnership(projectId);
     
     const organizationId = await this.getCurrentUserOrganizationId();
     
     // Get sub-activities through activities (filtered by organization)
+    // Note: activities table uses lowercase 'organizationid' column
     const { data: activities } = await supabase
       .from('activities')
       .select('id')
@@ -430,7 +407,7 @@ class SupabaseProjectDataService {
 
   // KPIs
   async getProjectKPIs(projectId: string): Promise<any[]> {
-    // Multi-tenant: Verify project ownership first
+    // Verify project ownership using cache (RLS will also enforce access)
     await this.verifyProjectOwnership(projectId);
     
     const organizationId = await this.getCurrentUserOrganizationId();
@@ -469,13 +446,9 @@ class SupabaseProjectDataService {
     // Multi-tenant: Verify project ownership first
     await this.verifyProjectOwnership(projectId);
     
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
@@ -494,9 +467,9 @@ class SupabaseProjectDataService {
         unit: kpiData.unit || null,
         type: kpiData.type || null,
         frequency: (kpiData.frequency || 'MONTHLY') as Database['public']['Enums']['KPIFrequency'],
-        organizationid: userProfile.organizationId, // Multi-tenant: Set organizationId
-        createdBy: userProfile.id,
-        updatedBy: userProfile.id,
+        organizationid: cachedProfile.organizationId, // Multi-tenant: Set organizationId
+        createdBy: cachedProfile.user.id,
+        updatedBy: cachedProfile.user.id,
         createdAt: now,
         updatedAt: now,
       } as unknown as Database['public']['Tables']['kpis']['Insert'])
@@ -530,18 +503,14 @@ class SupabaseProjectDataService {
     // Multi-tenant: Verify project ownership first
     await this.verifyProjectOwnership(projectId);
     
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
     const updateData: any = {
-      updatedBy: userProfile.id,
+      updatedBy: cachedProfile.user.id,
       updatedAt: new Date().toISOString(),
     };
 
@@ -555,13 +524,14 @@ class SupabaseProjectDataService {
     if (updates.frequency !== undefined) updateData.frequency = updates.frequency as Database['public']['Enums']['KPIFrequency'];
     if (updates.outcomeId !== undefined) updateData.outcomeId = updates.outcomeId || null;
 
-    // Multi-tenant: Verify KPI belongs to user's organization
+    const organizationId = await this.getCurrentUserOrganizationId();
+    
     const { data, error } = await supabase
       .from('kpis')
       .update(updateData)
       .eq('id', kpiId)
       .eq('projectId', projectId)
-      .eq('organizationid', userProfile.organizationId) // Ensure ownership
+      .eq('organizationid', organizationId) // Filter by organization
       .select()
       .single();
 
@@ -589,7 +559,7 @@ class SupabaseProjectDataService {
   }
 
   async deleteProjectKPI(projectId: string, kpiId: string): Promise<{ success: boolean; message: string }> {
-    // Multi-tenant: Verify project ownership first
+    // Verify project ownership using cache (RLS will also enforce access)
     await this.verifyProjectOwnership(projectId);
     
     const organizationId = await this.getCurrentUserOrganizationId();
@@ -599,7 +569,7 @@ class SupabaseProjectDataService {
       .delete()
       .eq('id', kpiId)
       .eq('projectId', projectId)
-      .eq('organizationid', organizationId); // Ensure ownership
+      .eq('organizationid', organizationId); // Filter by organization
 
     if (error) {
       throw new Error(error.message || 'Failed to delete project KPI or access denied');

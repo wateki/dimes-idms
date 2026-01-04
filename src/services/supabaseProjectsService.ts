@@ -3,6 +3,8 @@ import type { Database } from '@/types/supabase';
 import { supabaseAuthService } from './supabaseAuthService';
 import { supabaseUsageTrackingService } from './supabaseUsageTrackingService';
 import { getCurrentUserOrganizationId } from './getCurrentUserOrganizationId';
+import { projectsCache } from './projectsCache';
+import { userProfileCache } from './userProfileCache';
 import type { Project } from '@/types/dashboard';
 
 type ProjectRow = Database['public']['Tables']['projects']['Row'];
@@ -59,24 +61,18 @@ class SupabaseProjectsService {
   }
 
   async getAllProjects(): Promise<Project[]> {
-    // Multi-tenant: Filter by organizationId
-    const organizationId = await this.getCurrentUserOrganizationId();
-    
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*')
-      .eq('organizationid', organizationId) // Filter by organization
-      .order('createdAt', { ascending: false });
-
-    if (error) {
-      throw new Error(error.message || 'Failed to fetch projects');
-    }
-
-    return (data || []).map(p => this.formatProject(p));
+    // Use cache if available, otherwise fetch and cache
+    return await projectsCache.getCachedProjects();
   }
 
   async getProjectById(id: string): Promise<Project> {
-    // Multi-tenant: Filter by organizationId
+    // Try cache first
+    const cachedProject = await projectsCache.getProjectById(id);
+    if (cachedProject) {
+      return cachedProject;
+    }
+
+    // If not in cache, fetch from database (RLS will ensure access control)
     const organizationId = await this.getCurrentUserOrganizationId();
     
     const { data, error } = await supabase
@@ -91,37 +87,26 @@ class SupabaseProjectsService {
       throw new Error(error?.message || 'Project not found');
     }
 
-    return this.formatProject(data);
+    const project = this.formatProject(data);
+    // Update cache with the fetched project
+    await projectsCache.updateCache(project);
+    return project;
   }
 
   async getProjectsByCountry(country: string): Promise<Project[]> {
-    // Multi-tenant: Filter by organizationId
-    const organizationId = await this.getCurrentUserOrganizationId();
-    
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*')
-      .eq('country', country)
-      .eq('organizationid', organizationId) // Filter by organization
-      .order('createdAt', { ascending: false });
-
-    if (error) {
-      throw new Error(error.message || 'Failed to fetch projects by country');
-    }
-
-    return (data || []).map(p => this.formatProject(p));
+    // Use cached projects and filter by country
+    const allProjects = await projectsCache.getCachedProjects();
+    return allProjects.filter(p => p.country === country);
   }
 
   async createProject(projectData: Omit<Project, 'id'>): Promise<Project> {
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
+
+    const organizationId = await this.getCurrentUserOrganizationId();
 
     const now = new Date().toISOString();
     const { data, error } = await supabase
@@ -140,9 +125,9 @@ class SupabaseProjectsService {
         backgroundInformation: projectData.backgroundInformation || null,
         mapData: projectData.mapData || null,
         theoryOfChange: projectData.theoryOfChange || null,
-        organizationid: userProfile.organizationId, // Multi-tenant: Set organizationId
-        createdBy: userProfile.id,
-        updatedBy: userProfile.id,
+        organizationid: organizationId, // Multi-tenant: Set organizationId
+        createdBy: cachedProfile.user.id,
+        updatedBy: cachedProfile.user.id,
         createdAt: now,
         updatedAt: now,
       } as unknown as Database['public']['Tables']['projects']['Insert'])
@@ -158,22 +143,23 @@ class SupabaseProjectsService {
     // Note: Usage tracking is now handled by database trigger (track_project_insert)
     // This ensures atomicity and better performance
 
-    return this.formatProject(data);
+    const project = this.formatProject(data);
+    // Update cache with new project
+    await projectsCache.updateCache(project);
+    return project;
   }
 
   async updateProject(id: string, updates: Partial<Project>): Promise<Project> {
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
+    const organizationId = await this.getCurrentUserOrganizationId();
+
     const updateData: any = {
-      updatedBy: userProfile.id,
+      updatedBy: cachedProfile.user.id,
       updatedAt: new Date().toISOString(),
     };
 
@@ -195,7 +181,7 @@ class SupabaseProjectsService {
       .from('projects')
       .update(updateData)
       .eq('id', id)
-      .eq('organizationid', userProfile.organizationId) // Ensure project belongs to user's organization
+      .eq('organizationid', organizationId) // Filter by organization
       .select()
       .single();
 
@@ -203,7 +189,10 @@ class SupabaseProjectsService {
       throw new Error(error?.message || 'Project not found or access denied');
     }
 
-    return this.formatProject(data);
+    const project = this.formatProject(data);
+    // Update cache with updated project
+    await projectsCache.updateCache(project);
+    return project;
   }
 
   async deleteProject(id: string): Promise<{ success: boolean; message: string }> {
@@ -223,6 +212,8 @@ class SupabaseProjectsService {
     // Note: Usage tracking is now handled by database trigger (track_project_delete)
     // This ensures atomicity and better performance
 
+    // Update cache by removing deleted project
+    await projectsCache.updateCache(undefined, id);
     return { success: true, message: 'Project deleted successfully' };
   }
 

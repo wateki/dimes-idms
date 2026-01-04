@@ -3,6 +3,8 @@ import type { Database } from '@/types/supabase';
 import { supabaseAuthService } from './supabaseAuthService';
 import { config } from '@/config/env';
 import { supabaseUsageTrackingService } from './supabaseUsageTrackingService';
+import { getCurrentUserOrganizationId } from './getCurrentUserOrganizationId';
+import { userProfileCache } from './userProfileCache';
 
 type User = Database['public']['Tables']['users']['Row'];
 type Role = Database['public']['Tables']['roles']['Row'];
@@ -108,25 +110,10 @@ function formatRole(role: Role): {
 
 class SupabaseUserManagementService {
   /**
-   * Get current user's organizationId
+   * Get current user's organizationId (uses shared cache helper)
    */
   private async getCurrentUserOrganizationId(): Promise<string> {
-    console.log('[User Management Service] Getting current user organization ID...');
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      console.error('[User Management Service] Not authenticated - no current user');
-      throw new Error('Not authenticated');
-    }
-
-    console.log(`[User Management Service] Current user: ${currentUser.id}`);
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
-      console.error(`[User Management Service] User profile not found or no organization ID for user: ${currentUser.id}`);
-      throw new Error('User is not associated with an organization');
-    }
-
-    console.log(`[User Management Service] Organization ID: ${userProfile.organizationId}`);
-    return userProfile.organizationId;
+    return getCurrentUserOrganizationId();
   }
 
   private formatUserResponse(user: User, userRoles: UserRole[], projectAccess: UserProjectAccess[]): UserWithDetails {
@@ -367,16 +354,10 @@ class SupabaseUserManagementService {
 
     console.log(`[User Management Service] Email ${userData.email} is available`);
 
-    // Get current user for createdBy
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      console.error('[User Management Service] Not authenticated - no current user');
-      throw new Error('Not authenticated');
-    }
-    
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
-      console.error(`[User Management Service] User profile not found or no organization ID for user: ${currentUser.id}`);
+    // Get current user for createdBy (use cached profile)
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
+      console.error('[User Management Service] User profile not found or user is not associated with an organization');
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
@@ -453,10 +434,10 @@ class SupabaseUserManagementService {
         firstName: userData.firstName,
         lastName: userData.lastName,
         passwordHash: '', // Not used with Supabase Auth
-        organizationId: organizationId, // Multi-tenant: Set organizationId
+        organizationId: cachedProfile.organizationId, // Multi-tenant: Set organizationId
         isActive: true,
-        createdBy: userProfile.id,
-        updatedBy: userProfile.id,
+        createdBy: cachedProfile.user.id,
+        updatedBy: cachedProfile.user.id,
         createdAt: now,
         updatedAt: now,
       } as unknown as Database['public']['Tables']['users']['Insert'])
@@ -556,20 +537,15 @@ class SupabaseUserManagementService {
     // Multi-tenant: Verify ownership first
     const organizationId = await this.getCurrentUserOrganizationId();
     
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      console.error('[User Management Service] Not authenticated - no current user');
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
-      console.error(`[User Management Service] User profile not found or no organization ID for user: ${currentUser.id}`);
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
+      console.error('[User Management Service] User profile not found or user is not associated with an organization');
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
     const updateData: any = {
-      updatedBy: userProfile.id,
+      updatedBy: cachedProfile.user.id,
       updatedAt: new Date().toISOString(),
     };
 
@@ -678,20 +654,15 @@ class SupabaseUserManagementService {
     // Multi-tenant: Verify ownership first
     const organizationId = await this.getCurrentUserOrganizationId();
     
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      console.error('[User Management Service] Not authenticated - no current user');
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
-      console.error(`[User Management Service] User profile not found or no organization ID for user: ${currentUser.id}`);
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
+      console.error('[User Management Service] User profile not found or user is not associated with an organization');
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
     // Prevent self-deletion
-    if (userId === userProfile.id) {
+    if (userId === cachedProfile.user.id) {
       console.error(`[User Management Service] Self-deletion attempted by user: ${userId}`);
       throw new Error('Cannot delete your own account');
     }
@@ -723,7 +694,7 @@ class SupabaseUserManagementService {
         .from('users')
         .update({
           isActive: false,
-          updatedBy: userProfile.id,
+          updatedBy: cachedProfile.user.id,
           updatedAt: now,
         })
         .eq('id', userId),

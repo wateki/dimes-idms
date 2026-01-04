@@ -3,6 +3,7 @@ import { supabaseAuthService } from './supabaseAuthService';
 import { paystackService } from './paystackService';
 import type { Database } from '@/types/supabase';
 import type { Organization } from '@/contexts/OrganizationContext';
+import { getCurrentUserOrganizationId } from './getCurrentUserOrganizationId';
 
 type OrganizationRow = Database['public']['Tables']['organizations']['Row'];
 type OrganizationInsert = Database['public']['Tables']['organizations']['Insert'];
@@ -53,18 +54,10 @@ export interface UsageStats {
 
 class SupabaseOrganizationService {
   /**
-   * Get current user's organizationId
+   * Get current user's organizationId (uses shared cache helper)
    */
   private async getCurrentUserOrganizationId(): Promise<string> {
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
-      throw new Error('User is not associated with an organization');
-    }
-    return userProfile.organizationId;
+    return getCurrentUserOrganizationId();
   }
 
   /**

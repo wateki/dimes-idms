@@ -1,6 +1,9 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { Database } from '@/types/supabase';
 import { supabaseAuthService } from './supabaseAuthService';
+import { getCurrentUserOrganizationId } from './getCurrentUserOrganizationId';
+import { projectsCache } from './projectsCache';
+import { userProfileCache } from './userProfileCache';
 
 type ReportWorkflow = Database['public']['Tables']['report_workflows']['Row'];
 type ReportApprovalStep = Database['public']['Tables']['report_approval_steps']['Row'];
@@ -30,36 +33,18 @@ export interface WorkflowListResponse {
 
 class SupabaseReportWorkflowService {
   /**
-   * Get current user's organizationId
+   * Get current user's organizationId (uses shared cache helper)
    */
   private async getCurrentUserOrganizationId(): Promise<string> {
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
-      throw new Error('User is not associated with an organization');
-    }
-
-    return userProfile.organizationId;
+    return getCurrentUserOrganizationId();
   }
 
   /**
-   * Verify project belongs to user's organization
+   * Verify project belongs to user's organization (uses cache)
    */
   private async verifyProjectOwnership(projectId: string): Promise<void> {
-    const organizationId = await this.getCurrentUserOrganizationId();
-    
-    const { data, error } = await supabase
-      .from('projects')
-      .select('id, organizationid')
-      .eq('id', projectId)
-      .eq('organizationid', organizationId)
-      .single();
-
-    if (error || !data) {
+    const hasAccess = await projectsCache.verifyProjectOwnership(projectId);
+    if (!hasAccess) {
       throw new Error('Project not found or access denied');
     }
   }
@@ -92,13 +77,9 @@ class SupabaseReportWorkflowService {
       await this.verifyProjectOwnership(projectId);
     }
     
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
@@ -127,7 +108,7 @@ class SupabaseReportWorkflowService {
     const filtered = (workflows || []).filter((w: any) => {
       const steps = w.approvalSteps || [];
       return steps.some((s: ReportApprovalStep) => 
-        s.reviewerId === userProfile.id && !s.isCompleted
+        s.reviewerId === cachedProfile.user.id && !s.isCompleted
       );
     });
 
@@ -146,13 +127,9 @@ class SupabaseReportWorkflowService {
       await this.verifyProjectOwnership(projectId);
     }
     
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found');
     }
 
@@ -162,7 +139,7 @@ class SupabaseReportWorkflowService {
         *,
         approvalSteps:report_approval_steps(*)
       `)
-      .eq('submittedBy', userProfile.id)
+      .eq('submittedBy', cachedProfile.user.id)
       .eq('organizationid', organizationId); // Filter by organization
 
     if (projectId) {
@@ -235,13 +212,9 @@ class SupabaseReportWorkflowService {
     reasoning?: string,
     skipToFinalApproval?: boolean
   ): Promise<WorkflowReportSummary> {
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found');
     }
 
@@ -264,7 +237,7 @@ class SupabaseReportWorkflowService {
     }
 
     const steps = (workflow as any).approvalSteps as ReportApprovalStep[];
-    const userStep = steps.find(s => s.reviewerId === userProfile.id && !s.isCompleted);
+    const userStep = steps.find(s => s.reviewerId === cachedProfile.user.id && !s.isCompleted);
 
     if (!userStep) {
       throw new Error('You are not authorized to review this report or have already completed your review');
@@ -370,13 +343,9 @@ class SupabaseReportWorkflowService {
       throw new Error('Report workflow not found or access denied');
     }
     
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
@@ -403,7 +372,7 @@ class SupabaseReportWorkflowService {
       .insert({
         id: commentId,
         reportWorkflowId: reportId,
-        authorId: userProfile.id,
+        authorId: cachedProfile.user.id,
         content,
         isInternal: isInternal || false,
         parentCommentId: replyToCommentId || null,
@@ -419,13 +388,9 @@ class SupabaseReportWorkflowService {
   }
 
   async resubmitWorkflow(reportId: string, fileIds?: string[]): Promise<WorkflowReportSummary> {
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found');
     }
 
@@ -552,18 +517,14 @@ class SupabaseReportWorkflowService {
       throw new Error('Delegate user not found or access denied');
     }
     
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
     // Verify current user is the reviewer
-    if (step.reviewerId !== userProfile.id) {
+    if (step.reviewerId !== cachedProfile.user.id) {
       throw new Error('You are not authorized to delegate this review step');
     }
 
@@ -574,7 +535,7 @@ class SupabaseReportWorkflowService {
       .update({
         isDelegated: true,
         delegatedTo: delegateToUserId,
-        delegatedBy: userProfile.id,
+        delegatedBy: cachedProfile.user.id,
         delegatedAt: now,
         delegationReason: reason,
         updatedAt: now,
@@ -608,13 +569,9 @@ class SupabaseReportWorkflowService {
       throw new Error('Escalate to user not found or access denied');
     }
     
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
@@ -646,10 +603,10 @@ class SupabaseReportWorkflowService {
         canSkip: false,
         escalationLevel: 1,
         escalationReason,
-        escalatedBy: userProfile.id,
+        escalatedBy: cachedProfile.user.id,
         escalatedAt: now,
         organizationid: organizationId, // Multi-tenant: Set organizationId
-        createdBy: userProfile.id,
+        createdBy: cachedProfile.user.id,
         createdAt: now,
         updatedAt: now,
       });
@@ -825,13 +782,9 @@ class SupabaseReportWorkflowService {
     const currentVersion = (workflow as any).currentVersion || 0;
     const newVersion = currentVersion + 1;
 
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found');
     }
 
@@ -861,7 +814,7 @@ class SupabaseReportWorkflowService {
         fileIds: currentWorkflow?.fileIds || [],
         checkpointNote,
         organizationid: organizationId, // Multi-tenant: Set organizationId
-        submittedBy: userProfile.id,
+        submittedBy: cachedProfile.user.id,
         submittedAt: now,
         createdAt: now,
       });
@@ -884,13 +837,9 @@ class SupabaseReportWorkflowService {
     returnToStepId: string,
     reason: string
   ): Promise<WorkflowReportSummary> {
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found');
     }
 
@@ -922,7 +871,7 @@ class SupabaseReportWorkflowService {
         reasoning: null,
         hasBeenReturned: true,
         returnedAt: now,
-        returnedBy: userProfile.id,
+        returnedBy: cachedProfile.user.id,
         returnReason: reason,
         updatedAt: now,
       })

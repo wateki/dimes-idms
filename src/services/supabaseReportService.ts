@@ -3,6 +3,9 @@ import type { Database } from '@/types/supabase';
 import { supabaseAuthService } from './supabaseAuthService';
 import { supabaseUsageTrackingService } from './supabaseUsageTrackingService';
 import { saveAs } from 'file-saver';
+import { getCurrentUserOrganizationId } from './getCurrentUserOrganizationId';
+import { projectsCache } from './projectsCache';
+import { userProfileCache } from './userProfileCache';
 
 type Report = Database['public']['Tables']['reports']['Row'];
 
@@ -40,36 +43,18 @@ export interface ReportListResponse {
 
 class SupabaseReportService {
   /**
-   * Get current user's organizationId
+   * Get current user's organizationId (uses shared cache helper)
    */
   private async getCurrentUserOrganizationId(): Promise<string> {
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
-      throw new Error('User is not associated with an organization');
-    }
-
-    return userProfile.organizationId;
+    return getCurrentUserOrganizationId();
   }
 
   /**
-   * Verify project belongs to user's organization
+   * Verify project belongs to user's organization (uses cache)
    */
   private async verifyProjectOwnership(projectId: string): Promise<void> {
-    const organizationId = await this.getCurrentUserOrganizationId();
-    
-    const { data, error } = await supabase
-      .from('projects')
-      .select('id, organizationid')
-      .eq('id', projectId)
-      .eq('organizationid', organizationId)
-      .single();
-
-    if (error || !data) {
+    const hasAccess = await projectsCache.verifyProjectOwnership(projectId);
+    if (!hasAccess) {
       throw new Error('Project not found or access denied');
     }
   }
@@ -139,18 +124,16 @@ class SupabaseReportService {
     // Multi-tenant: Verify project ownership first
     await this.verifyProjectOwnership(projectId);
     
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
+    const organizationId = await this.getCurrentUserOrganizationId();
+
     const updatePayload: any = {
-      updatedBy: userProfile.id,
+      updatedBy: cachedProfile.user.id,
       updatedAt: new Date().toISOString(),
     };
 
@@ -164,7 +147,7 @@ class SupabaseReportService {
       .update(updatePayload)
       .eq('id', reportId)
       .eq('projectId', projectId)
-      .eq('organizationid', userProfile.organizationId) // Ensure ownership
+      .eq('organizationid', organizationId) // Filter by organization
       .select()
       .single();
 
@@ -230,15 +213,13 @@ class SupabaseReportService {
     // Multi-tenant: Verify project ownership first
     await this.verifyProjectOwnership(projectId);
     
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
+
+    const organizationId = await this.getCurrentUserOrganizationId();
 
     // Generate filename
     let finalFilename = file.name;
@@ -288,9 +269,9 @@ class SupabaseReportService {
         fileUrl: storagePath, // Store the storage path
         fileSize: file.size.toString(),
         status: 'DRAFT' as Database['public']['Enums']['ReportStatus'],
-        organizationid:userProfile.organizationId, // Multi-tenant: Set organizationId
-        createdBy: userProfile.id,
-        updatedBy: userProfile.id,
+        organizationid: organizationId, // Multi-tenant: Set organizationId
+        createdBy: cachedProfile.user.id,
+        updatedBy: cachedProfile.user.id,
         createdAt: now,
         updatedAt: now,
       } as unknown as Database['public']['Tables']['reports']['Insert'])

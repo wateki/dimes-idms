@@ -1,6 +1,9 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { Database } from '@/types/supabase';
 import { supabaseAuthService } from './supabaseAuthService';
+import { getCurrentUserOrganizationId } from './getCurrentUserOrganizationId';
+import { projectsCache } from './projectsCache';
+import { userProfileCache } from './userProfileCache';
 
 type ProjectFinancialDataRow = Database['public']['Tables']['project_financial_data']['Row'];
 type ActivityFinancialDataRow = Database['public']['Tables']['activity_financial_data']['Row'];
@@ -92,36 +95,18 @@ export interface FinancialSummary {
 
 class SupabaseFinancialService {
   /**
-   * Get current user's organizationId
+   * Get current user's organizationId (uses shared cache helper)
    */
   private async getCurrentUserOrganizationId(): Promise<string> {
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
-      throw new Error('User is not associated with an organization');
-    }
-
-    return userProfile.organizationId;
+    return getCurrentUserOrganizationId();
   }
 
   /**
-   * Verify project belongs to user's organization
+   * Verify project belongs to user's organization (uses cache)
    */
   private async verifyProjectOwnership(projectId: string): Promise<void> {
-    const organizationId = await this.getCurrentUserOrganizationId();
-    
-    const { data, error } = await supabase
-      .from('projects')
-      .select('id, organizationid')
-      .eq('id', projectId)
-      .eq('organizationid', organizationId)
-      .single();
-
-    if (error || !data) {
+    const hasAccess = await projectsCache.verifyProjectOwnership(projectId);
+    if (!hasAccess) {
       throw new Error('Project not found or access denied');
     }
   }
@@ -164,15 +149,13 @@ class SupabaseFinancialService {
     // Multi-tenant: Verify project ownership first
     await this.verifyProjectOwnership(data.projectId);
     
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
+
+    const organizationId = await this.getCurrentUserOrganizationId();
 
     const now = new Date().toISOString();
     const { data: financialData, error } = await supabase
@@ -185,8 +168,8 @@ class SupabaseFinancialService {
         totalBudget: data.totalBudget || 0,
         totalSpent: 0,
         totalVariance: data.totalBudget || 0,
-        organizationid: userProfile.organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
-        createdBy: userProfile.id,
+        organizationid: organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
+        createdBy: cachedProfile.user.id,
         createdAt: now,
         updatedAt: now,
         lastUpdated: now,
@@ -299,18 +282,14 @@ class SupabaseFinancialService {
 
   // Activity Financial Data
   async createActivityFinancialData(data: CreateActivityFinancialDataDto): Promise<ActivityFinancialData> {
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
+    // Use cached user profile
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) {
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
     // Multi-tenant: Verify activity belongs to user's organization
-    const organizationId = userProfile.organizationId;
+    const organizationId = await this.getCurrentUserOrganizationId();
     const { data: activity, error: activityError } = await supabase
       .from('activities')
       .select('projectId, organizationid')
@@ -359,7 +338,7 @@ class SupabaseFinancialService {
           totalSpent: 0,
           totalVariance: 0,
           organizationid: organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
-          createdBy: userProfile.id,
+          createdBy: cachedProfile.user.id,
           createdAt: now,
           updatedAt: now,
           lastUpdated: now,
@@ -392,7 +371,7 @@ class SupabaseFinancialService {
         variance,
         notes: data.notes || null,
         organizationid: organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
-        createdBy: userProfile.id,
+        createdBy: cachedProfile.user.id,
         createdAt: now,
         updatedAt: now,
         lastUpdated: now,

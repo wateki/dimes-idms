@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabaseClient';
 import type { Database } from '@/types/supabase';
 import type { Permission } from './userManagementService';
 import { supabaseAuthService } from './supabaseAuthService';
+import { getCurrentUserOrganizationId } from './getCurrentUserOrganizationId';
 
 type PermissionRow = Database['public']['Tables']['permissions']['Row'];
 type RolePermission = Database['public']['Tables']['role_permissions']['Row'];
@@ -9,20 +10,10 @@ type UserPermission = Database['public']['Tables']['user_permissions']['Row'];
 
 class SupabasePermissionsService {
   /**
-   * Get current user's organizationId
+   * Get current user's organizationId (uses shared cache helper)
    */
   private async getCurrentUserOrganizationId(): Promise<string> {
-    const currentUser = await supabaseAuthService.getCurrentUser();
-    if (!currentUser) {
-      throw new Error('Not authenticated');
-    }
-
-    const userProfile = await supabaseAuthService.getUserProfile(currentUser.id);
-    if (!userProfile || !userProfile.organizationId) {
-      throw new Error('User is not associated with an organization');
-    }
-
-    return userProfile.organizationId;
+    return getCurrentUserOrganizationId();
   }
 
   async getAllPermissions(params: { resource?: string; scope?: string; action?: string } = {}): Promise<Permission[]> {

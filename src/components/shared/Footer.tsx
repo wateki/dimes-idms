@@ -48,7 +48,7 @@ export function Footer() {
           </div>
         </div>
         <div className="border-t border-gray-800 dark:border-gray-700 pt-8 text-center text-sm">
-          <p>&copy; {new Date().getFullYear()} Dimes IDMS. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} DIMES System. All rights reserved.</p>
         </div>
       </div>
     </footer>

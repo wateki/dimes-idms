@@ -111,7 +111,7 @@ export const Login: React.FC<LoginProps> = () => {
         <Card className="shadow-lg">
           <CardHeader className="space-y-2 text-center">
             <img src="/logo.png" alt="ICS Logo" className="h-12 w-auto mx-auto mb-4" />
-            <CardTitle className="text-2xl font-bold text-gray-900">DIMES IDMS Login</CardTitle>
+            <CardTitle className="text-2xl font-bold text-gray-900">DIMES Login</CardTitle>
             <p className="text-sm text-gray-600">Sign in to your account</p>
            
           </CardHeader>

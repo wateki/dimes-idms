@@ -28,21 +28,21 @@ function PlanSelectionSignup({
   // Plan code to amount mapping (amounts in cents for USD) - same as PlansPricing
   const monthlyPlanAmounts: Record<string, number> = {
     'PLN_FREE': 0,
-    'PLN_5jjsgz1ivndtnxp': 9900,   // Basic: $99 = 9,900 cents
-    'PLN_a7qqm2p4q9ejdpt': 40000,  // Professional: $400 = 40,000 cents
-    'PLN_9jsfo4c1d35od5q': 80000,  // Enterprise: $800 = 80,000 cents
+    'PLN_x8752w7duvhue0t': 9900,   // Basic: $99 = 9,900 cents
+    'PLN_t3qtrit2np45wvo': 40000,  // Professional: $400 = 40,000 cents
+    'PLN_lh20uejhvnhmz4p': 80000,  // Enterprise: $800 = 80,000 cents
   };
 
   const annualPlanCodes: Record<string, string> = {
-    'PLN_5jjsgz1ivndtnxp': 'PLN_f5n4d3g6x7cb3or',
-    'PLN_a7qqm2p4q9ejdpt': 'PLN_zekf4yw2rvdy957',
-    'PLN_9jsfo4c1d35od5q': 'PLN_2w2w7d02awcarg9',
+    'PLN_x8752w7duvhue0t': 'PLN_hv3sniccdhtpxrj',
+    'PLN_t3qtrit2np45wvo': 'PLN_ip8j113wkze07eu',
+    'PLN_lh20uejhvnhmz4p': 'PLN_p3w1zvxzffgo1hu',
   };
 
   const annualPlanAmounts: Record<string, number> = {
-    'PLN_f5n4d3g6x7cb3or': Math.round(9900 * 12 * 0.9),    // Basic annual: $1,069.20 = 106,920 cents
-    'PLN_zekf4yw2rvdy957': Math.round(40000 * 12 * 0.9),   // Professional annual: $4,320 = 432,000 cents
-    'PLN_2w2w7d02awcarg9': Math.round(80000 * 12 * 0.9),  // Enterprise annual: $8,640 = 864,000 cents
+    'PLN_hv3sniccdhtpxrj': Math.round(9900 * 12 * 0.9),    // Basic annual: $1,069.20 = 106,920 cents
+    'PLN_ip8j113wkze07eu': Math.round(40000 * 12 * 0.9),   // Professional annual: $4,320 = 432,000 cents
+    'PLN_p3w1zvxzffgo1hu': Math.round(80000 * 12 * 0.9),  // Enterprise annual: $8,640 = 864,000 cents
   };
 
   const planAmounts: Record<string, number> = {
@@ -77,61 +77,71 @@ function PlanSelectionSignup({
       price: '$0',
       period: 'month',
       amount: planAmounts['PLN_FREE'],
-      maxUsers: 5,
-      maxProjects: 3,
+      maxUsers: 2,
+      maxProjects: 1,
       features: [
-        'Up to 5 users',
-        'Up to 3 projects',
-        'Unlimited forms and reports',
+        'Up to 2 users',
+        'Up to 1 project',
+        '5 forms and reports',
+        '500 form submissions',
+        'Dimes Collect Mobile App Access',
         'Email support',
         'Basic features',
       ],
     },
     {
-      code: 'PLN_5jjsgz1ivndtnxp',
+      code: 'PLN_x8752w7duvhue0t',
       name: 'Basic',
       price: '$99',
       period: 'month',
-      amount: planAmounts['PLN_5jjsgz1ivndtnxp'],
+      amount: planAmounts['PLN_x8752w7duvhue0t'],
+      maxUsers: 7,
+      maxProjects: 4,
+      features: [
+        'Up to 7 users',
+        'Up to 4 projects',
+        'Unlimited forms and reports',
+        '2500 form submissions per month',
+        'Dimes Collect Mobile App Access',
+        'Priority support',
+        'Advanced features',
+      ],
+    },
+    {
+      code: 'PLN_t3qtrit2np45wvo',
+      name: 'Professional',
+      price: '$400',
+      period: 'month',
+      amount: planAmounts['PLN_t3qtrit2np45wvo'],
       maxUsers: 20,
       maxProjects: 10,
       features: [
         'Up to 20 users',
         'Up to 10 projects',
         'Unlimited forms and reports',
-        'Priority support',
-        'Advanced features',
-      ],
-    },
-    {
-      code: 'PLN_a7qqm2p4q9ejdpt',
-      name: 'Professional',
-      price: '$400',
-      period: 'month',
-      amount: planAmounts['PLN_a7qqm2p4q9ejdpt'],
-      maxUsers: 50,
-      maxProjects: 25,
-      features: [
-        'Up to 50 users',
-        'Up to 25 projects',
-        'Unlimited forms and reports',
+        '10,000 form submissions per month',
+        'Dimes Collect Mobile App Access',
+        'Dedicated Server Instance',
         'Priority support',
         'Advanced analytics',
         'Custom integrations',
       ],
     },
     {
-      code: 'PLN_9jsfo4c1d35od5q',
+      code: 'PLN_lh20uejhvnhmz4p',
       name: 'Enterprise',
       price: '$800',
       period: 'month',
-      amount: planAmounts['PLN_9jsfo4c1d35od5q'],
+      amount: planAmounts['PLN_lh20uejhvnhmz4p'],
       maxUsers: -1,
       maxProjects: -1,
       features: [
         'Unlimited users',
         'Unlimited projects',
         'Unlimited forms and reports',
+        'Unlimited form submissions per month',
+        'Dimes Collect Mobile App Access',
+        'Multi-region Dedicated Server Instances',
         'Dedicated support',
         'Advanced analytics',
         'Custom integrations',
@@ -411,16 +421,16 @@ export function OrganizationSignup() {
       // Map plan code to subscription tier
       const planToTierMap: Record<string, 'free' | 'basic' | 'professional' | 'enterprise'> = {
         'PLN_FREE': 'free',
-        'PLN_5jjsgz1ivndtnxp': 'basic',
-        'PLN_a7qqm2p4q9ejdpt': 'professional',
-        'PLN_9jsfo4c1d35od5q': 'enterprise',
+        'PLN_x8752w7duvhue0t': 'basic',
+        'PLN_t3qtrit2np45wvo': 'professional',
+        'PLN_lh20uejhvnhmz4p': 'enterprise',
       };
 
       // Handle annual plans (extract base plan)
       let basePlanCode = planCode;
-      if (planCode.includes('f5n4d3g6x7cb3or')) basePlanCode = 'PLN_5jjsgz1ivndtnxp'; // Basic annual
-      if (planCode.includes('zekf4yw2rvdy957')) basePlanCode = 'PLN_a7qqm2p4q9ejdpt'; // Professional annual
-      if (planCode.includes('2w2w7d02awcarg9')) basePlanCode = 'PLN_9jsfo4c1d35od5q'; // Enterprise annual
+      if (planCode.includes('hv3sniccdhtpxrj')) basePlanCode = 'PLN_x8752w7duvhue0t'; // Basic annual
+      if (planCode.includes('ip8j113wkze07eu')) basePlanCode = 'PLN_t3qtrit2np45wvo'; // Professional annual
+      if (planCode.includes('p3w1zvxzffgo1hu')) basePlanCode = 'PLN_lh20uejhvnhmz4p'; // Enterprise annual
 
       const subscriptionTier = planToTierMap[basePlanCode] || 'free';
 
@@ -445,12 +455,12 @@ export function OrganizationSignup() {
 
       // Get plan amounts for payment (in cents for USD)
       const planAmounts: Record<string, number> = {
-        'PLN_5jjsgz1ivndtnxp': 9900, // Basic monthly: $99 = 9,900 cents
-        'PLN_f5n4d3g6x7cb3or': Math.round(9900 * 12 * 0.9), // Basic annual: $1,069.20 = 106,920 cents
-        'PLN_a7qqm2p4q9ejdpt': 40000, // Professional monthly: $400 = 40,000 cents
-        'PLN_zekf4yw2rvdy957': Math.round(40000 * 12 * 0.9), // Professional annual: $4,320 = 432,000 cents
-        'PLN_9jsfo4c1d35od5q': 80000, // Enterprise monthly: $800 = 80,000 cents
-        'PLN_2w2w7d02awcarg9': Math.round(80000 * 12 * 0.9), // Enterprise annual: $8,640 = 864,000 cents
+        'PLN_x8752w7duvhue0t': 9900, // Basic monthly: $99 = 9,900 cents
+        'PLN_hv3sniccdhtpxrj': Math.round(9900 * 12 * 0.9), // Basic annual: $1,069.20 = 106,920 cents
+        'PLN_t3qtrit2np45wvo': 40000, // Professional monthly: $400 = 40,000 cents
+        'PLN_ip8j113wkze07eu': Math.round(40000 * 12 * 0.9), // Professional annual: $4,320 = 432,000 cents
+        'PLN_lh20uejhvnhmz4p': 80000, // Enterprise monthly: $800 = 80,000 cents
+        'PLN_p3w1zvxzffgo1hu': Math.round(80000 * 12 * 0.9), // Enterprise annual: $8,640 = 864,000 cents
       };
 
       const amount = planAmounts[planCode] || 0;

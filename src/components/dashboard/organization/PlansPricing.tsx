@@ -50,23 +50,23 @@ export function PlansPricing() {
   // Monthly plans (amounts in cents for USD) - matching PricingPage.tsx
   const monthlyPlanAmounts: Record<string, number> = {
     'PLN_FREE': 0,                    // Free plan (local only, not in Paystack)
-    'PLN_5jjsgz1ivndtnxp': 15000,    // Basic Plan: $150 = 15,000 cents
-    'PLN_a7qqm2p4q9ejdpt': 40000,    // Professional Plan: $400 = 40,000 cents
-    'PLN_9jsfo4c1d35od5q': 80000,    // Enterprise Plan: $800 = 80,000 cents
+    'PLN_x8752w7duvhue0t': 15000,    // Basic Plan: $150 = 15,000 cents
+    'PLN_t3qtrit2np45wvo': 40000,    // Professional Plan: $400 = 40,000 cents
+    'PLN_lh20uejhvnhmz4p': 80000,    // Enterprise Plan: $800 = 80,000 cents
   };
 
   // Annual plan codes
   const annualPlanCodes: Record<string, string> = {
-    'PLN_5jjsgz1ivndtnxp': 'PLN_f5n4d3g6x7cb3or',   // Basic annual
-    'PLN_a7qqm2p4q9ejdpt': 'PLN_zekf4yw2rvdy957',   // Professional annual
-    'PLN_9jsfo4c1d35od5q': 'PLN_2w2w7d02awcarg9',   // Enterprise annual
+    'PLN_x8752w7duvhue0t': 'PLN_hv3sniccdhtpxrj',   // Basic annual
+    'PLN_t3qtrit2np45wvo': 'PLN_ip8j113wkze07eu',   // Professional annual
+    'PLN_lh20uejhvnhmz4p': 'PLN_p3w1zvxzffgo1hu',   // Enterprise annual
   };
 
   // Calculate annual amounts (monthly * 12 * 0.9 for 10% savings) - matching PricingPage.tsx
   const annualPlanAmounts: Record<string, number> = {
-    'PLN_f5n4d3g6x7cb3or': Math.round(15000 * 12 * 0.9),      // Basic annual: $1,620 = 162,000 cents
-    'PLN_zekf4yw2rvdy957': Math.round(40000 * 12 * 0.9),    // Professional annual: $4,320 = 432,000 cents
-    'PLN_2w2w7d02awcarg9': Math.round(80000 * 12 * 0.9),    // Enterprise annual: $8,640 = 864,000 cents
+    'PLN_hv3sniccdhtpxrj': Math.round(15000 * 12 * 0.9),      // Basic annual: $1,620 = 162,000 cents
+    'PLN_ip8j113wkze07eu': Math.round(40000 * 12 * 0.9),    // Professional annual: $4,320 = 432,000 cents
+    'PLN_p3w1zvxzffgo1hu': Math.round(80000 * 12 * 0.9),    // Enterprise annual: $8,640 = 864,000 cents
   };
 
   // Combined plan amounts mapping
@@ -100,16 +100,16 @@ export function PlansPricing() {
 
   // Helper function to check if a plan code is annual
   const isAnnualPlanCode = (planCode: string): boolean => {
-    return planCode.includes('f5n4d3g6x7cb3or') || // Basic annual
-           planCode.includes('zekf4yw2rvdy957') || // Professional annual
-           planCode.includes('2w2w7d02awcarg9');    // Enterprise annual
+    return planCode.includes('hv3sniccdhtpxrj') || // Basic annual
+           planCode.includes('ip8j113wkze07eu') || // Professional annual
+           planCode.includes('p3w1zvxzffgo1hu');    // Enterprise annual
   };
 
   // Helper function to get the base monthly plan code from an annual plan code
   const getMonthlyPlanCodeFromAnnual = (annualCode: string): string | null => {
-    if (annualCode.includes('f5n4d3g6x7cb3or')) return 'PLN_5jjsgz1ivndtnxp';
-    if (annualCode.includes('zekf4yw2rvdy957')) return 'PLN_a7qqm2p4q9ejdpt';
-    if (annualCode.includes('2w2w7d02awcarg9')) return 'PLN_9jsfo4c1d35od5q';
+    if (annualCode.includes('hv3sniccdhtpxrj')) return 'PLN_x8752w7duvhue0t';
+    if (annualCode.includes('ip8j113wkze07eu')) return 'PLN_t3qtrit2np45wvo';
+    if (annualCode.includes('p3w1zvxzffgo1hu')) return 'PLN_lh20uejhvnhmz4p';
     return null;
   };
 
@@ -158,11 +158,11 @@ export function PlansPricing() {
       isCurrent: subscriptionTier === 'free',
     },
     {
-      code: 'PLN_5jjsgz1ivndtnxp',
+      code: 'PLN_x8752w7duvhue0t',
       name: 'Basic',
       price: '$150',
       period: 'month',
-      amount: planAmounts['PLN_5jjsgz1ivndtnxp'],
+      amount: planAmounts['PLN_x8752w7duvhue0t'],
       maxUsers: 7,
       maxProjects: 4,
       features: [
@@ -179,24 +179,24 @@ export function PlansPricing() {
         if (!tierMatch) return false;
         if (!currentSubscriptionPlanCode) return true; // Fallback if no plan code
         // Only show as current if toggle matches subscription type
-        const planCodeMatch = currentSubscriptionPlanCode.includes('5jjsgz1ivndtnxp') || 
-                             currentSubscriptionPlanCode.includes('f5n4d3g6x7cb3or');
+        const planCodeMatch = currentSubscriptionPlanCode.includes('x8752w7duvhue0t') || 
+                             currentSubscriptionPlanCode.includes('hv3sniccdhtpxrj');
         if (!planCodeMatch) return false;
         if (isAnnual) {
           // Toggle is on (annual), only show current if subscription is annual
-          return isCurrentSubscriptionAnnual && currentSubscriptionPlanCode.includes('f5n4d3g6x7cb3or');
+          return isCurrentSubscriptionAnnual && currentSubscriptionPlanCode.includes('hv3sniccdhtpxrj');
         } else {
           // Toggle is off (monthly), only show current if subscription is monthly
-          return !isCurrentSubscriptionAnnual && currentSubscriptionPlanCode.includes('5jjsgz1ivndtnxp');
+          return !isCurrentSubscriptionAnnual && currentSubscriptionPlanCode.includes('x8752w7duvhue0t');
         }
       })(),
     },
     {
-      code: 'PLN_a7qqm2p4q9ejdpt',
+      code: 'PLN_t3qtrit2np45wvo',
       name: 'Professional',
       price: '$400',
       period: 'month',
-      amount: planAmounts['PLN_a7qqm2p4q9ejdpt'],
+      amount: planAmounts['PLN_t3qtrit2np45wvo'],
       maxUsers: 20,
       maxProjects: 10,
       features: [
@@ -214,25 +214,25 @@ export function PlansPricing() {
         const tierMatch = organization?.subscriptionTier === 'professional' || organization?.subscriptionTier === 'pro';
         if (!tierMatch) return false;
         if (!currentSubscriptionPlanCode) return true; // Fallback if no plan code
-        const planCodeMatch = currentSubscriptionPlanCode.includes('a7qqm2p4q9ejdpt') || 
-                             currentSubscriptionPlanCode.includes('zekf4yw2rvdy957');
+        const planCodeMatch = currentSubscriptionPlanCode.includes('t3qtrit2np45wvo') || 
+                             currentSubscriptionPlanCode.includes('ip8j113wkze07eu');
         if (!planCodeMatch) return false;
         // Only show as current if toggle matches subscription type
         if (isAnnual) {
           // Toggle is on (annual), only show current if subscription is annual
-          return isCurrentSubscriptionAnnual && currentSubscriptionPlanCode.includes('zekf4yw2rvdy957');
+          return isCurrentSubscriptionAnnual && currentSubscriptionPlanCode.includes('ip8j113wkze07eu');
         } else {
           // Toggle is off (monthly), only show current if subscription is monthly
-          return !isCurrentSubscriptionAnnual && currentSubscriptionPlanCode.includes('a7qqm2p4q9ejdpt');
+          return !isCurrentSubscriptionAnnual && currentSubscriptionPlanCode.includes('t3qtrit2np45wvo');
         }
       })(),
     },
     {
-      code: 'PLN_9jsfo4c1d35od5q',
+      code: 'PLN_lh20uejhvnhmz4p',
       name: 'Enterprise',
       price: '$800',
       period: 'month',
-      amount: planAmounts['PLN_9jsfo4c1d35od5q'],
+      amount: planAmounts['PLN_lh20uejhvnhmz4p'],
       maxUsers: -1, // Unlimited
       maxProjects: -1, // Unlimited
       features: [
@@ -252,16 +252,16 @@ export function PlansPricing() {
         const tierMatch = subscriptionTier === 'enterprise';
         if (!tierMatch) return false;
         if (!currentSubscriptionPlanCode) return true; // Fallback if no plan code
-        const planCodeMatch = currentSubscriptionPlanCode.includes('9jsfo4c1d35od5q') || 
-                             currentSubscriptionPlanCode.includes('2w2w7d02awcarg9');
+        const planCodeMatch = currentSubscriptionPlanCode.includes('lh20uejhvnhmz4p') || 
+                             currentSubscriptionPlanCode.includes('p3w1zvxzffgo1hu');
         if (!planCodeMatch) return false;
         // Only show as current if toggle matches subscription type
         if (isAnnual) {
           // Toggle is on (annual), only show current if subscription is annual
-          return isCurrentSubscriptionAnnual && currentSubscriptionPlanCode.includes('2w2w7d02awcarg9');
+          return isCurrentSubscriptionAnnual && currentSubscriptionPlanCode.includes('p3w1zvxzffgo1hu');
         } else {
           // Toggle is off (monthly), only show current if subscription is monthly
-          return !isCurrentSubscriptionAnnual && currentSubscriptionPlanCode.includes('9jsfo4c1d35od5q');
+          return !isCurrentSubscriptionAnnual && currentSubscriptionPlanCode.includes('lh20uejhvnhmz4p');
         }
       })(),
     },
@@ -455,7 +455,7 @@ export function PlansPricing() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {plans.map((plan) => {
           // Professional plan is the popular one
-          const isPopular = plan.code === 'PLN_a7qqm2p4q9ejdpt';
+          const isPopular = plan.code === 'PLN_t3qtrit2np45wvo';
           const isFree = plan.code === 'PLN_FREE';
           // Only show current badge for paid plans, not for Free
           const showCurrentBadge = plan.isCurrent && !isFree;

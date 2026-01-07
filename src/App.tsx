@@ -7,6 +7,7 @@ import { FormProvider } from '@/contexts/FormContext';
 import { ReportProvider } from '@/contexts/ReportContext';
 import { ProjectsProvider } from '@/contexts/ProjectsContext';
 import { NotificationProvider, useNotifications } from '@/contexts/NotificationContext';
+import { TourProvider } from '@/contexts/TourContext';
 import { NotificationContainer } from '@/components/ui/notification';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { GlobalOverview } from '@/components/dashboard/GlobalOverview';
@@ -203,6 +204,7 @@ function AppWithNotifications() {
               <ProjectsProvider>
                 <FormProvider>
                   <ReportProvider>
+                    <TourProvider>
                     <Routes>
                       <Route element={<ProtectedRoute />}>
                         <Route element={<DashboardLayout />}>
@@ -268,6 +270,7 @@ function AppWithNotifications() {
                         </Route>
                       </Route>
                     </Routes>
+                    </TourProvider>
                   </ReportProvider>
                 </FormProvider>
               </ProjectsProvider>

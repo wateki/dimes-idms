@@ -15,6 +15,8 @@ import { Progress } from '@/components/ui/progress';
 import { Target, Activity, TrendingUp, ChevronRight, Calendar } from 'lucide-react';
 import { strategicPlanApi, StrategicPlan, StrategicGoal } from '@/lib/api/strategicPlanApi';
 import { toast } from 'sonner';
+import { useTour } from '@/contexts/TourContext';
+import { useFirstTimeUser } from '@/hooks/useFirstTimeUser';
 
 // Helper functions
 const getPriorityColor = (priority: string) => {
@@ -41,12 +43,27 @@ const getOverallProgress = (subgoals: any[]) => {
 };
 
 export function GlobalOverview() {
+  const { startTour } = useTour();
+  const { isFirstTime, checked: firstTimeChecked } = useFirstTimeUser();
   const [goals, setGoals] = useState<StrategicGoal[]>([]);
   const [allPlans, setAllPlans] = useState<StrategicPlan[]>([]);
   const [availablePlans, setAvailablePlans] = useState<Array<{id: string, title: string, startYear: number, endYear: number}>>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [hasData, setHasData] = useState(false);
+  
+  // Automatically start tour for first-time users
+  useEffect(() => {
+    if (firstTimeChecked && isFirstTime && !isLoading) {
+      // Delay to ensure the page is fully loaded
+      const timer = setTimeout(() => {
+        console.log('[Global Overview] Starting tour for first-time user');
+        startTour();
+      }, 1500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [firstTimeChecked, isFirstTime, isLoading, startTour]);
 
   useEffect(() => {
     loadAllPlans();

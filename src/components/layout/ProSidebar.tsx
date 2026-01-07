@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Sidebar, Menu, MenuItem, SubMenu } from 'react-pro-sidebar';
 import { Link, useLocation } from 'react-router-dom';
 import { Target, Activity, Users, Settings, Folder, Circle, CheckCircle2, Flag, FileText, Plus, ClipboardList, X, DollarSign, MessageSquare, Database, BookOpen, Edit3, Archive, RotateCcw, Building2, CreditCard, BarChart3, FileSearch, Info, TrendingUp, FileBarChart, Wallet, Image, Map, Layers, HardDrive, UserCircle, UserCog, Settings2 } from 'lucide-react';
@@ -9,6 +9,7 @@ import { useOrganization } from '@/contexts/OrganizationContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { createEnhancedPermissionManager } from '@/lib/permissions';
+import { useTour } from '@/contexts/TourContext';
 
 
 export function ProSidebar() {
@@ -16,6 +17,29 @@ export function ProSidebar() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { organization } = useOrganization();
   const location = useLocation();
+  const { openMenu } = useTour();
+  
+  // Local state to control menu open/close (influenced by tour)
+  const [globalMenuOpen, setGlobalMenuOpen] = useState(false);
+  const [projectsMenuOpen, setProjectsMenuOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  
+  // Control menu opening based on tour state
+  useEffect(() => {
+    if (openMenu === 'global') {
+      setGlobalMenuOpen(true);
+      setProjectsMenuOpen(false);
+      setAccountMenuOpen(false);
+    } else if (openMenu === 'projects') {
+      setGlobalMenuOpen(false);
+      setProjectsMenuOpen(true);
+      setAccountMenuOpen(false);
+    } else if (openMenu === 'account') {
+      setGlobalMenuOpen(false);
+      setProjectsMenuOpen(false);
+      setAccountMenuOpen(true);
+    }
+  }, [openMenu]);
   
   // Always call hooks in the same order
   const projectsContext = useProjects();
@@ -213,12 +237,16 @@ export function ProSidebar() {
                 label="Global" 
             icon={<Users className="h-4 w-4" />}
             className="text-sm"
+            data-tour="global-menu"
+            open={globalMenuOpen}
+            onOpenChange={setGlobalMenuOpen}
             >
                 {/* Goals */}
               <MenuItem 
                   icon={<Flag className="h-4 w-4" />} 
             component={<Link to="/dashboard" onClick={handleCloseSidebar} />}
             className="text-sm"
+            data-tour="goals-menu"
           >
                   Goals
           </MenuItem>
@@ -229,6 +257,7 @@ export function ProSidebar() {
                 label="Strategic Plan" 
                 icon={<BookOpen className="h-4 w-4" />}
                 className="text-sm"
+                data-tour="strategic-plan-menu"
               >
                 <MenuItem 
                   component={<Link to="/dashboard/strategic-plan/create" onClick={handleCloseSidebar} />}
@@ -250,6 +279,7 @@ export function ProSidebar() {
                   label="Feedback & Submissions" 
               icon={<MessageSquare className="h-4 w-4" />}
               className="text-sm"
+              data-tour="feedback-menu"
             >
               <MenuItem 
                 component={<Link to="/dashboard/feedback" onClick={handleCloseSidebar} />}
@@ -271,6 +301,9 @@ export function ProSidebar() {
                 label="Projects" 
                 icon={<Folder className="h-4 w-4" />}
                 className="text-sm"
+                data-tour="projects-menu"
+                open={projectsMenuOpen}
+                onOpenChange={setProjectsMenuOpen}
               >
                 {/* Create Project (admin only) */}
                 {isAdmin() && (
@@ -338,6 +371,7 @@ export function ProSidebar() {
                             label="ToC Tracker" 
                             icon={<TrendingUp className="h-4 w-4" />}
                             className="text-sm"
+                            data-tour="project-toc"
                           >
                           <MenuItem 
                             component={<Link to={`/dashboard/projects/${project.id}/outcomes`} onClick={handleCloseSidebar} />}
@@ -383,6 +417,7 @@ export function ProSidebar() {
                             icon={<FileText className="h-4 w-4" />}
                             component={<Link to={`/dashboard/projects/${project.id}/forms`} onClick={handleCloseSidebar} />}
                             className="text-sm"
+                            data-tour="project-forms"
                           >
                             Forms Management
                           </MenuItem>
@@ -394,6 +429,7 @@ export function ProSidebar() {
                             icon={<Wallet className="h-4 w-4" />}
                             component={<Link to={`/dashboard/projects/${project.id}/financial`} onClick={handleCloseSidebar} />}
                             className="text-sm"
+                            data-tour="project-budget"
                           >
                             Budget Tracker
                           </MenuItem>
@@ -540,11 +576,14 @@ export function ProSidebar() {
                   label="Account Management" 
                   icon={<FileText className="h-4 w-4" />}
                   className="text-sm"
+                  open={accountMenuOpen}
+                  onOpenChange={setAccountMenuOpen}
                 >
                    <MenuItem 
                     component={<Link to="/dashboard/organization/team" onClick={handleCloseSidebar} />}
                     className="text-sm"
                     icon={<Users className="h-4 w-4" />}
+                    data-tour="team-management"
                   >
                     Team Management
                   </MenuItem>
@@ -553,6 +592,7 @@ export function ProSidebar() {
                     component={<Link to="/dashboard/organization/subscription" onClick={handleCloseSidebar} />}
                     className="text-sm"
                     icon={<CreditCard className="h-4 w-4" />}
+                    data-tour="subscription-billing"
                   >
                     Subscription & Billing
                   </MenuItem>
@@ -560,6 +600,7 @@ export function ProSidebar() {
                     component={<Link to="/dashboard/organization" onClick={handleCloseSidebar} />}
                     className="text-sm"
                     icon={<Database className="h-4 w-4" />}
+                    data-tour="usage-limits"
                   >
                     Usage & Limits
                   </MenuItem>

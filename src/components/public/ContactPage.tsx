@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Footer } from '@/components/shared/Footer';
+import { supabaseContactService } from '@/services/supabaseContactService';
 
 const contactInfo = [
   {
@@ -55,6 +56,7 @@ export function ContactPage() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   useEffect(() => {
     // Reset and trigger animation independently for this page
@@ -76,18 +78,34 @@ export function ContactPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setSubmitError('');
+    setSubmitSuccess(false);
     
-    // Simulate form submission (replace with actual API call)
-    setTimeout(() => {
+    try {
+      const result = await supabaseContactService.submitContactMessage({
+        name: formData.name,
+        email: formData.email,
+        subject: formData.subject,
+        message: formData.message,
+      });
+
+      if (result.success) {
+        setSubmitSuccess(true);
+        setFormData({ name: '', email: '', subject: '', message: '' });
+        
+        // Reset success message after 5 seconds
+        setTimeout(() => {
+          setSubmitSuccess(false);
+        }, 5000);
+      } else {
+        setSubmitError(result.error || 'Failed to submit message. Please try again.');
+      }
+    } catch (error: any) {
+      console.error('Error submitting contact form:', error);
+      setSubmitError(error.message || 'An unexpected error occurred. Please try again.');
+    } finally {
       setIsSubmitting(false);
-      setSubmitSuccess(true);
-      setFormData({ name: '', email: '', subject: '', message: '' });
-      
-      // Reset success message after 5 seconds
-      setTimeout(() => {
-        setSubmitSuccess(false);
-      }, 5000);
-    }, 1000);
+    }
   };
 
   return (
@@ -248,6 +266,15 @@ export function ContactPage() {
                       <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                       <p className="text-emerald-700 font-medium">
                         Thank you! Your message has been sent successfully. We'll get back to you soon.
+                      </p>
+                    </div>
+                  )}
+
+                  {submitError && (
+                    <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
+                      <X className="w-5 h-5 text-red-600 flex-shrink-0" />
+                      <p className="text-red-700 font-medium">
+                        {submitError}
                       </p>
                     </div>
                   )}

@@ -52,13 +52,13 @@ export function PlanSelection({
     <div className="space-y-6">
       {/* Annual/Monthly Toggle - Only show for paid plans */}
       {showAnnualToggle && onAnnualToggle && (
-        <div className="p-4 md:p-5 bg-muted rounded-lg border">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="space-y-1 flex-1">
-              <Label htmlFor="annual-toggle" className="text-base font-medium cursor-pointer block">
+        <div className="py-2.5 px-3 md:py-3 md:px-4 bg-muted rounded-lg border">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="space-y-0.5 flex-1">
+              <Label htmlFor="annual-toggle" className="text-sm font-medium cursor-pointer block">
                 Annual billing
               </Label>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {isAnnual 
                   ? 'Save 10% with annual billing. You\'ll be charged once per year.'
                   : 'Switch to annual billing to save 10% on your subscription.'}

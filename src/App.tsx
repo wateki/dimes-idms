@@ -17,6 +17,7 @@ import { OrganizationSignup } from '@/components/auth/OrganizationSignup';
 import { ConfirmEmail } from '@/components/auth/ConfirmEmail';
 import { CompleteSignup } from '@/components/auth/CompleteSignup';
 import { GuidedSetup } from '@/components/auth/GuidedSetup';
+import { SupabaseAuthHandler } from '@/components/auth/SupabaseAuthHandler';
 import { OutcomesDetails } from '@/components/dashboard/OutcomesDetails';
 import { OutputsDetails } from '@/components/dashboard/OutputsDetails';
 import { Reports } from '@/components/dashboard/Reports';
@@ -156,6 +157,7 @@ function AppWithNotifications() {
   
   return (
     <>
+      <SupabaseAuthHandler />
         <Routes>
           {/* Public routes - no context providers that require auth */}
           <Route path="/login" element={<Login />} />

@@ -28,7 +28,7 @@ function PlanSelectionSignup({
   // Plan code to amount mapping (amounts in cents for USD) - same as PlansPricing
   const monthlyPlanAmounts: Record<string, number> = {
     'PLN_FREE': 0,
-    'PLN_x8752w7duvhue0t': 9900,   // Basic: $99 = 9,900 cents
+    'PLN_x8752w7duvhue0t': 15000,   // Basic: $150 = 15,000 cents
     'PLN_t3qtrit2np45wvo': 40000,  // Professional: $400 = 40,000 cents
     'PLN_lh20uejhvnhmz4p': 80000,  // Enterprise: $800 = 80,000 cents
   };
@@ -40,7 +40,7 @@ function PlanSelectionSignup({
   };
 
   const annualPlanAmounts: Record<string, number> = {
-    'PLN_hv3sniccdhtpxrj': Math.round(9900 * 12 * 0.9),    // Basic annual: $1,069.20 = 106,920 cents
+    'PLN_hv3sniccdhtpxrj': Math.round(15000 * 12 * 0.9),    // Basic annual: $1,620 = 162,000 cents
     'PLN_ip8j113wkze07eu': Math.round(40000 * 12 * 0.9),   // Professional annual: $4,320 = 432,000 cents
     'PLN_p3w1zvxzffgo1hu': Math.round(80000 * 12 * 0.9),  // Enterprise annual: $8,640 = 864,000 cents
   };
@@ -92,7 +92,7 @@ function PlanSelectionSignup({
     {
       code: 'PLN_x8752w7duvhue0t',
       name: 'Basic',
-      price: '$99',
+      price: '$150',
       period: 'month',
       amount: planAmounts['PLN_x8752w7duvhue0t'],
       maxUsers: 7,
@@ -176,25 +176,38 @@ export function OrganizationSignup() {
   const initialStep = stepFromUrl ? parseInt(stepFromUrl, 10) : 1;
   const [step, setStep] = useState(initialStep);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  
+  // Check for error messages from URL (e.g., expired email link)
+  const urlError = searchParams.get('error');
+  const urlErrorMessage = searchParams.get('message');
+  const initialError = urlError && urlErrorMessage ? decodeURIComponent(urlErrorMessage) : '';
+  const [error, setError] = useState(initialError);
   const [waitingForPayment, setWaitingForPayment] = useState(false);
+  
+  // Clear error from URL after displaying it
+  useEffect(() => {
+    if (urlError) {
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.delete('error');
+      newSearchParams.delete('message');
+      setSearchParams(newSearchParams, { replace: true });
+    }
+  }, [urlError, searchParams, setSearchParams]);
 
   // Listen for subscription status changes when waiting for payment
   useSubscriptionPaymentListener(waitingForPayment);
 
-  // Step 1: Admin user info
+  // Step 1: Admin user info + Organization info (combined)
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-
-  // Step 2: Organization info
   const [organizationName, setOrganizationName] = useState('');
   const [organizationDomain, setOrganizationDomain] = useState('');
 
-  // Step 3: Subscription plan
+  // Step 2: Subscription plan
   const [selectedPlan, setSelectedPlan] = useState<string>('PLN_FREE');
   // Initialize organizationId from URL parameter if present (from email confirmation redirect)
   const orgIdFromUrl = searchParams.get('orgId');
@@ -203,9 +216,10 @@ export function OrganizationSignup() {
   const [emailConfirmed, setEmailConfirmed] = useState(false);
   const [checkingEmailStatus, setCheckingEmailStatus] = useState(false);
   
-  // Update URL when step changes (except when coming from URL params on mount)
+      // Update URL when step changes (except when coming from URL params on mount)
   useEffect(() => {
-    if (stepFromUrl !== String(step)) {
+    // Don't update URL for step 1.5 (email confirmation) - it's an intermediate step
+    if (stepFromUrl !== String(step) && step !== 1.5) {
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.set('step', String(step));
       if (organizationId) {
@@ -215,36 +229,36 @@ export function OrganizationSignup() {
     }
   }, [step, organizationId, stepFromUrl, searchParams, setSearchParams]);
   
-  // Check email confirmation status when on step 2.5 (email confirmation step) or step 3 (from URL)
+  // Check email confirmation status when on step 1.5 (email confirmation step) or step 2 (from URL)
   // Use Supabase auth state change listener (realtime) instead of polling
   useEffect(() => {
-    // If on step 3 from URL but email not confirmed, check and redirect to step 2.5 if needed
+    // If on step 2 from URL but email not confirmed, check and redirect to step 1.5 if needed
     const checkInitialStatus = async () => {
-      if (step === 3 && !organizationId && orgIdFromUrl) {
+      if (step === 2 && !organizationId && orgIdFromUrl) {
         // User came from email confirmation redirect - verify they have a session
         try {
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user?.email_confirmed_at) {
-            // Email is confirmed, set organizationId and allow step 3
+            // Email is confirmed, set organizationId and allow step 2
             setOrganizationId(orgIdFromUrl);
             setEmailConfirmed(true);
           } else {
-            // Email not confirmed yet, redirect to step 2.5
-            setStep(2.5);
+            // Email not confirmed yet, redirect to step 1.5
+            setStep(1.5);
           }
         } catch (error) {
           console.error('Error checking email confirmation status:', error);
-          // If we can't verify, redirect to step 2.5
-          setStep(2.5);
+          // If we can't verify, redirect to step 1.5
+          setStep(1.5);
         }
-      } else if (step === 2.5 && authUserId) {
-        // Check initial status when on step 2.5
+      } else if (step === 1.5 && authUserId) {
+        // Check initial status when on step 1.5
         setCheckingEmailStatus(true);
         try {
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user?.email_confirmed_at) {
             setEmailConfirmed(true);
-            setStep(3);
+            setStep(2);
             setCheckingEmailStatus(false);
             return;
           }
@@ -253,7 +267,7 @@ export function OrganizationSignup() {
           const { data: { user: authUser } } = await supabase.auth.getUser();
           if (authUser?.email_confirmed_at) {
             setEmailConfirmed(true);
-            setStep(3);
+            setStep(2);
           }
         } catch (error) {
           console.error('Error checking email confirmation:', error);
@@ -264,14 +278,14 @@ export function OrganizationSignup() {
     };
     
     // Check initial status immediately
-    if ((step === 2.5 && authUserId) || (step === 3 && !organizationId && orgIdFromUrl)) {
+    if ((step === 1.5 && authUserId) || (step === 2 && !organizationId && orgIdFromUrl)) {
       checkInitialStatus();
     }
     
     // Set up realtime auth state change listener for email confirmation
     let authSubscription: { data: { subscription: { unsubscribe: () => void } } } | null = null;
     
-    if (step === 2.5 && authUserId && !emailConfirmed) {
+    if (step === 1.5 && authUserId && !emailConfirmed) {
       console.log('[Organization Signup] Setting up auth state change listener for email confirmation');
       
       authSubscription = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -283,8 +297,8 @@ export function OrganizationSignup() {
             console.log('[Organization Signup] Email confirmed via realtime listener');
             setEmailConfirmed(true);
             setCheckingEmailStatus(false);
-            // Proceed to step 3
-            setStep(3);
+            // Proceed to step 2
+            setStep(2);
           }
         }
       });
@@ -299,6 +313,7 @@ export function OrganizationSignup() {
   }, [step, authUserId, emailConfirmed, organizationId, orgIdFromUrl]);
 
   const validateStep1 = (): boolean => {
+    // Validate admin account fields
     if (!email || !password || !firstName || !lastName) {
       setError('Please fill in all required fields');
       return false;
@@ -319,10 +334,7 @@ export function OrganizationSignup() {
       return false;
     }
 
-    return true;
-  };
-
-  const validateStep2 = (): boolean => {
+    // Validate organization fields
     if (!organizationName.trim()) {
       setError('Organization name is required');
       return false;
@@ -356,20 +368,8 @@ export function OrganizationSignup() {
             setLoading(false);
             return;
           }
-          // Email doesn't exist, proceed to next step
-          setStep(2);
-        } catch (err: any) {
-          console.error('Error checking email:', err);
-          setError(err.message || 'Failed to verify email availability. Please try again.');
-        } finally {
-          setLoading(false);
-        }
-      }
-    } else if (step === 2) {
-      if (validateStep2()) {
-        // Complete signup at step 2 (behind the scenes)
-        setLoading(true);
-        try {
+          
+          // Email doesn't exist, create organization and proceed to email confirmation
           const signupRequest: OrganizationSignupRequest = {
             email,
             password,
@@ -377,7 +377,7 @@ export function OrganizationSignup() {
             lastName,
             organizationName: organizationName.trim(),
             organizationDomain: organizationDomain.trim() || undefined,
-            // Don't pass subscriptionTier - will be set at step 3
+            // Don't pass subscriptionTier - will be set at step 2
           };
 
           const result = await supabaseOrganizationSignupService.signupOrganization(signupRequest);
@@ -386,8 +386,8 @@ export function OrganizationSignup() {
           setOrganizationId(result.organizationId);
           setAuthUserId(result.authUserId);
           
-          // Proceed to email confirmation step (step 2.5)
-          setStep(2.5);
+          // Proceed to email confirmation step (step 1.5)
+          setStep(1.5);
         } catch (err: any) {
           console.error('Signup error:', err);
           setError(err.message || 'Failed to create organization. Please try again.');
@@ -400,11 +400,16 @@ export function OrganizationSignup() {
 
   const handleBack = () => {
     setError('');
-    // If on step 2.5 (email confirmation), go back to step 2
-    if (step === 2.5) {
-      setStep(2);
-    } else {
-      setStep(step - 1);
+    // If on step 1.5 (email confirmation), go back to step 1
+    if (step === 1.5) {
+      setStep(1);
+    } else if (step === 2) {
+      // If on step 2 (plan selection), go back to step 1.5 if email not confirmed, otherwise step 1
+      if (emailConfirmed) {
+        setStep(1);
+      } else {
+        setStep(1.5);
+      }
     }
   };
 
@@ -455,8 +460,8 @@ export function OrganizationSignup() {
 
       // Get plan amounts for payment (in cents for USD)
       const planAmounts: Record<string, number> = {
-        'PLN_x8752w7duvhue0t': 9900, // Basic monthly: $99 = 9,900 cents
-        'PLN_hv3sniccdhtpxrj': Math.round(9900 * 12 * 0.9), // Basic annual: $1,069.20 = 106,920 cents
+        'PLN_x8752w7duvhue0t': 15000, // Basic monthly: $150 = 15,000 cents
+        'PLN_hv3sniccdhtpxrj': Math.round(15000 * 12 * 0.9), // Basic annual: $1,620 = 162,000 cents
         'PLN_t3qtrit2np45wvo': 40000, // Professional monthly: $400 = 40,000 cents
         'PLN_ip8j113wkze07eu': Math.round(40000 * 12 * 0.9), // Professional annual: $4,320 = 432,000 cents
         'PLN_lh20uejhvnhmz4p': 80000, // Enterprise monthly: $800 = 80,000 cents
@@ -487,9 +492,13 @@ export function OrganizationSignup() {
     }
   };
 
+  // Determine container width and height constraints based on step
+  const containerWidth = step === 2 ? 'max-w-6xl' : 'max-w-2xl';
+  const isPlanSelection = step === 2;
+
   return (
     <div 
-      className="min-h-screen w-screen flex items-center justify-center bg-grid-pattern p-3 sm:p-4 md:p-6"
+      className={`min-h-screen w-screen flex ${isPlanSelection ? 'items-start py-6' : 'items-center'} justify-center bg-grid-pattern p-3 sm:p-4 md:p-6`}
       style={{
         backgroundImage: `
           linear-gradient(to bottom, var(--gradient-start), var(--gradient-middle), var(--gradient-end)),
@@ -499,25 +508,28 @@ export function OrganizationSignup() {
         backgroundSize: '100% 100%, 120px 120px, 120px 120px'
       }}
     >
-      <div className="w-full max-w-6xl">
-        <Card className="shadow-xl">
-          <CardHeader className="text-center pb-4 px-4 sm:px-6 pt-6 sm:pt-8">
-            <div className="flex justify-center mb-4">
-              <Building2 className="h-10 w-10 sm:h-12 sm:w-12 text-blue-600" />
-            </div>
-            <CardTitle className="text-2xl sm:text-3xl font-bold">Create Your Organization</CardTitle>
-            <CardDescription className="text-base sm:text-lg mt-2">
-              Get started with your organization account in just a few steps
-            </CardDescription>
-          </CardHeader>
+      <div className={`w-full ${containerWidth} ${isPlanSelection ? '' : 'max-h-[90vh]'} flex flex-col`}>
+        <Card className={`shadow-xl flex flex-col ${isPlanSelection ? '' : 'max-h-full overflow-hidden'}`}>
+          {!isPlanSelection && (
+            <CardHeader className="text-center pb-4 px-4 sm:px-6 pt-6 sm:pt-8 flex-shrink-0">
+              <div className="flex justify-center mb-4">
+                <Building2 className="h-10 w-10 sm:h-12 sm:w-12 text-blue-600" />
+              </div>
+              <CardTitle className="text-2xl sm:text-3xl font-bold">Create Your Organization</CardTitle>
+              <CardDescription className="text-base sm:text-lg mt-2">
+                Get started with your organization account in just a few steps
+              </CardDescription>
+            </CardHeader>
+          )}
 
-          <CardContent className="space-y-6 p-4 sm:p-6 md:p-8">
+          <CardContent className={`space-y-6 p-4 sm:p-6 md:p-8 ${isPlanSelection ? '' : 'overflow-y-auto'} flex-1 ${isPlanSelection ? 'pt-6 sm:pt-8' : ''}`}>
             {/* Progress indicator */}
+            {!isPlanSelection && (
             <div className="flex items-center justify-center space-x-2 sm:space-x-4 mb-6 md:mb-8">
-              {[1, 2, 3].map((s) => {
-                // For step indicator, treat step 2.5 as step 2 (email confirmation happens between 2 and 3)
-                const isActive = step >= s || (step === 2.5 && s === 2);
-                const isPast = step > s || (step === 2.5 && s < 2) || (step === 3 && s < 3);
+              {[1, 2].map((s) => {
+                // For step indicator, treat step 1.5 as step 1 (email confirmation happens between 1 and 2)
+                const isActive = step >= s || (step === 1.5 && s === 1);
+                const isPast = step > s || (step === 1.5 && s < 1) || (step === 2 && s < 2);
                 
                 return (
                   <React.Fragment key={s}>
@@ -532,7 +544,7 @@ export function OrganizationSignup() {
                         {isPast ? <Check className="h-4 w-4 sm:h-5 sm:w-5" /> : s}
                       </div>
                     </div>
-                    {s < 3 && (
+                    {s < 2 && (
                       <div
                         className={`h-1 w-8 sm:w-12 md:w-16 ${
                           isPast ? 'bg-blue-600' : 'bg-gray-200'
@@ -543,6 +555,7 @@ export function OrganizationSignup() {
                 );
               })}
             </div>
+            )}
 
             {/* Error alert */}
             {error && (
@@ -551,95 +564,147 @@ export function OrganizationSignup() {
               </Alert>
             )}
 
-            {/* Step 1: Admin User Info */}
+            {/* Step 1: Admin Account + Organization Details (Combined) */}
             {step === 1 && (
               <div className="space-y-4">
                 <div>
-                  <h2 className="text-2xl font-semibold mb-2">Admin Account</h2>
-                  <p className="text-muted-foreground">Create your administrator account</p>
+                  <h2 className="text-2xl font-semibold mb-2">Organization Account Details</h2>
+                  <p className="text-muted-foreground">Create your administrator account and organization</p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                {/* Admin Account Section */}
+                <div className="space-y-4 pb-4 border-b">
+                  <h3 className="text-lg font-medium">Admin Account</h3>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName">First Name *</Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="firstName"
+                          type="text"
+                          placeholder="John"
+                          value={firstName}
+                          onChange={(e) => setFirstName(e.target.value)}
+                          className="pl-10 w-full max-w-full"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="lastName">Last Name *</Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="lastName"
+                          type="text"
+                          placeholder="Doe"
+                          value={lastName}
+                          onChange={(e) => setLastName(e.target.value)}
+                          className="pl-10 w-full max-w-full"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
-                    <Label htmlFor="firstName">First Name *</Label>
+                    <Label htmlFor="email">Email *</Label>
                     <div className="relative">
-                      <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                       <Input
-                        id="firstName"
-                        type="text"
-                        placeholder="John"
-                        value={firstName}
-                        onChange={(e) => setFirstName(e.target.value)}
-                        className="pl-10"
+                        id="email"
+                        type="email"
+                        placeholder="admin@organization.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="pl-10 w-full max-w-full"
                       />
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="lastName">Last Name *</Label>
+                    <Label htmlFor="password">Password *</Label>
                     <div className="relative">
-                      <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
                       <Input
-                        id="lastName"
-                        type="text"
-                        placeholder="Doe"
-                        value={lastName}
-                        onChange={(e) => setLastName(e.target.value)}
-                        className="pl-10"
+                        id="password"
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="At least 8 characters"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pl-10 pr-10 w-full max-w-full"
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground z-10 p-1"
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword">Confirm Password *</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+                      <Input
+                        id="confirmPassword"
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="Confirm your password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="pl-10 pr-10 w-full max-w-full"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground z-10 p-1"
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
                     </div>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email *</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="admin@organization.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10"
-                    />
+                {/* Organization Details Section */}
+                <div className="space-y-4 pt-4">
+                  <h3 className="text-lg font-medium">Organization Details</h3>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="organizationName">Organization Name *</Label>
+                    <div className="relative">
+                      <Building2 className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="organizationName"
+                        type="text"
+                        placeholder="Acme Corporation"
+                        value={organizationName}
+                        onChange={(e) => setOrganizationName(e.target.value)}
+                        className="pl-10 w-full max-w-full"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      This will be used to create a unique URL for your organization
+                    </p>
                   </div>
-                </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password *</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <div className="space-y-2">
+                    <Label htmlFor="organizationDomain">Custom Domain (Optional)</Label>
                     <Input
-                      id="password"
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder="At least 8 characters"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10 pr-10"
+                      id="organizationDomain"
+                      type="text"
+                      placeholder="example.com"
+                      value={organizationDomain}
+                      onChange={(e) => setOrganizationDomain(e.target.value)}
+                      className="w-full max-w-full"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm Password *</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="confirmPassword"
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder="Confirm your password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="pl-10"
-                    />
+                    <p className="text-xs text-muted-foreground">
+                      You can configure this later in settings
+                    </p>
                   </div>
                 </div>
 
@@ -652,11 +717,11 @@ export function OrganizationSignup() {
                   {loading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Checking email...
+                      Creating Account...
                     </>
                   ) : (
                     <>
-                      Next: Organization Details
+                      Next: Choose Plan
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </>
                   )}
@@ -664,80 +729,8 @@ export function OrganizationSignup() {
               </div>
             )}
 
-            {/* Step 2: Organization Info */}
-            {step === 2 && (
-              <div className="space-y-4">
-                <div>
-                  <h2 className="text-2xl font-semibold mb-2">Organization Details</h2>
-                  <p className="text-muted-foreground">Tell us about your organization</p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="organizationName">Organization Name *</Label>
-                  <div className="relative">
-                    <Building2 className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="organizationName"
-                      type="text"
-                      placeholder="Acme Corporation"
-                      value={organizationName}
-                      onChange={(e) => setOrganizationName(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    This will be used to create a unique URL for your organization
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="organizationDomain">Custom Domain (Optional)</Label>
-                  <Input
-                    id="organizationDomain"
-                    type="text"
-                    placeholder="example.com"
-                    value={organizationDomain}
-                    onChange={(e) => setOrganizationDomain(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    You can configure this later in settings
-                  </p>
-                </div>
-
-                <div className="flex gap-4">
-                  <Button
-                    onClick={handleBack}
-                    variant="outline"
-                    className="flex-1"
-                    size="lg"
-                  >
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back
-                  </Button>
-                  <Button
-                    onClick={handleNext}
-                    className="flex-1"
-                    size="lg"
-                    disabled={loading}
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Creating Organization...
-                      </>
-                    ) : (
-                      <>
-                        Next: Choose Plan
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Step 2.5: Email Confirmation */}
-            {step === 2.5 && (
+            {/* Step 1.5: Email Confirmation */}
+            {step === 1.5 && (
               <div className="space-y-4">
                 <div className="text-center">
                   <div className="flex justify-center mb-4">
@@ -813,12 +806,12 @@ export function OrganizationSignup() {
               </div>
             )}
 
-            {/* Step 3: Subscription Plan */}
-            {step === 3 && organizationId && (
+            {/* Step 2: Subscription Plan */}
+            {step === 2 && organizationId && (
               <div className="space-y-6 md:space-y-8">
                 <div className="text-center md:text-left">
                   <h2 className="text-2xl md:text-3xl font-semibold mb-2">Choose Your Plan</h2>
-                  <p className="text-muted-foreground text-sm md:text-base">Select a plan that fits your organization</p>
+                  <p className="text-muted-foreground text-sm md:text-base">Select a plan that suits your organization</p>
                 </div>
 
                 <PlanSelectionSignup 
@@ -827,7 +820,7 @@ export function OrganizationSignup() {
                   processing={loading}
                 />
 
-                <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t">
+               {/*  <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t">
                   <Button
                     onClick={handleBack}
                     variant="outline"
@@ -836,12 +829,12 @@ export function OrganizationSignup() {
                     disabled={loading}
                   >
                     <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back
+                    Back to Account Details
                   </Button>
-                </div>
+                </div> */}
 
                 <p className="text-xs text-center text-muted-foreground px-2">
-                  By creating an organization, you agree to our Terms of Service and Privacy Policy
+                  By proceeding, you agree to our Terms of Service and Privacy Policy
                 </p>
               </div>
             )}

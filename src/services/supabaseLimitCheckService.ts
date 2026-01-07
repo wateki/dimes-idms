@@ -252,6 +252,15 @@ class SupabaseLimitCheckService {
     try {
       const organizationId = await this.getCurrentUserOrganizationId();
 
+      // Get organization's subscription status as fallback (especially for free plans)
+      const { data: organization } = await supabase
+        .from('organizations')
+        .select('subscriptionStatus, subscriptionTier')
+        .eq('id', organizationId)
+        .single();
+
+      const orgSubscriptionStatus = organization?.subscriptionStatus || 'inactive';
+
       // Get plan code from subscription
       const { data: planCode } = await supabase.rpc('get_organization_plan_code', {
         p_org_id: organizationId,
@@ -281,19 +290,21 @@ class SupabaseLimitCheckService {
           return null;
         }
 
-        // Get subscription status
+        // Get subscription status from subscriptions table
+        // For free plans, there might not be a subscription record, so use org status
         const { data: subscription } = await supabase
           .from('subscriptions')
           .select('status')
           .eq('organizationid', organizationId)
-          .eq('status', 'active')
-          .limit(1)
-          .single();
+          .maybeSingle();
+
+        // Use subscription status if available, otherwise fall back to organization's subscriptionStatus
+        const status = subscription?.status || orgSubscriptionStatus;
 
         return {
           displayName: plan.displayName,
           tierName: plan.tierName,
-          status: subscription?.status || 'inactive',
+          status: status,
           isAnnual: plan.isAnnual ?? false,
         };
       }
@@ -311,19 +322,21 @@ class SupabaseLimitCheckService {
         return null;
       }
 
-      // Get subscription status
+      // Get subscription status from subscriptions table
+      // For free plans, there might not be a subscription record, so use org status
       const { data: subscription } = await supabase
         .from('subscriptions')
         .select('status')
         .eq('organizationid', organizationId)
-        .eq('status', 'active')
-        .limit(1)
-        .single();
+        .maybeSingle();
+
+      // Use subscription status if available, otherwise fall back to organization's subscriptionStatus
+      const status = subscription?.status || orgSubscriptionStatus;
 
       return {
         displayName: plan.displayName,
         tierName: plan.tierName,
-        status: subscription?.status || 'inactive',
+        status: status,
         isAnnual: plan.isAnnual ?? false,
       };
     } catch (error) {

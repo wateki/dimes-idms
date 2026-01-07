@@ -180,6 +180,7 @@ class SupabaseOrganizationSignupService {
           organizationId: organizationId, // Store org ID in metadata for linking later
         },
         emailRedirectTo: `${window.location.origin}/signup/complete?orgId=${organizationId}`,
+        // Note: Also ensure this URL is added to Supabase Auth > URL Configuration > Redirect URLs
       },
     });
 
@@ -301,15 +302,31 @@ class SupabaseOrganizationSignupService {
 
     const limits = tierLimits[subscriptionTier] || tierLimits.free;
 
+    // Calculate expiration date: 14 days from now for free plan
+    let subscriptionExpiresAt: string | null = null;
+    if (subscriptionTier === 'free') {
+      const expirationDate = new Date();
+      expirationDate.setDate(expirationDate.getDate() + 14);
+      subscriptionExpiresAt = expirationDate.toISOString();
+      console.log('[Organization Signup] Setting free plan expiration date to:', subscriptionExpiresAt);
+    }
+
+    const updateData: any = {
+      subscriptionTier: subscriptionTier,
+      subscriptionStatus: subscriptionTier === 'free' ? 'active' : 'trialing',
+      maxUsers: limits.maxUsers,
+      maxProjects: limits.maxProjects === -1 ? null : limits.maxProjects,
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Only set expiration date for free plan
+    if (subscriptionExpiresAt) {
+      updateData.subscriptionExpiresAt = subscriptionExpiresAt;
+    }
+
     const { error } = await supabase
       .from('organizations')
-      .update({
-        subscriptionTier: subscriptionTier,
-        subscriptionStatus: subscriptionTier === 'free' ? 'active' : 'trialing',
-        maxUsers: limits.maxUsers,
-        maxProjects: limits.maxProjects === -1 ? null : limits.maxProjects,
-        updatedAt: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq('id', organizationId);
 
     if (error) {

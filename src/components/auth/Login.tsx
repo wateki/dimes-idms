@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -177,6 +177,15 @@ export const Login: React.FC<LoginProps> = () => {
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
+
+              <div className="flex items-center justify-end">
+                <Link 
+                  to="/forgot-password" 
+                  className="text-sm text-emerald-600 hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
 
               <Button
                 type="submit"

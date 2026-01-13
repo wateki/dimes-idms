@@ -18,6 +18,8 @@ import { OrganizationSignup } from '@/components/auth/OrganizationSignup';
 import { ConfirmEmail } from '@/components/auth/ConfirmEmail';
 import { CompleteSignup } from '@/components/auth/CompleteSignup';
 import { GuidedSetup } from '@/components/auth/GuidedSetup';
+import { ForgotPassword } from '@/components/auth/ForgotPassword';
+import { ResetPassword } from '@/components/auth/ResetPassword';
 import { SupabaseAuthHandler } from '@/components/auth/SupabaseAuthHandler';
 import { OutcomesDetails } from '@/components/dashboard/OutcomesDetails';
 import { OutputsDetails } from '@/components/dashboard/OutputsDetails';
@@ -67,6 +69,8 @@ function ProtectedRoute({ roles }: { roles?: string[] }) {
   const isPublicRoute = (path: string) => {
     return (
       path === '/login' ||
+      path === '/forgot-password' ||
+      path === '/reset-password' ||
       path === '/' ||
       path === '/signup' ||
       path.startsWith('/signup/') ||
@@ -162,6 +166,8 @@ function AppWithNotifications() {
         <Routes>
           {/* Public routes - no context providers that require auth */}
           <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/" element={<LandingPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/features" element={<FeaturesPage />} />

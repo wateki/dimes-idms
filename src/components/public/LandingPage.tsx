@@ -98,6 +98,16 @@ const features = [
   },
 ];
 
+const organizationLogos = [
+  { src: '/organization-logos/ics.png', alt: 'ICS' },
+  { src: '/organization-logos/chmpLogo.png', alt: 'CHMP' },
+  { src: '/organization-logos/girls-education-challenge.png', alt: 'Girls Education Challenge' },
+  { src: '/organization-logos/kakenya.jpg', alt: 'Kakenya' },
+  { src: '/organization-logos/Leonard_Cheshire_logo_RGB_Colour_AW.svg', alt: 'Leonard Cheshire' },
+  { src: '/organization-logos/merti.jpg', alt: 'Merti' },
+  { src: '/organization-logos/sign-of-hope.png', alt: 'Sign of Hope' },
+];
+
 export function LandingPage() {
   const navigate = useNavigate();
   const [heroVisible, setHeroVisible] = useState(false);
@@ -296,15 +306,41 @@ export function LandingPage() {
                 <Sparkles className="w-4 h-4 mr-2" />
                 Trusted by humanitarian organizations worldwide
               </div>
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 dark:text-gray-100 mb-6 leading-tight">
-                Your Data Infrastructure,
+              <h1 className="text-4xl sm:text-5xl lg:text-5xl font-bold text-gray-900 dark:text-gray-100 mb-6 leading-tight">
+                  Streamline Scattered Humanitarian Program Data & Workflows
                 <br />
-                <span className="bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">Simplified</span>
+                <span className="bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">In real-time</span>
               </h1>
-              <p className="text-lg sm:text-xl text-gray-600 dark:text-gray-300 mb-8 leading-relaxed">
-                Enterprise-grade data harmonization platform built for humanitarian organizations. 
-                Consolidate, standardize, and analyze data across teams and partners—all in real-time.
+              <p className="text-lg sm:text-xl text-gray-600 dark:text-gray-300 mb-4 leading-relaxed">
+              Humanitarian organizations spend weeks consolidating data from field teams, donors, and partners in scattered formats. DIMES ends that — automatically collecting, standardizing, validating, and analyzing all your data in real-time so your team can focus on impact.
               </p>
+              <p className="hidden md:block text-base text-gray-500 dark:text-gray-400 mb-6 font-medium">
+                Join organizations already cutting data prep time by weeks
+              </p>
+              
+              {/* Scrolling Organization Logos */}
+              <div className="hidden md:block mb-8 overflow-hidden relative max-w-lg">
+                <div className="flex animate-scroll-left gap-8 items-center">
+                  {/* Duplicate logos twice for seamless infinite loop */}
+                  {[...Array(2)].map((_, loopIndex) => (
+                    <React.Fragment key={loopIndex}>
+                      {organizationLogos.map((logo, logoIndex) => (
+                        <div 
+                          key={`${loopIndex}-${logoIndex}`}
+                          className="flex-shrink-0 h-4 flex items-center justify-center opacity-70 hover:opacity-100 transition-opacity"
+                        >
+                          <img 
+                            src={logo.src} 
+                            alt={logo.alt} 
+                            className="h-full w-auto object-contain max-w-[100px]"
+                          />
+                        </div>
+                      ))}
+                    </React.Fragment>
+                  ))}
+                </div>
+              </div>
+              
               <div className="flex flex-col sm:flex-row items-start gap-4 mb-8">
                 <Button 
                   size="lg" 

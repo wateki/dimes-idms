@@ -68,9 +68,38 @@ export function SupabaseAuthHandler() {
         return;
       }
 
-      // Check for access_token (successful email confirmation)
+      // Check for access_token (successful email confirmation or password reset)
       const accessToken = hashParams.get('access_token');
       const type = hashParams.get('type');
+      
+      // Handle password reset redirects
+      if (accessToken && type === 'recovery') {
+        console.log('[Supabase Auth Handler] Password reset link detected');
+        
+        // Set the session from the hash
+        try {
+          const { error: setSessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: hashParams.get('refresh_token') || '',
+          });
+          
+          if (setSessionError) {
+            console.error('[Supabase Auth Handler] Error setting session for password reset:', setSessionError);
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+            navigate('/forgot-password?error=invalid_link', { replace: true });
+            return;
+          }
+          
+          // Clear the hash and redirect to reset password page
+          window.history.replaceState(null, '', '/reset-password');
+          navigate('/reset-password', { replace: true });
+        } catch (err) {
+          console.error('[Supabase Auth Handler] Error processing password reset:', err);
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+          navigate('/forgot-password?error=reset_failed', { replace: true });
+        }
+        return;
+      }
       
       if (accessToken && type === 'signup') {
         console.log('[Supabase Auth Handler] Email confirmation successful');

@@ -32,8 +32,43 @@ The template is configured in `supabase/config.toml`:
 
 ```toml
 [auth.email.template.confirmation]
-subject = "Confirm Your Email Address - ICS Dashboard"
+subject = "Confirm Your Email Address - DIMES IDMS"
 content_path = "./templates/confirmation.html"
+```
+
+## Password Reset Email Template
+
+**File:** `reset_password.html`
+
+A professional, responsive HTML email template for password reset requests. Matches the platform's emerald green design system.
+
+### Features
+
+- ✅ Fully responsive design (mobile-friendly)
+- ✅ Inline CSS for maximum email client compatibility
+- ✅ Table-based layout for Outlook compatibility
+- ✅ Professional branding with emerald green gradient header (#10b981 to #059669)
+- ✅ Clear call-to-action button
+- ✅ Security information and expiration notice (1 hour expiry)
+- ✅ Proper footer with links and contact information
+- ✅ Matches platform design system colors
+
+### Template Variables
+
+Supabase automatically replaces these variables in the template:
+
+- `{{ .ConfirmationURL }}` - The password reset link that users must click
+- `{{ .Email }}` - The user's email address
+- `{{ .SiteURL }}` - Your site URL (configured in Supabase dashboard)
+
+### Configuration
+
+The template is configured in `supabase/config.toml`:
+
+```toml
+[auth.email.template.recovery]
+subject = "Reset Your Password - DIMES IDMS"
+content_path = "./templates/reset_password.html"
 ```
 
 ### Applying Changes
@@ -84,5 +119,7 @@ Before deploying to production:
 - Outlook-specific code is included via MSO conditional comments
 - All links should be absolute URLs
 - Keep total email size under 100 KB for best deliverability
+- Password reset template uses emerald green colors (#10b981, #059669) matching the platform design system
+- Both templates follow the same structure for consistency
 
 

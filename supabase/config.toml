@@ -222,8 +222,12 @@ otp_expiry = 3600
 
 # Customize email templates
 [auth.email.template.confirmation]
-subject = "Confirm Your Email Address - ICS Dashboard"
+subject = "Confirm Your Email Address - DIMES IDMS"
 content_path = "./templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Reset Your Password - DIMES IDMS"
+content_path = "./templates/reset_password.html"
 
 # [auth.email.template.invite]
 # subject = "You have been invited"

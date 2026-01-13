@@ -375,6 +375,17 @@ class SupabaseAuthService {
   }
 
   /**
+   * Send password reset email using Supabase Auth
+   */
+  async resetPassword(email: string, redirectTo?: string): Promise<{ error: AuthError | null }> {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: redirectTo || `${window.location.origin}/reset-password`,
+    });
+
+    return { error };
+  }
+
+  /**
    * Listen to auth state changes
    */
   onAuthStateChange(callback: (event: string, session: Session | null) => void) {

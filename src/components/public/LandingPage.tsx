@@ -347,7 +347,7 @@ export function LandingPage() {
                   className="text-base px-7 py-4 h-auto bg-emerald-600 hover:bg-emerald-700 shadow-md font-semibold"
                   onClick={() => navigate('/signup')}
                 >
-                  Start Free Trial
+                  Start Today
                   <ArrowRight className="ml-2 w-4 h-4" />
                 </Button>
                 <Button 
@@ -368,16 +368,16 @@ export function LandingPage() {
               <div className="flex flex-wrap items-center gap-6 text-sm text-gray-500">
                 <div className="flex items-center">
                   <CheckCircle2 className="w-5 h-5 text-emerald-500 mr-2" />
+                  <span>Setup instantly</span>
+                </div>
+                <div className="flex items-center">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500 mr-2" />
                   <span>No credit card required</span>
                 </div>
-                <div className="flex items-center">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500 mr-2" />
-                  <span>14-day free trial</span>
-                </div>
-                <div className="flex items-center">
+                {/* <div className="flex items-center">
                   <CheckCircle2 className="w-5 h-5 text-emerald-500 mr-2" />
                   <span>Setup in minutes</span>
-                </div>
+                </div> */}
               </div>
             </div>
 

@@ -327,10 +327,7 @@ export function LandingPage() {
                   size="lg" 
                   variant="outline" 
                   className="text-base px-7 py-4 h-auto border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50 font-semibold"
-                  onClick={() => {
-                    const element = document.getElementById('features');
-                    element?.scrollIntoView({ behavior: 'smooth' });
-                  }}
+                  onClick={() => window.open('https://www.youtube.com/@GARTSEasternAfrica', '_blank')}
                 >
                   <Play className="mr-2 w-4 h-4" />
                   Watch Demo

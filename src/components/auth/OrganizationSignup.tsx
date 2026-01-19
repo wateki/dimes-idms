@@ -515,9 +515,9 @@ export function OrganizationSignup() {
               <div className="flex justify-center mb-4">
                 <Building2 className="h-10 w-10 sm:h-12 sm:w-12 text-blue-600" />
               </div>
-              <CardTitle className="text-2xl sm:text-3xl font-bold">Create Your Organization</CardTitle>
+              <CardTitle className="text-2xl sm:text-3xl font-bold">Create Your Account</CardTitle>
               <CardDescription className="text-base sm:text-lg mt-2">
-                Get started with your organization account in just a few steps
+                Get started with your account in just a few steps
               </CardDescription>
             </CardHeader>
           )}
@@ -568,8 +568,8 @@ export function OrganizationSignup() {
             {step === 1 && (
               <div className="space-y-4">
                 <div>
-                  <h2 className="text-2xl font-semibold mb-2">Organization Account Details</h2>
-                  <p className="text-muted-foreground">Create your administrator account and organization</p>
+                  <h2 className="text-2xl font-semibold mb-2"> Account Details</h2>
+                  <p className="text-muted-foreground">Create your administrator account </p>
                 </div>
 
                 {/* Admin Account Section */}
@@ -615,7 +615,7 @@ export function OrganizationSignup() {
                       <Input
                         id="email"
                         type="email"
-                        placeholder="admin@organization.com"
+                        placeholder="e.g john@gmail.com"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         className="pl-10 w-full max-w-full"
@@ -687,25 +687,10 @@ export function OrganizationSignup() {
                         className="pl-10 w-full max-w-full"
                       />
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      This will be used to create a unique URL for your organization
-                    </p>
+                   
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="organizationDomain">Custom Domain (Optional)</Label>
-                    <Input
-                      id="organizationDomain"
-                      type="text"
-                      placeholder="example.com"
-                      value={organizationDomain}
-                      onChange={(e) => setOrganizationDomain(e.target.value)}
-                      className="w-full max-w-full"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      You can configure this later in settings
-                    </p>
-                  </div>
+                  
                 </div>
 
                 <Button
@@ -842,7 +827,7 @@ export function OrganizationSignup() {
             {/* Login link */}
             <div className="text-center pt-4 border-t">
               <p className="text-sm text-muted-foreground">
-                Already have an organization?{' '}
+                Already have an account?{' '}
                 <a href="/login" className="text-blue-600 hover:underline font-medium">
                   Sign in
                 </a>

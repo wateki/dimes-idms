@@ -314,33 +314,6 @@ export function LandingPage() {
               <p className="text-lg sm:text-xl text-gray-600 dark:text-gray-300 mb-4 leading-relaxed">
               Humanitarian organizations spend weeks consolidating data from field teams, donors, and partners in scattered formats. DIMES ends that — automatically collecting, standardizing, validating, and analyzing all your data in real-time so your team can focus on impact.
               </p>
-              <p className="hidden md:block text-base text-gray-500 dark:text-gray-400 mb-6 font-medium">
-                Join organizations already cutting data prep time by weeks
-              </p>
-              
-              {/* Scrolling Organization Logos */}
-              <div className="hidden md:block mb-8 overflow-hidden relative max-w-lg">
-                <div className="flex animate-scroll-left gap-8 items-center">
-                  {/* Duplicate logos twice for seamless infinite loop */}
-                  {[...Array(2)].map((_, loopIndex) => (
-                    <React.Fragment key={loopIndex}>
-                      {organizationLogos.map((logo, logoIndex) => (
-                        <div 
-                          key={`${loopIndex}-${logoIndex}`}
-                          className="flex-shrink-0 h-4 flex items-center justify-center opacity-70 hover:opacity-100 transition-opacity"
-                        >
-                          <img 
-                            src={logo.src} 
-                            alt={logo.alt} 
-                            className="h-full w-auto object-contain max-w-[100px]"
-                          />
-                        </div>
-                      ))}
-                    </React.Fragment>
-                  ))}
-                </div>
-              </div>
-              
               <div className="flex flex-col sm:flex-row items-start gap-4 mb-8">
                 <Button 
                   size="lg" 
@@ -421,6 +394,34 @@ export function LandingPage() {
         <div className="absolute top-20 left-0 w-96 h-96 bg-emerald-300 rounded-full opacity-10 blur-3xl"></div>
         
         <div className="container mx-auto max-w-6xl relative z-10">
+          {/* Trusted By Organizations - Scrolling Logos */}
+          <div className="text-center mb-12">
+            <p className="text-base text-gray-500 dark:text-gray-400 mb-6 font-medium">
+              Join organizations already cutting data prep time by weeks
+            </p>
+            <div className="overflow-hidden relative max-w-2xl mx-auto">
+              <div className="flex animate-scroll-left gap-12 items-center">
+                {/* Duplicate logos twice for seamless infinite loop */}
+                {[...Array(2)].map((_, loopIndex) => (
+                  <React.Fragment key={loopIndex}>
+                    {organizationLogos.map((logo, logoIndex) => (
+                      <div 
+                        key={`${loopIndex}-${logoIndex}`}
+                        className="flex-shrink-0 h-8 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity"
+                      >
+                        <img 
+                          src={logo.src} 
+                          alt={logo.alt} 
+                          className="h-full w-auto object-contain max-w-[120px]"
+                        />
+                      </div>
+                    ))}
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+          </div>
+
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-4">
               Everything Your Organization Needs

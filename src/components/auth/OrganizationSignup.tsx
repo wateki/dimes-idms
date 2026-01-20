@@ -509,20 +509,40 @@ export function OrganizationSignup() {
       }}
     >
       <div className={`w-full ${containerWidth} ${isPlanSelection ? '' : 'max-h-[90vh]'} flex flex-col`}>
+        {/* Help section - at top of page */}
+        <div className="text-center mb-3">
+          <p className="text-sm text-muted-foreground">
+            Having issues signing up? Contact us on{' '}
+            <a 
+              href="https://wa.me/254114904624?text=Hi%2C%20I%20need%20personalized%20onboarding%20for%20the%20DIMES%20IDMS%20system." 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-green-600 hover:underline font-medium"
+            >
+              WhatsApp (24/7)
+            </a>
+            {' '}or{' '}
+            <a 
+              href="mailto:ian_warutere@gartsafrica.com?subject=DIMES%20IDMS%20Personalized%20Onboarding&body=Hi%2C%0A%0AI%20need%20personalized%20onboarding%20for%20the%20DIMES%20IDMS%20system.%0A%0APlease%20assist." 
+              className="text-blue-600 hover:underline font-medium"
+            >
+              Email
+            </a>
+          </p>
+        </div>
+
         <Card className={`shadow-xl flex flex-col ${isPlanSelection ? '' : 'max-h-full overflow-hidden'}`}>
           {!isPlanSelection && (
             <CardHeader className="text-center pb-4 px-4 sm:px-6 pt-6 sm:pt-8 flex-shrink-0">
-              <div className="flex justify-center mb-4">
-                <Building2 className="h-10 w-10 sm:h-12 sm:w-12 text-blue-600" />
-              </div>
+             
               <CardTitle className="text-2xl sm:text-3xl font-bold">Create Your Account</CardTitle>
-              <CardDescription className="text-base sm:text-lg mt-2">
+              <CardDescription className="text-base sm:text-lg mt-1">
                 Get started with your account in just a few steps
               </CardDescription>
             </CardHeader>
           )}
 
-          <CardContent className={`space-y-6 p-4 sm:p-6 md:p-8 ${isPlanSelection ? '' : 'overflow-y-auto'} flex-1 ${isPlanSelection ? 'pt-6 sm:pt-8' : ''}`}>
+          <CardContent className={`space-y-3 p-4 sm:p-6 md:p-8 ${isPlanSelection ? '' : 'overflow-y-auto'} flex-1 ${isPlanSelection ? 'pt-4 sm:pt-4' : ''}`}>
             {/* Progress indicator */}
             {!isPlanSelection && (
             <div className="flex items-center justify-center space-x-2 sm:space-x-4 mb-6 md:mb-8">
@@ -625,20 +645,20 @@ export function OrganizationSignup() {
 
                   <div className="space-y-2">
                     <Label htmlFor="password">Password *</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+                    <div className="relative flex items-center">
+                      <Lock className="absolute left-3 h-4 w-4 text-muted-foreground z-10 pointer-events-none" />
                       <Input
                         id="password"
                         type={showPassword ? 'text' : 'password'}
                         placeholder="At least 8 characters"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="pl-10 pr-10 w-full max-w-full"
+                        className="pl-10 pr-12 w-full"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground z-10 p-1"
+                        className="absolute right-0 h-full px-3 flex items-center justify-center text-muted-foreground hover:text-foreground z-10"
                         aria-label={showPassword ? 'Hide password' : 'Show password'}
                       >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -648,20 +668,20 @@ export function OrganizationSignup() {
 
                   <div className="space-y-2">
                     <Label htmlFor="confirmPassword">Confirm Password *</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+                    <div className="relative flex items-center">
+                      <Lock className="absolute left-3 h-4 w-4 text-muted-foreground z-10 pointer-events-none" />
                       <Input
                         id="confirmPassword"
                         type={showPassword ? 'text' : 'password'}
                         placeholder="Confirm your password"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="pl-10 pr-10 w-full max-w-full"
+                        className="pl-10 pr-12 w-full"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground z-10 p-1"
+                        className="absolute right-0 h-full px-3 flex items-center justify-center text-muted-foreground hover:text-foreground z-10"
                         aria-label={showPassword ? 'Hide password' : 'Show password'}
                       >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

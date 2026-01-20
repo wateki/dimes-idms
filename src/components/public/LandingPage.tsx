@@ -409,7 +409,7 @@ export function LandingPage() {
                         <img 
                           src={logo.src} 
                           alt={logo.alt} 
-                          className="h-full w-auto object-contain max-w-[120px]"
+                          className="h-full w-auto object-contain max-w-[160px]"
                         />
                       </div>
                     ))}

@@ -14,18 +14,21 @@ interface GeoResponse {
 }
 
 /**
- * Frankfurter API (https://frankfurter.dev/)
- * - Latest: GET /v1/latest?base=USD&symbols=XXX
- * - Currencies list: GET /v1/currencies → { "AUD": "Australian Dollar", ... }
+ * Open Exchange Rates (https://openexchangerates.org/)
+ * - Latest: GET https://openexchangerates.org/api/latest.json?app_id=XXX&symbols=EUR,GBP
+ * - Requires VITE_OPEN_EXCHANGE_RATES_APP_ID (free tier: 1000 req/month, USD base, 200+ currencies)
  */
+interface OpenExchangeRatesResponse {
+  base: string;
+  rates: Record<string, number>;
+  timestamp?: number;
+}
+
+/** Frankfurter fallback when Open Exchange Rates app_id is not set (no key required) */
 interface FrankfurterLatestResponse {
   base: string;
   date: string;
   rates: Record<string, number>;
-}
-
-interface FrankfurterCurrenciesResponse {
-  [code: string]: string;
 }
 
 /** Common currency symbols; fallback to code (e.g. KES) when missing */
@@ -46,7 +49,7 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
 
 /** IP-based geolocation: no device/browser location or permissions required */
 const GEO_API = 'https://ipapi.co/json/';
-/** Frankfurter API – no API key, docs: https://frankfurter.dev/ */
+const OPEN_EXCHANGE_RATES_URL = 'https://openexchangerates.org/api/latest.json';
 const FRANKFURTER_BASE = 'https://api.frankfurter.dev/v1';
 
 export interface PricingCurrencyState {
@@ -78,9 +81,16 @@ function getCurrencySymbol(code: string): string {
   return CURRENCY_SYMBOLS[code] ?? code;
 }
 
+/** Open Exchange Rates app_id from env; optional – fallback to Frankfurter if missing */
+function getOpenExchangeRatesAppId(): string | undefined {
+  return typeof import.meta !== 'undefined' && import.meta.env?.VITE_OPEN_EXCHANGE_RATES_APP_ID
+    ? String(import.meta.env.VITE_OPEN_EXCHANGE_RATES_APP_ID).trim() || undefined
+    : undefined;
+}
+
 /**
  * Detects the user's country via IP (ipapi.co), maps to currency,
- * fetches USD→local exchange rate (Frankfurter), and exposes
+ * fetches USD→local exchange rate (Open Exchange Rates, or Frankfurter fallback), and exposes
  * formatted pricing. Falls back to USD on any failure or timeout.
  */
 export function usePricingCurrency() {
@@ -88,6 +98,7 @@ export function usePricingCurrency() {
 
   useEffect(() => {
     let cancelled = false;
+    const appId = getOpenExchangeRatesAppId();
 
     async function detect() {
       try {
@@ -117,17 +128,36 @@ export function usePricingCurrency() {
           return;
         }
 
-        const ratesRes = await Promise.race([
-          fetch(`${FRANKFURTER_BASE}/latest?base=USD&symbols=${encodeURIComponent(currency)}`),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Rates timeout')), 5000)
-          ),
-        ]);
-        if (cancelled) return;
-        if (!ratesRes.ok) throw new Error('Rates fetch failed');
+        let rate: number | undefined;
 
-        const ratesData = (await ratesRes.json()) as FrankfurterLatestResponse;
-        const rate = ratesData.rates?.[currency];
+        if (appId) {
+          const url = `${OPEN_EXCHANGE_RATES_URL}?app_id=${encodeURIComponent(appId)}&symbols=${encodeURIComponent(currency)}`;
+          const ratesRes = await Promise.race([
+            fetch(url),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('Rates timeout')), 5000)
+            ),
+          ]);
+          if (cancelled) return;
+          if (!ratesRes.ok) throw new Error('Rates fetch failed');
+          const data = (await ratesRes.json()) as OpenExchangeRatesResponse;
+          rate = data.rates?.[currency];
+        }
+
+        if (rate == null) {
+          const fallbackUrl = `${FRANKFURTER_BASE}/latest?base=USD&symbols=${encodeURIComponent(currency)}`;
+          const ratesRes = await Promise.race([
+            fetch(fallbackUrl),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('Rates timeout')), 5000)
+            ),
+          ]);
+          if (cancelled) return;
+          if (!ratesRes.ok) throw new Error('Rates fetch failed');
+          const data = (await ratesRes.json()) as FrankfurterLatestResponse;
+          rate = data.rates?.[currency];
+        }
+
         if (rate == null) throw new Error(`No rate for ${currency}`);
 
         setState({

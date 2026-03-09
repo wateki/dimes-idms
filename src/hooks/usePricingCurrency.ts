@@ -1,5 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
 
+/**
+ * Pricing currency detection uses IP-based geolocation only.
+ * We do not use device location, browser Geolocation API, or GPS.
+ * The server (ipapi.co) resolves the request's IP address to country/currency.
+ */
+
 /** Geo response from ipapi.co (only fields we use) */
 interface GeoResponse {
   country_code?: string;
@@ -7,11 +13,19 @@ interface GeoResponse {
   currency?: string;
 }
 
-/** Frankfurter latest rates response */
-interface FrankfurterResponse {
+/**
+ * Frankfurter API (https://frankfurter.dev/)
+ * - Latest: GET /v1/latest?base=USD&symbols=XXX
+ * - Currencies list: GET /v1/currencies → { "AUD": "Australian Dollar", ... }
+ */
+interface FrankfurterLatestResponse {
   base: string;
   date: string;
   rates: Record<string, number>;
+}
+
+interface FrankfurterCurrenciesResponse {
+  [code: string]: string;
 }
 
 /** Common currency symbols; fallback to code (e.g. KES) when missing */
@@ -30,8 +44,10 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
   GHS: '₵',
 };
 
+/** IP-based geolocation: no device/browser location or permissions required */
 const GEO_API = 'https://ipapi.co/json/';
-const RATES_API = 'https://api.frankfurter.app/latest';
+/** Frankfurter API – no API key, docs: https://frankfurter.dev/ */
+const FRANKFURTER_BASE = 'https://api.frankfurter.dev/v1';
 
 export interface PricingCurrencyState {
   /** User's detected currency code (e.g. USD, EUR) */
@@ -102,7 +118,7 @@ export function usePricingCurrency() {
         }
 
         const ratesRes = await Promise.race([
-          fetch(`${RATES_API}?from=USD&to=${encodeURIComponent(currency)}`),
+          fetch(`${FRANKFURTER_BASE}/latest?base=USD&symbols=${encodeURIComponent(currency)}`),
           new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error('Rates timeout')), 5000)
           ),
@@ -110,7 +126,7 @@ export function usePricingCurrency() {
         if (cancelled) return;
         if (!ratesRes.ok) throw new Error('Rates fetch failed');
 
-        const ratesData = (await ratesRes.json()) as FrankfurterResponse;
+        const ratesData = (await ratesRes.json()) as FrankfurterLatestResponse;
         const rate = ratesData.rates?.[currency];
         if (rate == null) throw new Error(`No rate for ${currency}`);
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,9 +12,9 @@ import {
   Menu,
   X
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { Footer } from '@/components/shared/Footer';
+import { usePricingCurrency } from '@/hooks/usePricingCurrency';
 
 
 export function PricingPage() {
@@ -22,6 +22,20 @@ export function PricingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [heroVisible, setHeroVisible] = useState(false);
+  const [showInUsd, setShowInUsd] = useState(false);
+
+  const {
+    currency,
+    rate,
+    country,
+    currencySymbol,
+    loading: currencyLoading,
+    error: currencyError,
+    isConverted,
+    formatPrice,
+  } = usePricingCurrency();
+
+  const useLocalCurrency = isConverted && !showInUsd;
 
   useEffect(() => {
     // Reset and trigger animation independently for this page
@@ -260,6 +274,28 @@ export function PricingPage() {
               </ToggleGroupItem>
             </ToggleGroup>
           </div>
+          {!currencyLoading && (isConverted || currencyError) && (
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-sm text-gray-600">
+              {isConverted ? (
+                <>
+                  <span>
+                    Prices in {currency} {country ? `(${country})` : ''} — converted from USD
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowInUsd(!showInUsd)}
+                    className="text-emerald-600 hover:underline font-medium"
+                  >
+                    {showInUsd ? 'Show in ' + currency : 'Show in USD'}
+                  </button>
+                </>
+              ) : (
+                currencyError && (
+                  <span className="text-gray-500">Showing USD (location unavailable)</span>
+                )
+              )}
+            </div>
+          )}
         </div>
       </section>
 
@@ -308,25 +344,33 @@ export function PricingPage() {
                         <>
                           {displayPrice === 0 ? (
                             <div key={`${plan.name}-${billingCycle}-free`} className="animate-fade-in">
-                              <span className="text-4xl font-bold text-gray-900 dark:text-gray-100">$0</span>
+                              <span className="text-4xl font-bold text-gray-900 dark:text-gray-100">
+                                {useLocalCurrency ? formatPrice(0) : '$0'}
+                              </span>
                               <span className="text-gray-600 dark:text-gray-400">/month</span>
                             </div>
                           ) : (
                             <>
                               <div key={`${plan.name}-${billingCycle}-price`} className="flex flex-wrap items-baseline gap-1 min-w-0 animate-fade-in">
-                                <span className="text-4xl font-bold text-gray-900 dark:text-gray-100 break-words min-w-0">${displayPrice.toLocaleString('en-US', { minimumFractionDigits: displayPrice % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}</span>
+                                <span className="text-4xl font-bold text-gray-900 dark:text-gray-100 break-words min-w-0">
+                                  {useLocalCurrency
+                                    ? formatPrice(displayPrice)
+                                    : `$${displayPrice.toLocaleString('en-US', { minimumFractionDigits: displayPrice % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}`}
+                                </span>
                                 <span className="text-gray-600 dark:text-gray-400 flex-shrink-0">/{billingCycle === 'annual' ? 'month' : 'month'}</span>
                               </div>
                               {billingCycle === 'annual' && plan.annualPrice > 0 && (
                                 <p key={`${plan.name}-${billingCycle}-billed`} className="text-xs text-gray-500 dark:text-gray-400 mt-1 break-words max-w-full animate-fade-in" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                                  Billed annually (${plan.annualPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/year)
+                                  Billed annually ({useLocalCurrency ? formatPrice(plan.annualPrice) : `$${plan.annualPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}/year)
                                 </p>
                               )}
                             </>
                           )}
                         </>
                       ) : (
-                        <span key={`${plan.name}-${billingCycle}-custom`} className="text-4xl font-bold text-gray-900 dark:text-gray-100 animate-fade-in">$0</span>
+                        <span key={`${plan.name}-${billingCycle}-custom`} className="text-4xl font-bold text-gray-900 dark:text-gray-100 animate-fade-in">
+                          {useLocalCurrency ? formatPrice(0) : '$0'}
+                        </span>
                       )}
                     </div>
                     <CardDescription className="text-base min-h-[4.5rem]">

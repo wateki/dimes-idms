@@ -7,10 +7,23 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, Save, ArrowLeft, Edit3, Eye } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Plus, Trash2, Save, ArrowLeft, Edit3, Eraser } from 'lucide-react';
 import { strategicPlanApi } from '@/lib/api/strategicPlanApi';
 import { useProjects } from '@/contexts/ProjectsContext';
 import { useNotifications } from '@/contexts/NotificationContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { createEnhancedPermissionManager } from '@/lib/permissions';
 import { Project, Activity } from '@/types/dashboard';
 
 interface SubGoal {
@@ -27,12 +40,24 @@ interface SubGoal {
 }
 
 interface ActivityLink {
-  projectId: string;
-  projectName: string;
-  activityId: string;
-  activityTitle: string;
+  projectId?: string;
+  projectName?: string;
+  activityId?: string;
+  activityTitle?: string;
+  /** When set, link is to an organisation-wide activity */
+  strategicActivityId?: string;
   contribution: number;
   status: 'contributing' | 'at-risk' | 'not-contributing';
+  code?: string;
+  responsibleCountry?: string;
+  timeframeQ1?: boolean;
+  timeframeQ2?: boolean;
+  timeframeQ3?: boolean;
+  timeframeQ4?: boolean;
+  annualTarget?: number;
+  indicatorText?: string;
+  plannedBudget?: number;
+  strategicKpiId?: string;
 }
 
 interface StrategicGoal {
@@ -48,13 +73,24 @@ export function StrategicPlanEdit() {
   const navigate = useNavigate();
   const { projects, getProjectActivities } = useProjects();
   const { addNotification } = useNotifications();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const permissionManager = createEnhancedPermissionManager({ user, isAuthenticated, isLoading: authLoading });
+  const canDeletePlan = permissionManager.hasPermission('strategic-plan:delete');
   const [goals, setGoals] = useState<StrategicGoal[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentPlanId, setCurrentPlanId] = useState<string | null>(null);
+  const [availablePlans, setAvailablePlans] = useState<Array<{ id: string; title: string; startYear: number; endYear: number }>>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [startYear, setStartYear] = useState(new Date().getFullYear());
   const [endYear, setEndYear] = useState(new Date().getFullYear() + 4);
   const [availableActivities, setAvailableActivities] = useState<Record<string, Activity[]>>({});
+  const [planKpis, setPlanKpis] = useState<Array<{ id: string; name?: string; unit: string }>>([]);
+  const [planActivities, setPlanActivities] = useState<Array<{ id: string; title: string; code?: string }>>([]);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [purgeDialogOpen, setPurgeDialogOpen] = useState(false);
+  const [isPurging, setIsPurging] = useState(false);
 
   // Load activities for a project
   const loadProjectActivities = async (projectId: string) => {
@@ -95,92 +131,114 @@ export function StrategicPlanEdit() {
   };
 
   useEffect(() => {
-    // Load existing strategic plan data
-    loadStrategicPlan();
+    loadPlansList();
   }, []);
 
-  const loadStrategicPlan = async () => {
+  useEffect(() => {
+    if (!selectedPlanId) {
+      setGoals([]);
+      setCurrentPlanId(null);
+      setPlanKpis([]);
+      setPlanActivities([]);
+      return;
+    }
+    loadPlanById(selectedPlanId);
+  }, [selectedPlanId]);
+
+  const loadPlansList = async () => {
+    try {
+      const plans = await strategicPlanApi.getStrategicPlansAll();
+      if (!plans?.length) {
+        setAvailablePlans([]);
+        setSelectedPlanId(null);
+        return;
+      }
+      setAvailablePlans(plans.map(p => ({ id: p.id, title: p.title, startYear: p.startYear, endYear: p.endYear })));
+      const activePlan = await strategicPlanApi.getActiveStrategicPlan();
+      const defaultId = activePlan?.id ?? plans[0].id;
+      setSelectedPlanId(defaultId);
+    } catch (error) {
+      console.error('Error loading plans list:', error);
+      addNotification({ type: 'error', title: 'Failed to Load Plans', message: 'Could not load strategic plans.', duration: 4000 });
+    }
+  };
+
+  const loadPlanById = async (planId: string) => {
     try {
       setIsLoading(true);
-      // First try to load active plan for the organization
-      let planToLoad = await strategicPlanApi.getActiveStrategicPlan();
-      
-      // If no active plan, try to load the most recent plan for the organization
-      if (!planToLoad) {
-        const allPlans = await strategicPlanApi.getStrategicPlans();
-        if (allPlans && allPlans.length > 0) {
-          // Use the most recent plan (they're already sorted by createdAt descending)
-          planToLoad = allPlans[0];
-         /*  addNotification({
-            type: 'info',
-            title: 'No Active Plan Found',
-            message: `Loaded the most recent strategic plan (${planToLoad.startYear}-${planToLoad.endYear}) for your organization.`,
-            duration: 4000,
-          }); */
-        }
-      }
-      
-      if (planToLoad) {
-        setCurrentPlanId(planToLoad.id);
-        setStartYear(planToLoad.startYear);
-        setEndYear(planToLoad.endYear);
-        const convertedGoals: StrategicGoal[] = planToLoad.goals.map(goal => ({
-          id: goal.id,
-          title: goal.title,
-          description: goal.description,
-          priority: goal.priority.toLowerCase() as 'high' | 'medium' | 'low',
-          targetOutcome: goal.targetOutcome,
-          subgoals: goal.subgoals.map(subGoal => ({
-            id: subGoal.id,
-            title: subGoal.title,
-            description: subGoal.description,
-            kpi: {
-              currentValue: subGoal.kpi?.currentValue || 0,
-              targetValue: subGoal.kpi?.targetValue || 0,
-              unit: subGoal.kpi?.unit || '',
-              type: subGoal.kpi?.type || 'radialGauge'
-            },
-            activityLinks: (subGoal.activityLinks || []).map(activity => ({
-              projectId: activity.projectId,
-              projectName: activity.projectName,
-              activityId: activity.activityId,
-              activityTitle: activity.activityTitle,
-              contribution: activity.contribution,
-              status: activity.status.toLowerCase().replace('_', '-') as 'contributing' | 'at-risk' | 'not-contributing'
-            }))
+      const plan = await strategicPlanApi.getStrategicPlan(planId);
+      setCurrentPlanId(plan.id);
+      setStartYear(plan.startYear);
+      setEndYear(plan.endYear);
+      const convertedGoals: StrategicGoal[] = plan.goals.map(goal => ({
+        id: goal.id,
+        title: goal.title,
+        description: goal.description,
+        priority: goal.priority.toLowerCase() as 'high' | 'medium' | 'low',
+        targetOutcome: goal.targetOutcome,
+        subgoals: goal.subgoals.map(subGoal => ({
+          id: subGoal.id,
+          title: subGoal.title,
+          description: subGoal.description,
+          kpi: {
+            currentValue: subGoal.kpi?.currentValue || 0,
+            targetValue: subGoal.kpi?.targetValue || 0,
+            unit: subGoal.kpi?.unit || '',
+            type: subGoal.kpi?.type || 'radialGauge'
+          },
+          activityLinks: (subGoal.activityLinks || []).map((activity: { projectId?: string; projectName?: string; activityId?: string; activityTitle?: string; strategicActivityId?: string; contribution?: number; status?: string; code?: string; responsibleCountry?: string; timeframeQ1?: boolean; timeframeQ2?: boolean; timeframeQ3?: boolean; timeframeQ4?: boolean; annualTarget?: number; indicatorText?: string; plannedBudget?: number; strategicKpiId?: string }) => ({
+            projectId: activity.projectId,
+            projectName: activity.projectName,
+            activityId: activity.activityId,
+            activityTitle: activity.activityTitle,
+            strategicActivityId: activity.strategicActivityId,
+            contribution: activity.contribution ?? 0,
+            status: (activity.status?.toLowerCase().replace('_', '-') || 'contributing') as 'contributing' | 'at-risk' | 'not-contributing',
+            code: activity.code,
+            responsibleCountry: activity.responsibleCountry,
+            timeframeQ1: activity.timeframeQ1,
+            timeframeQ2: activity.timeframeQ2,
+            timeframeQ3: activity.timeframeQ3,
+            timeframeQ4: activity.timeframeQ4,
+            annualTarget: activity.annualTarget,
+            indicatorText: activity.indicatorText,
+            plannedBudget: activity.plannedBudget,
+            strategicKpiId: activity.strategicKpiId
           }))
-        }));
-        setGoals(convertedGoals);
-        addNotification({
-          type: 'success',
-          title: 'Strategic Plan Loaded Successfully',
-          message: `Loaded ${convertedGoals.length} strategic goals from your organization's plan (${planToLoad.startYear}-${planToLoad.endYear}).`,
-          duration: 3000,
-        });
-      } else {
-        // No plans found for the organization - show empty state
-        setGoals([]);
-        setCurrentPlanId(null);
-        addNotification({
-          type: 'info',
-          title: 'No Strategic Plan Found',
-          message: 'No strategic plan found for your organization. Please create a new plan.',
-          duration: 4000,
-        });
-      }
+        }))
+      }));
+      setGoals(convertedGoals);
+      const [kpis, activities] = await Promise.all([
+        strategicPlanApi.getKpisByPlanId(planId),
+        strategicPlanApi.getActivitiesByPlanId(planId)
+      ]);
+      setPlanKpis(kpis.map(k => ({ id: k.id, name: k.name ?? undefined, unit: k.unit })));
+      setPlanActivities(activities.map(a => ({ id: a.id, title: a.title, code: a.code })));
+      addNotification({
+        type: 'success',
+        title: 'Strategic Plan Loaded',
+        message: `Loaded "${plan.title}" with ${convertedGoals.length} goals.`,
+        duration: 3000,
+      });
     } catch (error) {
       console.error('Error loading strategic plan:', error);
       setGoals([]);
       setCurrentPlanId(null);
+      setPlanKpis([]);
+      setPlanActivities([]);
       addNotification({
         type: 'error',
-        title: 'Failed to Load Strategic Plan',
-        message: error instanceof Error ? error.message : 'Please try again or create a new plan.',
+        title: 'Failed to Load Plan',
+        message: error instanceof Error ? error.message : 'Please try again.',
         duration: 5000,
       });
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const loadStrategicPlan = () => {
+    if (selectedPlanId) loadPlanById(selectedPlanId);
   };
   
 
@@ -428,6 +486,62 @@ export function StrategicPlanEdit() {
     });
   };
 
+  const handleDeletePlan = async () => {
+    if (!currentPlanId) return;
+    setIsDeleting(true);
+    try {
+      await strategicPlanApi.deleteStrategicPlan(currentPlanId);
+      setDeleteDialogOpen(false);
+      setCurrentPlanId(null);
+      setGoals([]);
+      addNotification({
+        type: 'success',
+        title: 'Strategic Plan Deleted',
+        message: 'The plan and all its objectives have been permanently removed.',
+        duration: 4000,
+      });
+      await loadStrategicPlan();
+    } catch (error) {
+      console.error('Error deleting strategic plan:', error);
+      addNotification({
+        type: 'error',
+        title: 'Failed to Delete Plan',
+        message: error instanceof Error ? error.message : 'Could not delete the strategic plan. Please try again.',
+        duration: 4000,
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handlePurgeInactive = async () => {
+    setIsPurging(true);
+    try {
+      const { purged } = await strategicPlanApi.purgeInactivePlans();
+      setPurgeDialogOpen(false);
+      addNotification({
+        type: 'success',
+        title: 'Inactive plans purged',
+        message: purged > 0
+          ? `${purged} inactive strategic plan(s) have been permanently deleted.`
+          : 'No inactive plans were found.',
+        duration: 4000,
+      });
+      await loadStrategicPlan();
+    } catch (error: unknown) {
+      console.error('Error purging inactive plans:', error);
+      const message = error instanceof Error ? error.message : 'Could not purge inactive plans. Please try again.';
+      addNotification({
+        type: 'error',
+        title: 'Purge failed',
+        message,
+        duration: 5000,
+      });
+    } finally {
+      setIsPurging(false);
+    }
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -447,6 +561,34 @@ export function StrategicPlanEdit() {
           </div>
         </div>
         <div className="flex items-center space-x-2">
+          {!isEditing && canDeletePlan && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setPurgeDialogOpen(true)}
+                disabled={isPurging}
+                className="flex items-center gap-2"
+              >
+                <Eraser className="h-4 w-4" />
+                Purge inactive plans
+              </Button>
+              {currentPlanId && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDeleteDialogOpen(true)}
+                  disabled={isDeleting}
+                  className="flex items-center gap-2 text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete plan
+                </Button>
+              )}
+            </>
+          )}
           {!isEditing ? (
             <Button onClick={() => setIsEditing(true)} className="flex items-center space-x-2">
               <Edit3 className="h-4 w-4" />
@@ -465,6 +607,43 @@ export function StrategicPlanEdit() {
           )}
         </div>
       </div>
+
+      {/* Plan selector */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Strategic Plan</CardTitle>
+          <CardDescription>
+            Choose which strategic plan to view and edit.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {availablePlans.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No strategic plans found for your organization. Create a new plan to get started.
+            </p>
+          ) : (
+            <div className="max-w-md space-y-2">
+              <Label htmlFor="plan-selector">Plan</Label>
+              <Select
+                value={selectedPlanId ?? ''}
+                onValueChange={(value) => setSelectedPlanId(value || null)}
+                disabled={isLoading}
+              >
+                <SelectTrigger id="plan-selector">
+                  <SelectValue placeholder="Select a plan" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availablePlans.map((plan) => (
+                    <SelectItem key={plan.id} value={plan.id}>
+                      {plan.title} ({plan.startYear}–{plan.endYear})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Year Range Display/Edit */}
       <Card>
@@ -861,6 +1040,48 @@ export function StrategicPlanEdit() {
           </Card>
         )}
       </div>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this strategic plan?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the current strategic plan and all its objectives, subgoals, and activity links. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleDeletePlan(); }}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? 'Deleting...' : 'Delete plan'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={purgeDialogOpen} onOpenChange={setPurgeDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Purge inactive plans?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete all inactive (deactivated) strategic plans from your organization. Only plans that are no longer active will be removed. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPurging}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handlePurgeInactive(); }}
+              disabled={isPurging}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isPurging ? 'Purging...' : 'Purge inactive'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

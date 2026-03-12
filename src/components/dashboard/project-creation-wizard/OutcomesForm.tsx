@@ -73,9 +73,20 @@ export function OutcomesForm({
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
+                      <Label>Current Value</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={outcome.current ?? 0}
+                        onChange={(e) => onUpdateOutcome(index, 'current', parseFloat(e.target.value) || 0)}
+                        placeholder="Current achieved value"
+                      />
+                    </div>
+                    <div>
                       <Label>Target Value</Label>
                       <Input
                         type="number"
+                        min={0}
                         value={outcome.target}
                         onChange={(e) => onUpdateOutcome(index, 'target', parseInt(e.target.value) || 0)}
                         placeholder="Enter target value"
@@ -87,6 +98,17 @@ export function OutcomesForm({
                         value={outcome.unit}
                         onChange={(e) => onUpdateOutcome(index, 'unit', e.target.value)}
                         placeholder="e.g., children, families, %"
+                      />
+                    </div>
+                    <div>
+                      <Label>Progress (%)</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={outcome.progress ?? 0}
+                        onChange={(e) => onUpdateOutcome(index, 'progress', parseFloat(e.target.value) || 0)}
+                        placeholder="0–100"
                       />
                     </div>
                   </div>

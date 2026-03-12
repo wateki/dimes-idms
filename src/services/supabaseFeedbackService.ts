@@ -433,6 +433,31 @@ class SupabaseFeedbackService {
       throw new Error('User profile not found or user is not associated with an organization');
     }
 
+    // Enforce valid status transitions (align with backend/ics-dashboard)
+    const allowedTransitions: Record<string, string[]> = {
+      SUBMITTED: ['ACKNOWLEDGED', 'IN_PROGRESS', 'ESCALATED', 'CLOSED'],
+      ACKNOWLEDGED: ['IN_PROGRESS', 'ESCALATED', 'CLOSED'],
+      IN_PROGRESS: ['RESOLVED', 'ESCALATED', 'CLOSED'],
+      ESCALATED: ['IN_PROGRESS', 'RESOLVED', 'CLOSED'],
+      RESOLVED: ['CLOSED'],
+      CLOSED: [], // final state
+    };
+    const { data: current } = await supabase
+      .from('feedback_submissions')
+      .select('status')
+      .eq('id', id)
+      .eq('organizationid', organizationId)
+      .single();
+    if (current) {
+      const currentStatus = (current as { status: string }).status;
+      const allowed = allowedTransitions[currentStatus] ?? [];
+      if (!allowed.includes(data.status)) {
+        throw new Error(
+          `Cannot transition from ${currentStatus} to ${data.status}. Allowed: ${allowed.join(', ') || 'none (final state)'}.`
+        );
+      }
+    }
+
     const now = new Date().toISOString();
     const updateData: any = {
       status: data.status as Database['public']['Enums']['FeedbackStatus'],

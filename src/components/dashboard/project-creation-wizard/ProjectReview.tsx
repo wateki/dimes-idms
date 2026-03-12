@@ -142,14 +142,55 @@ export function ProjectReview({
                 <div key={outcome.id} className="p-3 border rounded-lg">
                   <h4 className="font-medium">{outcome.title}</h4>
                   <p className="text-sm text-gray-600">{outcome.description}</p>
-                  <div className="mt-2 flex gap-4 text-xs text-gray-500">
-                    <span>Target: {outcome.target} {outcome.unit}</span>
+                  <div className="mt-2 flex flex-wrap gap-4 text-xs text-gray-500">
+                    <span>Current: {outcome.current ?? 0} / Target: {outcome.target} {outcome.unit}</span>
+                    {outcome.progress != null && <span>Progress: {outcome.progress}%</span>}
                     <span>Activities: {activities.filter(a => a.outcomeId === outcome.id).length}</span>
                     <span>KPIs: {kpis.filter(k => k.outcomeId === outcome.id).length}</span>
                   </div>
                 </div>
               ))}
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Activities summary (with progress) */}
+      {activities.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Activities Summary</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2 text-sm">
+              {activities.map((a) => (
+                <li key={a.id} className="flex justify-between gap-2">
+                  <span>{a.title}</span>
+                  {a.progress != null && <span className="text-muted-foreground">Progress: {a.progress}%</span>}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* KPIs summary (current vs target) */}
+      {kpis.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>KPIs Summary</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2 text-sm">
+              {kpis.map((kpi, i) => (
+                <li key={kpi.id ?? i} className="flex justify-between gap-2">
+                  <span>{kpi.name}</span>
+                  <span className="text-muted-foreground">
+                    {kpi.current ?? 0} / {kpi.target} {kpi.unit}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
       )}

@@ -85,6 +85,15 @@ export const PERMISSION_DEFINITIONS = {
   'kobo:update-regional': { resource: 'kobo', action: 'update', scope: 'regional' },
   'kobo:read-project': { resource: 'kobo', action: 'read', scope: 'project' },
   'kobo:update-project': { resource: 'kobo', action: 'update', scope: 'project' },
+
+  // Feedback (align with backend/ics-dashboard)
+  'feedback:read': { resource: 'feedback', action: 'read', scope: 'global' },
+  'feedback:read-sensitive': { resource: 'feedback', action: 'read', scope: 'global' },
+
+  // Strategic Plan (align with backend/ics-dashboard)
+  'strategic-plan:read': { resource: 'strategic-plan', action: 'read', scope: 'global' },
+  'strategic-plan:update': { resource: 'strategic-plan', action: 'update', scope: 'global' },
+  'strategic-plan:delete': { resource: 'strategic-plan', action: 'delete', scope: 'global' },
 } as const;
 
 // Role-based permission mappings (matching auth-seed.ts)

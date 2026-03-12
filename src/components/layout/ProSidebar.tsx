@@ -271,6 +271,18 @@ export function ProSidebar() {
                 >
                       Edit Organizational Plan
                 </MenuItem>
+                <MenuItem 
+                  component={<Link to="/dashboard/strategic-plan/kpis" onClick={handleCloseSidebar} />}
+                  className="text-sm"
+                >
+                      Organisation-level KPIs
+                </MenuItem>
+                <MenuItem 
+                  component={<Link to="/dashboard/strategic-plan/activities" onClick={handleCloseSidebar} />}
+                  className="text-sm"
+                >
+                      Organisation-wide Activities
+                </MenuItem>
               </SubMenu>
             )}
                 
@@ -287,12 +299,14 @@ export function ProSidebar() {
               >
                 Submit Feedback
               </MenuItem>
-              <MenuItem 
-                component={<Link to="/dashboard/feedback/submissions" onClick={handleCloseSidebar} />}
-                className="text-sm"
-              >
-                View Submissions
-              </MenuItem>
+              {permissionManager.hasPermission('feedback:read') && (
+                <MenuItem 
+                  component={<Link to="/dashboard/feedback/submissions" onClick={handleCloseSidebar} />}
+                  className="text-sm"
+                >
+                  View Submissions
+                </MenuItem>
+              )}
             </SubMenu>
           </SubMenu>
 

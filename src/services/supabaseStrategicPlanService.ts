@@ -10,6 +10,10 @@ type StrategicGoalRow = Database['public']['Tables']['strategic_goals']['Row'];
 type StrategicSubGoalRow = Database['public']['Tables']['strategic_subgoals']['Row'];
 type StrategicKpiRow = Database['public']['Tables']['strategic_kpis']['Row'];
 type StrategicActivityLinkRow = Database['public']['Tables']['strategic_activity_links']['Row'];
+type StrategicActivityLinkInsert = Database['public']['Tables']['strategic_activity_links']['Insert'];
+type StrategicActivityInsert = Database['public']['Tables']['strategic_activities']['Insert'];
+type StrategicKpiAnnualTargetInsert = Database['public']['Tables']['strategic_kpi_annual_targets']['Insert'];
+type StrategicKpiInsert = Database['public']['Tables']['strategic_kpis']['Insert'];
 
 export interface StrategicKPI {
   currentValue: number;
@@ -19,12 +23,55 @@ export interface StrategicKPI {
 }
 
 export interface StrategicActivityLink {
-  projectId: string;
-  projectName: string;
-  activityId: string;
-  activityTitle: string;
+  projectId?: string;
+  projectName?: string;
+  activityId?: string;
+  activityTitle?: string;
+  /** When set, link references an organisation-wide activity */
+  strategicActivityId?: string;
   contribution: number;
   status: 'contributing' | 'at-risk' | 'not-contributing';
+  code?: string;
+  responsibleCountry?: string;
+  timeframeQ1?: boolean;
+  timeframeQ2?: boolean;
+  timeframeQ3?: boolean;
+  timeframeQ4?: boolean;
+  annualTarget?: number;
+  indicatorText?: string;
+  plannedBudget?: number;
+  strategicKpiId?: string;
+}
+
+/** Plan-level KPI (organisation-wide) */
+export interface PlanKpi {
+  id: string;
+  name?: string | null;
+  currentValue: number;
+  targetValue: number;
+  unit: string;
+  type: string;
+  baseYear?: number | null;
+  baseYearValue?: number | null;
+  annualTargets?: { year: number; targetValue: number }[];
+}
+
+/** Organisation-wide activity at plan level */
+export interface StrategicActivity {
+  id: string;
+  strategicPlanId: string;
+  title: string;
+  description?: string;
+  code?: string;
+  order: number;
+  timeframeQ1?: boolean;
+  timeframeQ2?: boolean;
+  timeframeQ3?: boolean;
+  timeframeQ4?: boolean;
+  annualTarget?: number;
+  indicatorText?: string;
+  plannedBudget?: number;
+  strategicKpiId?: string;
 }
 
 export interface StrategicSubGoal {
@@ -119,13 +166,24 @@ class SupabaseStrategicPlanService {
               type: '',
             };
 
-            const links: StrategicActivityLink[] = (activityLinks || []).map(link => ({
-              projectId: link.projectId,
-              projectName: link.projectName || '',
-              activityId: link.activityId,
-              activityTitle: link.activityTitle || '',
-              contribution: link.contribution || 0,
-              status: (link.status?.toLowerCase().replace('_', '-') || 'not-contributing') as 'contributing' | 'at-risk' | 'not-contributing',
+            const links: StrategicActivityLink[] = (activityLinks || []).map((link: Record<string, unknown>) => ({
+              projectId: link.projectId as string | undefined,
+              projectName: link.projectName as string | undefined,
+              activityId: link.activityId as string | undefined,
+              activityTitle: link.activityTitle as string | undefined,
+              strategicActivityId: link.strategicActivityId as string | undefined,
+              contribution: (link.contribution as number) || 0,
+              status: ((link.status as string)?.toLowerCase().replace('_', '-') || 'not-contributing') as 'contributing' | 'at-risk' | 'not-contributing',
+              code: link.code as string | undefined,
+              responsibleCountry: link.responsibleCountry as string | undefined,
+              timeframeQ1: link.timeframeQ1 as boolean | undefined,
+              timeframeQ2: link.timeframeQ2 as boolean | undefined,
+              timeframeQ3: link.timeframeQ3 as boolean | undefined,
+              timeframeQ4: link.timeframeQ4 as boolean | undefined,
+              annualTarget: link.annualTarget != null ? Number(link.annualTarget) : undefined,
+              indicatorText: link.indicatorText as string | undefined,
+              plannedBudget: link.plannedBudget != null ? Number(link.plannedBudget) : undefined,
+              strategicKpiId: link.strategicKpiId as string | undefined,
             }));
 
             formattedSubgoals.push({
@@ -278,29 +336,80 @@ class SupabaseStrategicPlanService {
           }
         }
 
-        // Create activity links
+        // Create activity links (project or org-wide)
         for (const activityLink of subGoal.activityLinks) {
-          const linkId = crypto.randomUUID();
-          const { error: linkError } = await supabase
-            .from('strategic_activity_links')
-            .insert({
+          const isOrgWide = Boolean(activityLink.strategicActivityId);
+          if (isOrgWide) {
+            // Org-wide: strategicActivityId required, project fields optional
+            const linkId = crypto.randomUUID();
+            const insertPayload: StrategicActivityLinkInsert = {
+              id: linkId,
+              strategicSubGoalId: subGoalId,
+              contribution: activityLink.contribution,
+              status: activityLink.status.toUpperCase().replace('-', '_') as Database['public']['Enums']['ActivityLinkStatus'],
+              createdBy: cachedProfile.user.id,
+              updatedBy: cachedProfile.user.id,
+              organizationid: cachedProfile.organizationId,
+              createdAt: now,
+              updatedAt: now,
+              strategicActivityId: activityLink.strategicActivityId ?? null,
+              code: activityLink.code || null,
+              responsibleCountry: activityLink.responsibleCountry || null,
+              timeframeQ1: activityLink.timeframeQ1 ?? false,
+              timeframeQ2: activityLink.timeframeQ2 ?? false,
+              timeframeQ3: activityLink.timeframeQ3 ?? false,
+              timeframeQ4: activityLink.timeframeQ4 ?? false,
+              annualTarget: activityLink.annualTarget ?? null,
+              indicatorText: activityLink.indicatorText || null,
+              plannedBudget: activityLink.plannedBudget ?? null,
+              strategicKpiId: activityLink.strategicKpiId || null,
+            };
+            const { error: linkError } = await supabase
+              .from('strategic_activity_links')
+              .insert(insertPayload);
+            if (linkError) throw new Error(linkError.message || 'Failed to create org-wide activity link');
+          } else {
+            // Project link: projectId and activityId required
+            if (!activityLink.projectId || !activityLink.activityId) {
+              throw new Error('Activity link must have either strategicActivityId (org-wide) or projectId and activityId (project)');
+            }
+            const { data: project } = await supabase
+              .from('projects')
+              .select('id, organizationid')
+              .eq('id', activityLink.projectId)
+              .eq('organizationid', cachedProfile.organizationId)
+              .single();
+            if (!project) throw new Error(`Project ${activityLink.projectId} not found or access denied`);
+            const linkId = crypto.randomUUID();
+            const insertPayload: StrategicActivityLinkInsert = {
               id: linkId,
               strategicSubGoalId: subGoalId,
               projectId: activityLink.projectId,
-              projectName: activityLink.projectName,
+              projectName: activityLink.projectName || '',
               activityId: activityLink.activityId,
-              activityTitle: activityLink.activityTitle,
+              activityTitle: activityLink.activityTitle || '',
               contribution: activityLink.contribution,
               status: activityLink.status.toUpperCase().replace('-', '_') as Database['public']['Enums']['ActivityLinkStatus'],
-            createdBy: cachedProfile.user.id,
-            updatedBy: cachedProfile.user.id,
-            organizationid: cachedProfile.organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
+              createdBy: cachedProfile.user.id,
+              updatedBy: cachedProfile.user.id,
+              organizationid: cachedProfile.organizationId,
               createdAt: now,
               updatedAt: now,
-            });
-
-          if (linkError) {
-            throw new Error(linkError.message || 'Failed to create strategic activity link');
+              code: activityLink.code || null,
+              responsibleCountry: activityLink.responsibleCountry || null,
+              timeframeQ1: activityLink.timeframeQ1 ?? false,
+              timeframeQ2: activityLink.timeframeQ2 ?? false,
+              timeframeQ3: activityLink.timeframeQ3 ?? false,
+              timeframeQ4: activityLink.timeframeQ4 ?? false,
+              annualTarget: activityLink.annualTarget ?? null,
+              indicatorText: activityLink.indicatorText || null,
+              plannedBudget: activityLink.plannedBudget ?? null,
+              strategicKpiId: activityLink.strategicKpiId || null,
+            };
+            const { error: linkError } = await supabase
+              .from('strategic_activity_links')
+              .insert(insertPayload);
+            if (linkError) throw new Error(linkError.message || 'Failed to create project activity link');
           }
         }
       }
@@ -443,41 +552,78 @@ class SupabaseStrategicPlanService {
           }
         }
 
-        // Create activity links
+        // Create activity links (project or org-wide)
         for (const activityLink of subGoal.activityLinks) {
-          // Multi-tenant: Verify project belongs to user's organization
-          const { data: project, error: projectError } = await supabase
-            .from('projects')
-            .select('id, organizationid')
-            .eq('id', activityLink.projectId)
-            .eq('organizationid', organizationId)
-            .single();
-
-          if (projectError || !project) {
-            throw new Error(`Project ${activityLink.projectId} not found or access denied`);
-          }
-          
-          const linkId = crypto.randomUUID();
-          const { error: linkError } = await supabase
-            .from('strategic_activity_links')
-            .insert({
+          const isOrgWide = Boolean(activityLink.strategicActivityId);
+          if (isOrgWide) {
+            const linkId = crypto.randomUUID();
+            const insertPayload: StrategicActivityLinkInsert = {
               id: linkId,
               strategicSubGoalId: subGoalId,
-              projectId: activityLink.projectId,
-              projectName: activityLink.projectName,
-              activityId: activityLink.activityId,
-              activityTitle: activityLink.activityTitle,
               contribution: activityLink.contribution,
               status: activityLink.status.toUpperCase().replace('-', '_') as Database['public']['Enums']['ActivityLinkStatus'],
-              organizationid: organizationId, // Multi-tenant: Set organizationid (database column is lowercase)
+              organizationid: organizationId,
               createdBy: cachedProfile.user.id,
               updatedBy: cachedProfile.user.id,
               createdAt: now,
               updatedAt: now,
-            });
-
-          if (linkError) {
-            throw new Error(linkError.message || 'Failed to update strategic activity link');
+              strategicActivityId: activityLink.strategicActivityId ?? null,
+              code: activityLink.code || null,
+              responsibleCountry: activityLink.responsibleCountry || null,
+              timeframeQ1: activityLink.timeframeQ1 ?? false,
+              timeframeQ2: activityLink.timeframeQ2 ?? false,
+              timeframeQ3: activityLink.timeframeQ3 ?? false,
+              timeframeQ4: activityLink.timeframeQ4 ?? false,
+              annualTarget: activityLink.annualTarget ?? null,
+              indicatorText: activityLink.indicatorText || null,
+              plannedBudget: activityLink.plannedBudget ?? null,
+              strategicKpiId: activityLink.strategicKpiId || null,
+            };
+            const { error: linkError } = await supabase
+              .from('strategic_activity_links')
+              .insert(insertPayload);
+            if (linkError) throw new Error(linkError.message || 'Failed to create org-wide activity link');
+          } else {
+            if (!activityLink.projectId || !activityLink.activityId) {
+              throw new Error('Activity link must have either strategicActivityId (org-wide) or projectId and activityId (project)');
+            }
+            const { data: project } = await supabase
+              .from('projects')
+              .select('id, organizationid')
+              .eq('id', activityLink.projectId)
+              .eq('organizationid', organizationId)
+              .single();
+            if (!project) throw new Error(`Project ${activityLink.projectId} not found or access denied`);
+            const linkId = crypto.randomUUID();
+            const insertPayload: StrategicActivityLinkInsert = {
+              id: linkId,
+              strategicSubGoalId: subGoalId,
+              projectId: activityLink.projectId,
+              projectName: activityLink.projectName || '',
+              activityId: activityLink.activityId,
+              activityTitle: activityLink.activityTitle || '',
+              contribution: activityLink.contribution,
+              status: activityLink.status.toUpperCase().replace('-', '_') as Database['public']['Enums']['ActivityLinkStatus'],
+              organizationid: organizationId,
+              createdBy: cachedProfile.user.id,
+              updatedBy: cachedProfile.user.id,
+              createdAt: now,
+              updatedAt: now,
+              code: activityLink.code || null,
+              responsibleCountry: activityLink.responsibleCountry || null,
+              timeframeQ1: activityLink.timeframeQ1 ?? false,
+              timeframeQ2: activityLink.timeframeQ2 ?? false,
+              timeframeQ3: activityLink.timeframeQ3 ?? false,
+              timeframeQ4: activityLink.timeframeQ4 ?? false,
+              annualTarget: activityLink.annualTarget ?? null,
+              indicatorText: activityLink.indicatorText || null,
+              plannedBudget: activityLink.plannedBudget ?? null,
+              strategicKpiId: activityLink.strategicKpiId || null,
+            };
+            const { error: linkError } = await supabase
+              .from('strategic_activity_links')
+              .insert(insertPayload);
+            if (linkError) throw new Error(linkError.message || 'Failed to create project activity link');
           }
         }
       }
@@ -487,13 +633,14 @@ class SupabaseStrategicPlanService {
   }
 
   async getStrategicPlans(): Promise<StrategicPlan[]> {
-    // Multi-tenant: Filter by organizationId
+    // Multi-tenant: Filter by organizationId; only active plans (align with backend/ics-dashboard)
     const organizationId = await this.getCurrentUserOrganizationId();
     
     const { data, error } = await supabase
       .from('strategic_plans')
       .select('*')
       .eq('organizationid', organizationId) // Filter by organization
+      .eq('isActive', true) // Only return active plans
       .order('createdAt', { ascending: false });
 
     if (error) {
@@ -617,6 +764,341 @@ class SupabaseStrategicPlanService {
     return plans;
   }
 
+  /** Returns all plans (including inactive) for plan selector / edit UI */
+  async getStrategicPlansAll(): Promise<StrategicPlan[]> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    const { data, error } = await supabase
+      .from('strategic_plans')
+      .select('*')
+      .eq('organizationid', organizationId)
+      .order('createdAt', { ascending: false });
+
+    if (error) {
+      throw new Error(error.message || 'Failed to fetch strategic plans');
+    }
+
+    const plans: StrategicPlan[] = [];
+    for (const plan of (data || [])) {
+      plans.push(await this.formatStrategicPlan(plan));
+    }
+    return plans;
+  }
+
+  async getKpisByPlanId(planId: string): Promise<PlanKpi[]> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    const { data: kpis, error } = await supabase
+      .from('strategic_kpis')
+      .select('*')
+      .eq('strategicPlanId', planId)
+      .eq('organizationid', organizationId)
+      .order('createdAt', { ascending: true });
+
+    if (error) {
+      throw new Error(error.message || 'Failed to fetch plan KPIs');
+    }
+
+    const result: PlanKpi[] = [];
+    for (const k of kpis || []) {
+      const row = k as Record<string, unknown>;
+      const { data: targets } = await supabase
+        .from('strategic_kpi_annual_targets')
+        .select('year, targetValue')
+        .eq('strategicKpiId', k.id)
+        .eq('organizationid', organizationId);
+      const annualTargets = (targets || []).map((t) => ({ year: t.year, targetValue: t.targetValue }));
+      result.push({
+        id: k.id,
+        name: (row.name as string) || undefined,
+        currentValue: k.currentValue,
+        targetValue: k.targetValue,
+        unit: k.unit,
+        type: k.type,
+        baseYear: (row.baseYear as number) ?? null,
+        baseYearValue: (row.baseYearValue as number) ?? null,
+        annualTargets: annualTargets.length ? annualTargets : undefined,
+      });
+    }
+    return result;
+  }
+
+  async getActivitiesByPlanId(planId: string): Promise<StrategicActivity[]> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    const { data, error } = await supabase
+      .from('strategic_activities')
+      .select('*')
+      .eq('strategicPlanId', planId)
+      .eq('organizationid', organizationId)
+      .order('order', { ascending: true });
+
+    if (error) {
+      throw new Error(error.message || 'Failed to fetch plan activities');
+    }
+
+    return (data || []).map((a: Record<string, unknown>) => ({
+      id: a.id as string,
+      strategicPlanId: a.strategicPlanId as string,
+      title: a.title as string,
+      description: a.description as string | undefined,
+      code: a.code as string | undefined,
+      order: (a.order as number) ?? 0,
+      timeframeQ1: a.timeframeQ1 as boolean | undefined,
+      timeframeQ2: a.timeframeQ2 as boolean | undefined,
+      timeframeQ3: a.timeframeQ3 as boolean | undefined,
+      timeframeQ4: a.timeframeQ4 as boolean | undefined,
+      annualTarget: a.annualTarget != null ? Number(a.annualTarget) : undefined,
+      indicatorText: a.indicatorText as string | undefined,
+      plannedBudget: a.plannedBudget != null ? Number(a.plannedBudget) : undefined,
+      strategicKpiId: a.strategicKpiId as string | undefined,
+    }));
+  }
+
+  async createKpi(planId: string, data: {
+    name?: string;
+    currentValue: number;
+    targetValue: number;
+    unit: string;
+    type?: string;
+    baseYear?: number;
+    baseYearValue?: number;
+    annualTargets?: { year: number; targetValue: number }[];
+  }): Promise<PlanKpi> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) throw new Error('User profile not found');
+
+    const kpiId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const kpiInsert: StrategicKpiInsert = {
+      id: kpiId,
+      strategicPlanId: planId,
+      strategicSubGoalId: null,
+      name: data.name || null,
+      currentValue: data.currentValue,
+      targetValue: data.targetValue,
+      unit: data.unit,
+      type: data.type || 'radialGauge',
+      baseYear: data.baseYear ?? null,
+      baseYearValue: data.baseYearValue ?? null,
+      organizationid: organizationId,
+      createdBy: cachedProfile.user.id,
+      updatedBy: cachedProfile.user.id,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const { error: kpiError } = await supabase
+      .from('strategic_kpis')
+      .insert(kpiInsert);
+
+    if (kpiError) throw new Error(kpiError.message || 'Failed to create KPI');
+
+    if (data.annualTargets?.length) {
+      for (const at of data.annualTargets) {
+        const targetInsert: StrategicKpiAnnualTargetInsert = {
+          id: crypto.randomUUID(),
+          strategicKpiId: kpiId,
+          year: at.year,
+          targetValue: at.targetValue,
+          organizationid: organizationId,
+          createdAt: now,
+          updatedAt: now,
+        };
+        await supabase.from('strategic_kpi_annual_targets').insert(targetInsert);
+      }
+    }
+
+    const created = await this.getKpisByPlanId(planId);
+    return created.find((k) => k.id === kpiId) ?? created[0];
+  }
+
+  async updateKpi(kpiId: string, data: {
+    name?: string | null;
+    currentValue?: number;
+    targetValue?: number;
+    unit?: string;
+    type?: string;
+    baseYear?: number | null;
+    baseYearValue?: number | null;
+    annualTargets?: { year: number; targetValue: number }[];
+  }): Promise<PlanKpi> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) throw new Error('User profile not found');
+
+    const now = new Date().toISOString();
+    const updatePayload: Record<string, unknown> = {
+      updatedBy: cachedProfile.user.id,
+      updatedAt: now,
+    };
+    if (data.name !== undefined) updatePayload.name = data.name;
+    if (data.currentValue !== undefined) updatePayload.currentValue = data.currentValue;
+    if (data.targetValue !== undefined) updatePayload.targetValue = data.targetValue;
+    if (data.unit !== undefined) updatePayload.unit = data.unit;
+    if (data.type !== undefined) updatePayload.type = data.type;
+    if (data.baseYear !== undefined) updatePayload.baseYear = data.baseYear;
+    if (data.baseYearValue !== undefined) updatePayload.baseYearValue = data.baseYearValue;
+
+    const { error } = await supabase
+      .from('strategic_kpis')
+      .update(updatePayload)
+      .eq('id', kpiId)
+      .eq('organizationid', organizationId);
+
+    if (error) throw new Error(error.message || 'Failed to update KPI');
+
+    if (data.annualTargets !== undefined) {
+      await supabase
+        .from('strategic_kpi_annual_targets')
+        .delete()
+        .eq('strategicKpiId', kpiId)
+        .eq('organizationid', organizationId);
+      for (const at of data.annualTargets) {
+        const targetInsert: StrategicKpiAnnualTargetInsert = {
+          id: crypto.randomUUID(),
+          strategicKpiId: kpiId,
+          year: at.year,
+          targetValue: at.targetValue,
+          organizationid: organizationId,
+          createdAt: now,
+          updatedAt: now,
+        };
+        await supabase.from('strategic_kpi_annual_targets').insert(targetInsert);
+      }
+    }
+
+    const { data: kpi } = await supabase.from('strategic_kpis').select('strategicPlanId').eq('id', kpiId).single();
+    const planId = (kpi as { strategicPlanId?: string } | null)?.strategicPlanId;
+    if (planId) {
+      const list = await this.getKpisByPlanId(planId);
+      return list.find((k) => k.id === kpiId) ?? list[0];
+    }
+    throw new Error('KPI plan not found');
+  }
+
+  async deleteKpi(kpiId: string): Promise<void> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    const { error } = await supabase
+      .from('strategic_kpis')
+      .delete()
+      .eq('id', kpiId)
+      .eq('organizationid', organizationId);
+    if (error) throw new Error(error.message || 'Failed to delete KPI');
+  }
+
+  async createActivity(planId: string, data: {
+    title: string;
+    description?: string;
+    code?: string;
+    timeframeQ1?: boolean;
+    timeframeQ2?: boolean;
+    timeframeQ3?: boolean;
+    timeframeQ4?: boolean;
+    annualTarget?: number;
+    indicatorText?: string;
+    plannedBudget?: number;
+    strategicKpiId?: string;
+  }): Promise<StrategicActivity> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) throw new Error('User profile not found');
+
+    const activityId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const { count } = await supabase
+      .from('strategic_activities')
+      .select('id', { count: 'exact', head: true })
+      .eq('strategicPlanId', planId);
+    const order = count ?? 0;
+
+    const activityInsert: StrategicActivityInsert = {
+      id: activityId,
+      strategicPlanId: planId,
+      title: data.title,
+      description: data.description || null,
+      code: data.code || null,
+      order,
+      timeframeQ1: data.timeframeQ1 ?? false,
+      timeframeQ2: data.timeframeQ2 ?? false,
+      timeframeQ3: data.timeframeQ3 ?? false,
+      timeframeQ4: data.timeframeQ4 ?? false,
+      annualTarget: data.annualTarget ?? null,
+      indicatorText: data.indicatorText || null,
+      plannedBudget: data.plannedBudget ?? null,
+      strategicKpiId: data.strategicKpiId || null,
+      organizationid: organizationId,
+      createdBy: cachedProfile.user.id,
+      updatedBy: cachedProfile.user.id,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const { error } = await supabase.from('strategic_activities').insert(activityInsert);
+
+    if (error) throw new Error(error.message || 'Failed to create activity');
+
+    const list = await this.getActivitiesByPlanId(planId);
+    return list.find((a) => a.id === activityId) ?? list[0];
+  }
+
+  async updateActivity(activityId: string, data: {
+    title?: string;
+    description?: string;
+    code?: string;
+    timeframeQ1?: boolean;
+    timeframeQ2?: boolean;
+    timeframeQ3?: boolean;
+    timeframeQ4?: boolean;
+    annualTarget?: number;
+    indicatorText?: string;
+    plannedBudget?: number;
+    strategicKpiId?: string;
+  }): Promise<StrategicActivity> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    const cachedProfile = await userProfileCache.getCachedProfile();
+    if (!cachedProfile) throw new Error('User profile not found');
+
+    const now = new Date().toISOString();
+    const updatePayload: Record<string, unknown> = {
+      updatedBy: cachedProfile.user.id,
+      updatedAt: now,
+    };
+    if (data.title !== undefined) updatePayload.title = data.title;
+    if (data.description !== undefined) updatePayload.description = data.description;
+    if (data.code !== undefined) updatePayload.code = data.code;
+    if (data.timeframeQ1 !== undefined) updatePayload.timeframeQ1 = data.timeframeQ1;
+    if (data.timeframeQ2 !== undefined) updatePayload.timeframeQ2 = data.timeframeQ2;
+    if (data.timeframeQ3 !== undefined) updatePayload.timeframeQ3 = data.timeframeQ3;
+    if (data.timeframeQ4 !== undefined) updatePayload.timeframeQ4 = data.timeframeQ4;
+    if (data.annualTarget !== undefined) updatePayload.annualTarget = data.annualTarget;
+    if (data.indicatorText !== undefined) updatePayload.indicatorText = data.indicatorText;
+    if (data.plannedBudget !== undefined) updatePayload.plannedBudget = data.plannedBudget;
+    if (data.strategicKpiId !== undefined) updatePayload.strategicKpiId = data.strategicKpiId;
+
+    const { error } = await supabase
+      .from('strategic_activities')
+      .update(updatePayload)
+      .eq('id', activityId)
+      .eq('organizationid', organizationId);
+
+    if (error) throw new Error(error.message || 'Failed to update activity');
+
+    const { data: act } = await supabase.from('strategic_activities').select('strategicPlanId').eq('id', activityId).single();
+    const planId = (act as { strategicPlanId?: string } | null)?.strategicPlanId;
+    if (planId) {
+      const list = await this.getActivitiesByPlanId(planId);
+      return list.find((a) => a.id === activityId) ?? list[0];
+    }
+    throw new Error('Activity plan not found');
+  }
+
+  async deleteActivity(activityId: string): Promise<void> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    const { error } = await supabase
+      .from('strategic_activities')
+      .delete()
+      .eq('id', activityId)
+      .eq('organizationid', organizationId);
+    if (error) throw new Error(error.message || 'Failed to delete activity');
+  }
+
   async deleteStrategicPlan(id: string): Promise<void> {
     // Multi-tenant: Verify ownership first
     const organizationId = await this.getCurrentUserOrganizationId();
@@ -653,6 +1135,37 @@ class SupabaseStrategicPlanService {
 
     // Note: Usage tracking is now handled by database trigger (track_strategic_plan_delete)
     // This ensures atomicity and better performance
+  }
+
+  /** Permanently delete all inactive strategic plans for the current organization (align with backend/ics-dashboard). */
+  async purgeInactivePlans(): Promise<{ purged: number }> {
+    const organizationId = await this.getCurrentUserOrganizationId();
+    const { data: inactivePlans, error: fetchError } = await supabase
+      .from('strategic_plans')
+      .select('id')
+      .eq('organizationid', organizationId)
+      .eq('isActive', false);
+
+    if (fetchError) {
+      throw new Error(fetchError.message || 'Failed to fetch inactive plans');
+    }
+    const ids = (inactivePlans || []).map((p) => p.id);
+    if (ids.length === 0) {
+      return { purged: 0 };
+    }
+    for (const id of ids) {
+      await supabase
+        .from('strategic_goals')
+        .delete()
+        .eq('strategicPlanId', id)
+        .eq('organizationid', organizationId);
+      await supabase
+        .from('strategic_plans')
+        .delete()
+        .eq('id', id)
+        .eq('organizationid', organizationId);
+    }
+    return { purged: ids.length };
   }
 }
 

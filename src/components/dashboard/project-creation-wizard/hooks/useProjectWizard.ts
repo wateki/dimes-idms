@@ -147,7 +147,9 @@ export function useProjectWizard() {
                 title: outcome.title,
                 description: outcome.description,
                 target: outcome.target || 0,
+                current: outcome.current ?? 0,
                 unit: outcome.unit || '',
+                progress: outcome.progress ?? 0,
               })),
               activities: activitiesData.map((activity: any) => ({
                 id: activity.id,
@@ -157,16 +159,24 @@ export function useProjectWizard() {
                 startDate: activity.startDate,
                 endDate: activity.endDate,
                 responsible: activity.responsible,
+                progress: activity.progress ?? 0,
               })),
               kpis: kpisData.map((kpi: any) => ({
                 id: kpi.outcomeId + '-' + kpi.name.toLowerCase().replace(/\s+/g, '-'),
                 outcomeId: kpi.outcomeId,
                 name: kpi.name,
                 target: kpi.target,
+                current: kpi.current ?? kpi.value ?? 0,
                 unit: kpi.unit,
                 type: kpi.type,
               })),
             }));
+            setOriginalProjectData((prev: any) => (prev ? {
+              ...prev,
+              outcomes: outcomesData,
+              activities: activitiesData,
+              kpis: kpisData,
+            } : prev));
           } catch (error) {
             console.error('Error loading project data from API:', error);
             toast({
@@ -222,7 +232,9 @@ export function useProjectWizard() {
       title: '',
       description: '',
       target: 0,
+      current: 0,
       unit: '',
+      progress: 0,
     };
     setWizardState(prev => ({
       ...prev,
@@ -261,6 +273,7 @@ export function useProjectWizard() {
       responsible: '',
       startDate: undefined,
       endDate: undefined,
+      progress: 0,
     };
     setWizardState(prev => ({
       ...prev,
@@ -293,6 +306,7 @@ export function useProjectWizard() {
       outcomeId,
       name: '',
       target: 0,
+      current: 0,
       unit: '',
       type: 'bar',
     };
@@ -378,9 +392,9 @@ export function useProjectWizard() {
         title: outcome.title,
         description: outcome.description,
         target: outcome.target,
-        current: 0,
+        current: outcome.current ?? 0,
         unit: outcome.unit,
-        progress: 0,
+        progress: outcome.progress ?? 0,
         status: 'ON_TRACK' as const,
       }));
 
@@ -389,7 +403,7 @@ export function useProjectWizard() {
         outcomeId: activity.outcomeId,
         title: activity.title,
         description: activity.description,
-        progress: 0,
+        progress: activity.progress ?? 0,
         status: 'NOT_STARTED' as const,
         startDate: activity.startDate || new Date(),
         endDate: activity.endDate || new Date(),
@@ -399,8 +413,8 @@ export function useProjectWizard() {
       const kpis = wizardState.kpis.map(kpi => ({
         outcomeId: kpi.outcomeId,
         name: kpi.name,
-        value: 0,
         target: kpi.target,
+        current: kpi.current ?? 0,
         unit: kpi.unit,
         type: 'progress' as const,
       }));
@@ -544,10 +558,10 @@ export function useProjectWizard() {
             title: outcome.title,
             description: outcome.description,
             target: outcome.target || 0,
-            current: 0,
+            current: outcome.current ?? 0,
             unit: outcome.unit || '',
             status: 'ON_TRACK' as const,
-            progress: outcome.progress || 0,
+            progress: outcome.progress ?? 0,
           };
           const createdOutcome = await projectDataApi.createProjectOutcome(projectId, outcomeData);
           // Map frontend UUID to database UUID (they might be different)
@@ -559,6 +573,8 @@ export function useProjectWizard() {
             original.title !== outcome.title ||
             original.description !== outcome.description ||
             original.target !== outcome.target ||
+            original.current !== outcome.current ||
+            original.progress !== outcome.progress ||
             original.status !== outcome.status;
           
           if (needsUpdate) {
@@ -566,10 +582,10 @@ export function useProjectWizard() {
               title: outcome.title,
               description: outcome.description,
               target: outcome.target || 0,
-              current: original.current || 0,
+              current: outcome.current ?? original.current ?? 0,
               unit: outcome.unit || original.unit || '',
               status: outcome.status || 'ON_TRACK',
-              progress: outcome.progress || 0,
+              progress: outcome.progress ?? original.progress ?? 0,
             };
             await projectDataApi.updateProjectOutcome(projectId, outcome.id, updateData);
           }
@@ -614,7 +630,8 @@ export function useProjectWizard() {
             original.title !== activity.title ||
             original.description !== activity.description ||
             original.status !== activity.status ||
-            original.outcomeId !== activity.outcomeId;
+            original.outcomeId !== activity.outcomeId ||
+            original.progress !== activity.progress;
           
           if (needsUpdate) {
             const updateData = {
@@ -625,7 +642,7 @@ export function useProjectWizard() {
               status: activity.status || 'NOT_STARTED',
               startDate: toISOString(activity.startDate) || original.startDate,
               endDate: toISOString(activity.endDate) || original.endDate,
-              progress: activity.progress || 0,
+              progress: activity.progress ?? original.progress ?? 0,
             };
             await projectDataApi.updateProjectActivity(projectId, activity.id, updateData);
           }
@@ -657,7 +674,7 @@ export function useProjectWizard() {
               title: kpi.name, // Keep for backward compatibility
               description: `KPI for project ${projectId}`,
               target: kpi.target,
-              current: 0,
+              current: kpi.current ?? 0,
               unit: kpi.unit,
               type: kpi.type || 'bar',
               frequency: 'MONTHLY',
@@ -668,12 +685,14 @@ export function useProjectWizard() {
             const needsUpdate = 
               original.name !== kpi.name ||
               original.target !== kpi.target ||
+              original.current !== kpi.current ||
               original.unit !== kpi.unit;
             
             if (needsUpdate) {
               const updateData = {
                 title: kpi.name,
                 target: kpi.target,
+                current: kpi.current ?? original.current ?? 0,
                 unit: kpi.unit,
               };
               await projectDataApi.updateProjectKPI(projectId, kpi.id, updateData);
@@ -724,9 +743,9 @@ export function useProjectWizard() {
         title: outcome.title,
         description: outcome.description,
         target: outcome.target,
-        current: 0,
+        current: outcome.current ?? 0,
         unit: outcome.unit,
-        progress: 0,
+        progress: outcome.progress ?? 0,
         status: 'ON_TRACK' as const,
       }));
 
@@ -735,7 +754,7 @@ export function useProjectWizard() {
         outcomeId: activity.outcomeId,
         title: activity.title,
         description: activity.description,
-        progress: 0,
+        progress: activity.progress ?? 0,
         status: 'NOT_STARTED' as const,
         startDate: activity.startDate || new Date(),
         endDate: activity.endDate || new Date(),
@@ -745,8 +764,8 @@ export function useProjectWizard() {
       const kpis = wizardState.kpis.map(kpi => ({
         outcomeId: kpi.outcomeId,
         name: kpi.name,
-        value: 0,
         target: kpi.target,
+        current: kpi.current ?? 0,
         unit: kpi.unit,
         type: 'progress' as const,
       }));

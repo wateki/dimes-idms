@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Plus, Trash2 } from 'lucide-react';
@@ -96,7 +97,7 @@ export function ActivitiesForm({
                           placeholder="Activity description"
                           rows={2}
                         />
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                           <Input
                             value={activity.responsible}
                             onChange={(e) => onUpdateActivity(originalIndex, 'responsible', e.target.value)}
@@ -112,6 +113,17 @@ export function ActivitiesForm({
                             onDateChange={(date) => onUpdateActivity(originalIndex, 'endDate', date)}
                             placeholder="End date"
                           />
+                          <div>
+                            <Label className="text-xs">Progress (%)</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={activity.progress ?? 0}
+                              onChange={(e) => onUpdateActivity(originalIndex, 'progress', parseFloat(e.target.value) || 0)}
+                              placeholder="0–100"
+                            />
+                          </div>
                         </div>
                       </div>
                     </CardContent>

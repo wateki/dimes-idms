@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -89,27 +90,62 @@ export function KPIsForm({
                           onChange={(e) => onUpdateKPI(originalIndex, 'name', e.target.value)}
                           placeholder="KPI name"
                         />
-                        <div className="grid grid-cols-3 gap-3">
-                          <Input
-                            type="number"
-                            value={kpi.target}
-                            onChange={(e) => onUpdateKPI(originalIndex, 'target', parseInt(e.target.value) || 0)}
-                            placeholder="Target value"
-                          />
-                          <Input
-                            value={kpi.unit}
-                            onChange={(e) => onUpdateKPI(originalIndex, 'unit', e.target.value)}
-                            placeholder="Unit"
-                          />
-                          <Select value={kpi.type} onValueChange={(value) => onUpdateKPI(originalIndex, 'type', value)}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="bar">Bar Chart</SelectItem>
-                              <SelectItem value="progress">Progress Bar</SelectItem>
-                            </SelectContent>
-                          </Select>
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                          <div className="space-y-1">
+                            <Label className="text-xs font-medium text-muted-foreground">Current value</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              value={kpi.current ?? 0}
+                              onChange={(e) =>
+                                onUpdateKPI(
+                                  originalIndex,
+                                  'current',
+                                  parseFloat(e.target.value) || 0,
+                                )
+                              }
+                              placeholder="Current value"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs font-medium text-muted-foreground">Target value</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              value={kpi.target}
+                              onChange={(e) =>
+                                onUpdateKPI(
+                                  originalIndex,
+                                  'target',
+                                  parseInt(e.target.value) || 0,
+                                )
+                              }
+                              placeholder="Target value"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs font-medium text-muted-foreground">Unit</Label>
+                            <Input
+                              value={kpi.unit}
+                              onChange={(e) => onUpdateKPI(originalIndex, 'unit', e.target.value)}
+                              placeholder="e.g. people, %"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs font-medium text-muted-foreground">Display type</Label>
+                            <Select
+                              value={kpi.type}
+                              onValueChange={(value) => onUpdateKPI(originalIndex, 'type', value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="bar">Bar chart</SelectItem>
+                                <SelectItem value="progress">Progress bar</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                       </div>
                     </CardContent>

@@ -35,7 +35,9 @@ export interface OutcomeFormData {
   title: string;
   description: string;
   target: number;
+  current: number;
   unit: string;
+  progress?: number;
 }
 
 export interface ActivityFormData {
@@ -46,6 +48,7 @@ export interface ActivityFormData {
   responsible: string;
   startDate: Date | undefined;
   endDate: Date | undefined;
+  progress?: number;
 }
 
 export interface KPIFormData {
@@ -53,6 +56,7 @@ export interface KPIFormData {
   outcomeId: string;
   name: string;
   target: number;
+  current: number;
   unit: string;
   type: 'bar' | 'progress';
 }

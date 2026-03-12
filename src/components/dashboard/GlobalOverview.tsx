@@ -84,22 +84,33 @@ export function GlobalOverview() {
 
   const loadAllPlans = async () => {
     try {
-      const plans = await strategicPlanApi.getStrategicPlans();
-      if (plans && Array.isArray(plans)) {
-        setAllPlans(plans);
-        const planOptions = plans.map(plan => ({
-          id: plan.id,
-          title: plan.title,
-          startYear: plan.startYear,
-          endYear: plan.endYear
-        }));
-        setAvailablePlans(planOptions);
-        
-        // Don't auto-select - let user choose explicitly
-        setSelectedPlanId(plans[0].id);
+      // Use the helper that returns all plans (active + inactive) so the selector
+      // can show everything, matching the Edit Strategic Plan behaviour.
+      const plans = await strategicPlanApi.getStrategicPlansAll();
+
+      if (!plans || !Array.isArray(plans) || plans.length === 0) {
+        setAllPlans([]);
+        setAvailablePlans([]);
+        setSelectedPlanId(null);
+        return;
       }
+
+      setAllPlans(plans);
+      const planOptions = plans.map(plan => ({
+        id: plan.id,
+        title: plan.title,
+        startYear: plan.startYear,
+        endYear: plan.endYear,
+      }));
+      setAvailablePlans(planOptions);
+
+      // Default to the first plan if nothing is selected yet
+      setSelectedPlanId(prev => prev ?? plans[0].id);
     } catch (error) {
       console.error('Error loading available plans:', error);
+      setAllPlans([]);
+      setAvailablePlans([]);
+      setSelectedPlanId(null);
     }
   };
 

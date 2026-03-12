@@ -212,13 +212,15 @@ export function GoalDetails({ goal: propGoal, goals, subGoal: propSubGoal }: Goa
   
   goal.subgoals.forEach((subGoal: StrategicSubGoal) => {
     subGoal.activityLinks.forEach((activity: StrategicActivityLink) => {
-      const existing = projectContributions.get(activity.projectId);
+      const projectId = activity.projectId;
+      if (!projectId) return;
+      const existing = projectContributions.get(projectId);
       if (existing) {
         existing.value += activity.contribution;
         existing.activities += 1;
       } else {
-        projectContributions.set(activity.projectId, {
-          name: activity.projectName,
+        projectContributions.set(projectId, {
+          name: activity.projectName ?? '',
           value: activity.contribution,
           activities: 1
         });

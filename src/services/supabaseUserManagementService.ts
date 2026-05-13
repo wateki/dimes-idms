@@ -299,6 +299,7 @@ class SupabaseUserManagementService {
           ...user,
           roles: (userRoles || []).map((ur: any) => ({
             id: ur.id,
+            roleId: ur.roleId,
             roleName: ur.role?.name || '',
             roleDescription: ur.role?.description || null,
             level: ur.role?.level || 0,

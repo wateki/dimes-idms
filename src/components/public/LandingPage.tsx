@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -19,6 +20,8 @@ import {
   Activity,
   Sparkles,
   Play,
+  LogIn,
+  Loader2,
   ChevronRight,
   Crown,
   Building2,
@@ -27,10 +30,12 @@ import {
   Map,
   Upload,
   FileCheck,
-  FolderKanban
+  FolderKanban,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Footer } from '@/components/shared/Footer';
+import { demoPlatformLogin, isDemoPlatformLoginConfigured } from '@/config/demoPlatform';
+import { toast } from '@/hooks/use-toast';
 
 const features = [
   {
@@ -110,6 +115,8 @@ const organizationLogos = [
 
 export function LandingPage() {
   const navigate = useNavigate();
+  const { login, isAuthenticated } = useAuth();
+  const [exploreLoading, setExploreLoading] = useState(false);
   const [heroVisible, setHeroVisible] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [visibleFeatures, setVisibleFeatures] = useState<Set<number>>(new Set());
@@ -169,6 +176,45 @@ export function LandingPage() {
       observer.disconnect();
     };
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
+
+  const handleExplorePlatform = async () => {
+    if (!isDemoPlatformLoginConfigured()) {
+      toast({
+        variant: 'destructive',
+        title: 'Demo sign-in unavailable',
+        description: 'Demo credentials are not configured.',
+      });
+      return;
+    }
+    setExploreLoading(true);
+    try {
+      const result = await login(demoPlatformLogin.email, demoPlatformLogin.password);
+      if (result.success) {
+        navigate('/dashboard', { replace: true });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Could not sign in',
+          description: result.error || 'Please try again later.',
+        });
+      }
+    } catch (err) {
+      console.error('Explore Platform demo login failed:', err);
+      toast({
+        variant: 'destructive',
+        title: 'Could not sign in',
+        description: err instanceof Error ? err.message : 'Unexpected error.',
+      });
+    } finally {
+      setExploreLoading(false);
+    }
+  };
 
   const benefits = [
     'Track KPIs and link organizational goals to projects',
@@ -323,17 +369,52 @@ export function LandingPage() {
                   Start Today
                   <ArrowRight className="ml-2 w-4 h-4" />
                 </Button>
-                <Button 
-                  size="lg" 
-                  variant="outline" 
-                  className="text-base px-7 py-4 h-auto border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50 font-semibold"
-                  onClick={() => window.open('https://www.youtube.com/@GARTSEasternAfrica', '_blank')}
-                >
-                  <Play className="mr-2 w-4 h-4" />
-                  Watch Demo
-                </Button>
+                {isDemoPlatformLoginConfigured() ? (
+                  <Button
+                    type="button"
+                    size="lg"
+                    variant="outline"
+                    className="text-base px-7 py-4 h-auto border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50 font-semibold"
+                    disabled={exploreLoading}
+                    onClick={handleExplorePlatform}
+                  >
+                    {exploreLoading ? (
+                      <>
+                        <Loader2 className="mr-2 w-4 h-4 animate-spin" />
+                        Signing in to demo account…
+                      </>
+                    ) : (
+                      <>
+                        <LogIn className="mr-2 w-4 h-4" />
+                        Explore Platform
+                      </>
+                    )}
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    size="lg"
+                    variant="outline"
+                    className="text-base px-7 py-4 h-auto border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50 font-semibold"
+                    onClick={() =>
+                      window.open('https://www.youtube.com/@GARTSEasternAfrica', '_blank', 'noopener,noreferrer')
+                    }
+                  >
+                    <Play className="mr-2 w-4 h-4" />
+                    Watch Demo
+                  </Button>
+                )}
               </div>
-              
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-8">
+                <button
+                  type="button"
+                  className="text-emerald-600 hover:text-emerald-700 underline underline-offset-2 font-medium"
+                  onClick={() => window.open('https://www.youtube.com/@GARTSEasternAfrica', '_blank', 'noopener,noreferrer')}
+                >
+                  Watch product demo on YouTube
+                </button>
+              </p>
+
               {/* Trust Indicators */}
               <div className="flex flex-wrap items-center gap-6 text-sm text-gray-500">
                 <div className="flex items-center">

@@ -24,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, X, User, Shield, Building, Globe, Key, Settings } from 'lucide-react';
 import { User as UserType, Role, RoleAssignment } from '@/services/userManagementService';
 import { useProjects } from '@/contexts/ProjectsContext';
+import { toast } from '@/hooks/use-toast';
 
 interface EditUserDialogProps {
   open: boolean;
@@ -58,12 +59,18 @@ export function EditUserDialog({ open, onOpenChange, user, onSubmit, roles }: Ed
         isActive: user.isActive,
       });
       
-      // Convert user roles to role assignments
-      const assignments: RoleAssignment[] = user.roles.map(role => ({
-        roleId: role.id,
-        projectId: role.projectId || '',
-        country: role.country || '',
-      }));
+      // Convert user roles to role assignments (`role.id` is user_roles row id; `roleId` is FK to roles)
+      const assignments: RoleAssignment[] = user.roles.map((role) => {
+        const resolvedRoleId =
+          role.roleId ||
+          roles.find((r) => r.name === role.roleName)?.id ||
+          '';
+        return {
+          roleId: resolvedRoleId,
+          projectId: role.projectId || '',
+          country: role.country || '',
+        };
+      });
       setRoleAssignments(assignments);
       
       setPasswordData({ newPassword: '', confirmPassword: '' });
@@ -110,11 +117,19 @@ export function EditUserDialog({ open, onOpenChange, user, onSubmit, roles }: Ed
       }
 
       await onSubmit(user.id, updateData);
-      
+
+      toast({ title: 'User updated', description: 'Changes were saved successfully.' });
+
       // Reset password fields
       setPasswordData({ newPassword: '', confirmPassword: '' });
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update user';
       console.error('Failed to update user:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Update failed',
+        description: message,
+      });
     } finally {
       setLoading(false);
     }

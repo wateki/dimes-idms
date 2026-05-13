@@ -16,6 +16,8 @@ export interface User {
 
 export interface UserRole {
   id: string;
+  /** FK to `roles.id` when loaded from API (for user management) */
+  roleId?: string;
   roleName: string;
   roleDescription?: string;
   level: number;

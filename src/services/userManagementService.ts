@@ -10,7 +10,10 @@ import type {
 } from './supabaseUserManagementService';
 
 export interface UserRole {
+  /** `user_roles` row id */
   id: string;
+  /** FK to `roles.id` (for editing assignments) */
+  roleId?: string;
   roleName: string;
   roleDescription?: string;
   level: number;

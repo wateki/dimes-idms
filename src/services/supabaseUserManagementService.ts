@@ -13,7 +13,10 @@ type UserProjectAccess = Database['public']['Tables']['user_project_access']['Ro
 
 export interface UserWithDetails extends User {
   roles: Array<{
+    /** `user_roles` row id (assignment id) */
     id: string;
+    /** FK to `roles.id` — required for edit dialogs to save assignments */
+    roleId: string;
     roleName: string;
     roleDescription: string | null;
     level: number;
@@ -121,6 +124,7 @@ class SupabaseUserManagementService {
       ...user,
       roles: userRoles.map(ur => ({
         id: ur.id,
+        roleId: ur.roleId,
         roleName: '', // Will be populated from join
         roleDescription: null,
         level: 0, // Will be populated from join
@@ -200,6 +204,7 @@ class SupabaseUserManagementService {
       ...user,
       roles: (userRoles || []).map((ur: any) => ({
         id: ur.id,
+        roleId: ur.roleId,
         roleName: ur.role?.name || '',
         roleDescription: ur.role?.description || null,
         level: ur.role?.level || 0,
@@ -549,30 +554,54 @@ class SupabaseUserManagementService {
       updatedAt: new Date().toISOString(),
     };
 
-    if (userData.firstName) updateData.firstName = userData.firstName;
-    if (userData.lastName) updateData.lastName = userData.lastName;
+    if (userData.firstName !== undefined) updateData.firstName = userData.firstName;
+    if (userData.lastName !== undefined) updateData.lastName = userData.lastName;
     if (userData.isActive !== undefined) updateData.isActive = userData.isActive;
+
+    // Snapshot isActive before update (needed for usage tracking)
+    let wasActiveBeforeUpdate: boolean | null = null;
+    if (userData.isActive !== undefined) {
+      const { data: beforeRow } = await supabase
+        .from('users')
+        .select('isActive')
+        .eq('id', userId)
+        .eq('organizationid', organizationId)
+        .single();
+      wasActiveBeforeUpdate = beforeRow?.isActive ?? null;
+    }
 
     // Multi-tenant: Ensure ownership
     console.log(`[User Management Service] Updating user profile: ${userId}`);
     const updateStartTime = Date.now();
-    const { error: updateError } = await supabase
+    const { data: updatedRows, error: updateError } = await supabase
       .from('users')
       .update(updateData)
       .eq('id', userId)
-      .eq('organizationid', organizationId); // Ensure ownership
+      .eq('organizationid', organizationId) // Ensure ownership
+      .select('id');
     const updateDuration = Date.now() - updateStartTime;
 
     if (updateError) {
       console.error(`[User Management Service] Failed to update user after ${updateDuration}ms:`, updateError.message);
       throw new Error(updateError.message || 'Failed to update user');
     }
+    if (!updatedRows?.length) {
+      console.error(`[User Management Service] User update matched 0 rows after ${updateDuration}ms (RLS or missing user)`);
+      throw new Error('Could not update user. You may not have permission or the user may not exist in your organization.');
+    }
 
     console.log(`[User Management Service] User profile updated successfully in ${updateDuration}ms`);
 
     // Update role assignments if provided
     if (userData.roleAssignments && userData.roleAssignments.length > 0) {
-      console.log(`[User Management Service] Updating role assignments: removing existing, adding ${userData.roleAssignments.length} new`);
+      const validAssignments = userData.roleAssignments.filter(
+        (a) => a.roleId && String(a.roleId).trim() !== ''
+      );
+      if (validAssignments.length === 0) {
+        throw new Error('Each role assignment must have a role selected, or remove empty rows before saving.');
+      }
+
+      console.log(`[User Management Service] Updating role assignments: removing existing, adding ${validAssignments.length} new`);
       // Remove existing role assignments (filtered by organization)
       await supabase
         .from('user_roles')
@@ -582,7 +611,7 @@ class SupabaseUserManagementService {
 
       // Add new role assignments
       const now = new Date().toISOString();
-      const roleInserts = userData.roleAssignments.map(assignment => ({
+      const roleInserts = validAssignments.map(assignment => ({
         id: crypto.randomUUID(),
         userId,
         roleId: assignment.roleId,
@@ -609,32 +638,19 @@ class SupabaseUserManagementService {
     }
 
     // Track usage: handle isActive changes
-    if (userData.isActive !== undefined) {
+    if (userData.isActive !== undefined && wasActiveBeforeUpdate !== null) {
       try {
         console.log(`[User Management Service] Checking user status change for usage tracking: ${userId}`);
-        // Get current user state before update to determine if we need to increment or decrement
-        const { data: currentUser } = await supabase
-          .from('users')
-          .select('isActive')
-          .eq('id', userId)
-          .eq('organizationid', organizationId)
-          .single();
+        const isNowActive = userData.isActive;
 
-        if (currentUser) {
-          const wasActive = currentUser.isActive;
-          const isNowActive = userData.isActive;
-
-          if (!wasActive && isNowActive) {
-            // User activated - increment
-            console.log(`[User Management Service] User activated, incrementing usage: ${userId}`);
-            await supabaseUsageTrackingService.incrementUsage('users');
-          } else if (wasActive && !isNowActive) {
-            // User deactivated - decrement
-            console.log(`[User Management Service] User deactivated, decrementing usage: ${userId}`);
-            await supabaseUsageTrackingService.decrementUsage('users');
-          } else {
-            console.log(`[User Management Service] User status unchanged (wasActive: ${wasActive}, isNowActive: ${isNowActive})`);
-          }
+        if (!wasActiveBeforeUpdate && isNowActive) {
+          console.log(`[User Management Service] User activated, incrementing usage: ${userId}`);
+          await supabaseUsageTrackingService.incrementUsage('users');
+        } else if (wasActiveBeforeUpdate && !isNowActive) {
+          console.log(`[User Management Service] User deactivated, decrementing usage: ${userId}`);
+          await supabaseUsageTrackingService.decrementUsage('users');
+        } else {
+          console.log(`[User Management Service] User status unchanged (wasActive: ${wasActiveBeforeUpdate}, isNowActive: ${isNowActive})`);
         }
       } catch (error) {
         console.error('[User Management Service] Failed to track user status change:', error);

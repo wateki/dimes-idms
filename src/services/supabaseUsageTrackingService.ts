@@ -206,7 +206,7 @@ class SupabaseUsageTrackingService {
     const { data, error } = await supabase
       .from('subscription_usage')
       .select('*')
-      .eq('organizationId', organizationId)
+      .eq('organizationid', organizationId)
       .eq('metric', metric)
       .eq('periodStart', periodStart.toISOString())
       .eq('periodEnd', periodEnd.toISOString())
@@ -240,7 +240,7 @@ class SupabaseUsageTrackingService {
     const { data, error } = await supabase
       .from('subscription_usage')
       .select('*')
-      .eq('organizationId', organizationId)
+      .eq('organizationid', organizationId)
       .eq('periodStart', periodStart.toISOString())
       .eq('periodEnd', periodEnd.toISOString());
 

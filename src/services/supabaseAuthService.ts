@@ -121,7 +121,7 @@ class SupabaseAuthService {
   async getUserProfile(authUserId: string): Promise<User | null> {
     try {
       // Fetch user from users table by auth_user_id (links Supabase Auth to profile)
-      const { data: user, error: userError } = await supabase
+      let { data: user, error: userError } = await supabase
         .from('users')
         .select('*')
         .eq('auth_user_id', authUserId)
@@ -129,6 +129,29 @@ class SupabaseAuthService {
         .single();
 
       if (userError || !user) {
+        // Fallback: match by email for users not yet linked to Supabase Auth
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser?.email) {
+          const { data: emailUser, error: emailError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('email', authUser.email)
+            .eq('isActive', true)
+            .single();
+
+          if (!emailError && emailUser) {
+            user = emailUser;
+            // Auto-link auth_user_id for future lookups
+            await supabase
+              .from('users')
+              .update({ auth_user_id: authUserId })
+              .eq('id', emailUser.id);
+            console.log('Auto-linked auth_user_id for user:', emailUser.email);
+          }
+        }
+      }
+
+      if (!user) {
         console.error('Error fetching user:', userError);
         return null;
       }

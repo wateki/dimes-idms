@@ -434,7 +434,7 @@ class SupabaseUserManagementService {
         firstName: userData.firstName,
         lastName: userData.lastName,
         passwordHash: '', // Not used with Supabase Auth
-        organizationId: cachedProfile.organizationId, // Multi-tenant: Set organizationId
+        organizationid: cachedProfile.organizationId, // Multi-tenant: Set organizationId (column is lowercase in DB)
         isActive: true,
         createdBy: cachedProfile.user.id,
         updatedBy: cachedProfile.user.id,
@@ -488,7 +488,7 @@ class SupabaseUserManagementService {
         roleId: assignment.roleId,
         projectId: assignment.projectId || null,
         country: assignment.country || null,
-        organizationId: organizationId, // Multi-tenant: Set organizationId
+        organizationid: organizationId, // Multi-tenant: column is lowercase in DB
         isActive: true,
         createdAt: now,
         updatedAt: now,
@@ -588,7 +588,7 @@ class SupabaseUserManagementService {
         roleId: assignment.roleId,
         projectId: assignment.projectId || null,
         country: assignment.country || null,
-        organizationId: organizationId, // Multi-tenant: Set organizationId
+        organizationid: organizationId, // Multi-tenant: column is lowercase in DB
         isActive: true,
         createdAt: now,
         updatedAt: now,
@@ -883,7 +883,7 @@ class SupabaseUserManagementService {
         description: roleData.description || null,
         level: roleData.level,
         isActive: roleData.isActive ?? true,
-        organizationId: organizationId, // Multi-tenant: Set organizationId
+        organizationid: organizationId, // Multi-tenant: column is lowercase in DB
         createdAt: now,
         updatedAt: now,
       } as unknown as Database['public']['Tables']['roles']['Insert'])
@@ -1113,7 +1113,7 @@ class SupabaseUserManagementService {
         userId,
         projectId,
         accessLevel,
-        organizationId: organizationId, // Multi-tenant: Set organizationId
+        organizationid: organizationId, // Multi-tenant: column is lowercase in DB
         isActive: true,
         updatedAt: now,
       } as unknown as Database['public']['Tables']['user_project_access']['Insert'], {

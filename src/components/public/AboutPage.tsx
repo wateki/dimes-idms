@@ -1,26 +1,24 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
-  ArrowRight,
   Globe,
   Target,
   Users,
   Heart,
   Shield,
   Zap,
-  Menu,
-  X,
   CheckCircle2
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { Footer } from '@/components/shared/Footer';
+import { PageSeo } from '@/components/seo/PageSeo';
+import { organizationAndSoftwareJsonLd } from '@/components/seo/marketingJsonLd';
+import { PublicNav } from '@/components/public/layout/PublicNav';
+import { PublicCtaBand } from '@/components/public/layout/PublicCtaBand';
+import { PRODUCT_NAME } from '@/data/marketingCopy';
 
 export function AboutPage() {
-  const navigate = useNavigate();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [heroVisible, setHeroVisible] = useState(false);
 
   useEffect(() => {
@@ -65,85 +63,13 @@ export function AboutPage() {
 
   return (
     <div className="min-h-screen bg-grid-pattern">
-      {/* Navigation */}
-      <nav className="fixed top-0 w-full bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-emerald-100 dark:border-gray-800 z-50">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link to="/" className="flex items-center">
-              <img 
-                src="/logo.png" 
-                alt="Dimes IDMS Logo" 
-                className="h-20 object-contain"
-              />
-            </Link>
-            
-            <div className="hidden md:flex items-center space-x-8">
-              <Link to="/" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
-                Home
-              </Link>
-              <Link to="/features" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
-                Features
-              </Link>
-              <Link to="/pricing" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
-                Pricing
-              </Link>
-              <Link to="/about" className="text-sm font-medium text-emerald-600">
-                About
-              </Link>
-              <Link to="/support" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
-                Support
-              </Link>
-              <Link to="/contact" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
-                Contact
-              </Link>
-              <Button variant="ghost" onClick={() => navigate('/login')}>
-                Sign In
-              </Button>
-              <Button onClick={() => navigate('/signup')}>
-                Get Started
-                <ArrowRight className="ml-2 w-4 h-4" />
-              </Button>
-            </div>
-
-            <div className="md:hidden">
-              <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </Button>
-            </div>
-          </div>
-
-          {mobileMenuOpen && (
-            <div className="md:hidden py-4 border-t border-emerald-100">
-              <div className="flex flex-col space-y-3">
-                <Link to="/" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Home
-                </Link>
-                <Link to="/features" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Features
-                </Link>
-                <Link to="/pricing" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Pricing
-                </Link>
-                <Link to="/about" className="text-sm font-medium text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  About
-                </Link>
-                <Link to="/support" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Support
-                </Link>
-                <Link to="/contact" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Contact
-                </Link>
-                <Button variant="ghost" className="justify-start" onClick={() => { navigate('/login'); setMobileMenuOpen(false); }}>
-                  Sign In
-                </Button>
-                <Button className="justify-start" onClick={() => { navigate('/signup'); setMobileMenuOpen(false); }}>
-                  Get Started
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      </nav>
+      <PageSeo
+        title="About — Mission-Driven MEAL Technology"
+        description="Learn about DIMES IDMS and GARTS Eastern Africa: mission-driven data platforms for humanitarian organizations with security-first design and global MEAL expertise."
+        path="/about"
+        jsonLd={organizationAndSoftwareJsonLd()}
+      />
+      <PublicNav activePage="about" />
 
       {/* Hero */}
       <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 bg-grid-pattern relative" style={{ backgroundImage: 'linear-gradient(to bottom, var(--gradient-start), var(--gradient-middle), var(--gradient-end)), linear-gradient(0deg, transparent 24%, var(--grid-color) 25%, var(--grid-color) 26%, transparent 27%, transparent 74%, var(--grid-color) 75%, var(--grid-color) 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, var(--grid-color) 25%, var(--grid-color) 26%, transparent 27%, transparent 74%, var(--grid-color) 75%, var(--grid-color) 76%, transparent 77%, transparent)', backgroundSize: '100% 100%, 120px 120px, 120px 120px' }}>
@@ -173,13 +99,12 @@ export function AboutPage() {
           <Card className="border-2 border-emerald-100 bg-gradient-to-br from-white to-emerald-50/30">
             <CardContent className="p-8">
               <p className="text-lg text-gray-700 leading-relaxed">
-                Dimes System was born from a simple truth: humanitarian organizations shouldn't struggle with data. 
-                We built a platform that harmonizes information across teams, projects, and partners—automatically 
-                and reliably—so you can focus on your mission, not your spreadsheets.
+                {PRODUCT_NAME} is built by GARTS Eastern Africa for a simple truth: humanitarian organizations should not lose weeks to spreadsheet merges. 
+                We harmonize information across teams, projects, and partners so MEAL leads can report with confidence.
               </p>
               <p className="text-lg text-gray-700 leading-relaxed mt-6">
-                Whether you're coordinating multi-country programs or tracking impact across partners, 
-                Dimes System works quietly in the background, ensuring your data is always accurate, accessible, and actionable.
+                Whether you coordinate multi-country programs or track impact with donors, {PRODUCT_NAME} keeps field, partner, and HQ data aligned — 
+                without forcing every team onto a new collection tool.
               </p>
             </CardContent>
           </Card>
@@ -258,26 +183,12 @@ export function AboutPage() {
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-emerald-600 to-emerald-500">
-        <div className="container mx-auto max-w-4xl text-center">
-          <h2 className="text-4xl font-bold text-white mb-6">
-            Ready to Transform Your Organization?
-          </h2>
-          <p className="text-xl text-emerald-50 mb-8">
-            Join humanitarian organizations worldwide who trust DIMES
-          </p>
-          <Button 
-            size="lg" 
-            variant="secondary"
-            className="text-lg px-8 py-6 h-auto bg-white text-emerald-600 hover:bg-gray-100"
-            onClick={() => navigate('/signup')}
-          >
-            Start Free Trial
-            <ArrowRight className="ml-2 w-5 h-5" />
-          </Button>
-        </div>
-      </section>
+      <PublicCtaBand
+        title="Work with a team that understands MEAL"
+        subtitle="Talk to us about rollout, training, or NGO pricing — or start on the Free plan today."
+        secondaryLabel="Contact us"
+        secondaryPath="/contact"
+      />
 
       {/* Footer */}
       <Footer />

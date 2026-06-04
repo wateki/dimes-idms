@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -7,9 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { 
   ArrowRight,
-  Menu,
-  X,
   Mail,
+  MessageCircle,
+  X,
   Phone,
   MapPin,
   Send,
@@ -18,14 +18,29 @@ import {
 import { cn } from '@/lib/utils';
 import { Footer } from '@/components/shared/Footer';
 import { supabaseContactService } from '@/services/supabaseContactService';
+import { PageSeo } from '@/components/seo/PageSeo';
+import { faqPageJsonLd } from '@/components/seo/marketingJsonLd';
+import { PublicNav } from '@/components/public/layout/PublicNav';
+import { PublicCtaBand } from '@/components/public/layout/PublicCtaBand';
+import { MarketingFaqSection } from '@/components/public/MarketingFaqSection';
+import { contactFaqs } from '@/data/marketingFaqs';
+import { CTA } from '@/data/marketingCopy';
+import { CONTACT_EMAIL, whatsappUrl } from '@/config/site';
+
+const SUBJECT_SUGGESTIONS = [
+  'Demo request',
+  'NGO / non-profit pricing',
+  'Technical support',
+  'Partnership inquiry',
+];
 
 const contactInfo = [
   {
     icon: Mail,
     title: 'Email Us',
     description: 'Send us an email anytime',
-    value: 'solutions@gartsafrica.com',
-    link: 'mailto:solutions@gartsafrica.com',
+    value: CONTACT_EMAIL,
+    link: `mailto:${CONTACT_EMAIL}`,
   },
   {
     icon: Phone,
@@ -37,16 +52,21 @@ const contactInfo = [
   {
     icon: Phone,
     title: 'Alternative Phone',
-    description: 'Mon-Fri from 9am to 5pm',
+    description: 'Mon-Fri from 9am to 5pm EAT',
     value: '+254 758 132 144',
     link: 'tel:+254758132144',
   },
-  
+  {
+    icon: MessageCircle,
+    title: 'WhatsApp',
+    description: 'Fast help for onboarding questions',
+    value: 'Chat on WhatsApp',
+    link: whatsappUrl(),
+  },
 ];
 
 export function ContactPage() {
   const navigate = useNavigate();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [heroVisible, setHeroVisible] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -110,85 +130,13 @@ export function ContactPage() {
 
   return (
     <div className="min-h-screen bg-grid-pattern">
-      {/* Navigation */}
-      <nav className="fixed top-0 w-full bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-emerald-100 dark:border-gray-800 z-50">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link to="/" className="flex items-center">
-              <img 
-                src="/logo.png" 
-                alt="Dimes IDMS Logo" 
-                className="h-20 object-contain"
-              />
-            </Link>
-            
-            <div className="hidden md:flex items-center space-x-8">
-              <Link to="/" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
-                Home
-              </Link>
-              <Link to="/features" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
-                Features
-              </Link>
-              <Link to="/pricing" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
-                Pricing
-              </Link>
-              <Link to="/about" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
-                About
-              </Link>
-              <Link to="/support" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
-                Support
-              </Link>
-              <Link to="/contact" className="text-sm font-medium text-emerald-600">
-                Contact
-              </Link>
-              <Button variant="ghost" onClick={() => navigate('/login')}>
-                Sign In
-              </Button>
-              <Button onClick={() => navigate('/signup')}>
-                Get Started
-                <ArrowRight className="ml-2 w-4 h-4" />
-              </Button>
-            </div>
-
-            <div className="md:hidden">
-              <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </Button>
-            </div>
-          </div>
-
-          {mobileMenuOpen && (
-            <div className="md:hidden py-4 border-t border-emerald-100">
-              <div className="flex flex-col space-y-3">
-                <Link to="/" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Home
-                </Link>
-                <Link to="/features" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Features
-                </Link>
-                <Link to="/pricing" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Pricing
-                </Link>
-                <Link to="/about" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  About
-                </Link>
-                <Link to="/support" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Support
-                </Link>
-                <Link to="/contact" className="text-sm font-medium text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Contact
-                </Link>
-                <Button variant="ghost" className="justify-start" onClick={() => { navigate('/login'); setMobileMenuOpen(false); }}>
-                  Sign In
-                </Button>
-                <Button className="justify-start" onClick={() => { navigate('/signup'); setMobileMenuOpen(false); }}>
-                  Get Started
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      </nav>
+      <PageSeo
+        title="Contact Sales & Support"
+        description={`Contact the DIMES IDMS team for demos, NGO pricing, onboarding, and technical support. Email ${CONTACT_EMAIL} or call +254 114 904 624.`}
+        path="/contact"
+        jsonLd={faqPageJsonLd(contactFaqs)}
+      />
+      <PublicNav activePage="contact" />
 
       {/* Hero Section */}
       <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 bg-grid-pattern text-center relative" style={{ backgroundImage: 'linear-gradient(to bottom, rgba(209, 250, 229, 0.3), rgba(255, 255, 255, 0.5)), linear-gradient(0deg, transparent 24%, #E1E1E1 25%, #E1E1E1 26%, transparent 27%, transparent 74%, #E1E1E1 75%, #E1E1E1 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, #E1E1E1 25%, #E1E1E1 26%, transparent 27%, transparent 74%, #E1E1E1 75%, #E1E1E1 76%, transparent 77%, transparent)', backgroundSize: '100% 100%, 120px 120px, 120px 120px' }}>
@@ -199,8 +147,19 @@ export function ContactPage() {
           <h1 className="text-5xl sm:text-6xl font-bold text-gray-900 mb-6 leading-tight">
             Get in <span className="bg-gradient-to-r from-emerald-600 to-emerald-400 bg-clip-text text-transparent">Touch</span>
           </h1>
-          <div className="text-xl text-gray-700 max-w-3xl mx-auto mb-8 leading-relaxed">
-            Have questions? We're here to help. Reach out to our team and we'll get back to you as soon as possible.
+          <p className="text-xl text-gray-700 max-w-3xl mx-auto mb-8 leading-relaxed">
+            Demos, NGO pricing, rollout planning, or technical questions — we typically reply within one business day.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Button size="lg" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => navigate('/signup')}>
+              {CTA.primary}
+              <ArrowRight className="ml-2 w-4 h-4" />
+            </Button>
+            <Button size="lg" variant="outline" className="border-emerald-600 text-emerald-700" asChild>
+              <a href={whatsappUrl()} target="_blank" rel="noopener noreferrer">
+                WhatsApp us
+              </a>
+            </Button>
           </div>
         </div>
       </section>
@@ -316,11 +275,18 @@ export function ContactPage() {
                         name="subject"
                         type="text"
                         required
+                        list="contact-subjects"
                         value={formData.subject}
                         onChange={handleInputChange}
-                        placeholder="What is this regarding?"
+                        placeholder="e.g. Demo request"
                         className="h-11"
                       />
+                      <datalist id="contact-subjects">
+                        {SUBJECT_SUGGESTIONS.map((s) => (
+                          <option key={s} value={s} />
+                        ))}
+                      </datalist>
+                      <p className="text-xs text-gray-500">Tip: choose a preset or describe your program size and tools (Kobo, Excel, etc.).</p>
                     </div>
 
                     <div className="space-y-2">
@@ -360,68 +326,9 @@ export function ContactPage() {
         </div>
       </section>
 
-      {/* Additional Info Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-grid-pattern">
-        <div className="container mx-auto max-w-4xl">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Frequently Asked Questions</h2>
-            <p className="text-xl text-gray-600">
-              Quick answers to common questions
-            </p>
-          </div>
+      <MarketingFaqSection faqs={contactFaqs} title="Before you write" subtitle="Common questions about demos, pricing, and support" />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {[
-              {
-                question: 'How quickly will I receive a response?',
-                answer: 'We typically respond to all inquiries within 24 hours during business days.',
-              },
-              {
-                question: 'Do you offer custom solutions?',
-                answer: 'Yes! We work with organizations to create tailored solutions that fit their specific needs.',
-              },
-              {
-                question: 'Can I schedule a demo?',
-                answer: 'Absolutely! Contact us to schedule a personalized demo of our platform.',
-              },
-              {
-                question: 'What support options are available?',
-                answer: 'We offer multiple support channels including email, documentation, training, and dedicated support for enterprise customers.',
-              },
-            ].map((faq, index) => (
-              <Card key={index} className="border-2 hover:border-emerald-200 transition-all">
-                <CardHeader>
-                  <CardTitle className="text-lg">{faq.question}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600">{faq.answer}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-emerald-600 to-emerald-500">
-        <div className="container mx-auto max-w-4xl text-center">
-          <h2 className="text-4xl font-bold text-white mb-6">
-            Ready to Get Started?
-          </h2>
-          <p className="text-xl text-emerald-50 mb-8">
-            Join humanitarian organizations worldwide who trust DIMES System
-          </p>
-          <Button 
-            size="lg" 
-            variant="secondary"
-            className="text-lg px-8 py-6 h-auto bg-white text-emerald-600 hover:bg-gray-100"
-            onClick={() => navigate('/signup')}
-          >
-            Start Free Trial
-            <ArrowRight className="ml-2 w-5 h-5" />
-          </Button>
-        </div>
-      </section>
+      <PublicCtaBand showSecondary={false} />
 
       {/* Footer */}
       <Footer />

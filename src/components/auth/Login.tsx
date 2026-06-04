@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Eye, EyeOff, Mail, Lock, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, Loader2, CheckCircle2 } from 'lucide-react';
+import { PageSeo } from '@/components/seo/PageSeo';
 
 interface LoginProps {}
 
@@ -43,6 +44,16 @@ export const Login: React.FC<LoginProps> = () => {
   
   const safeNextUrl = decodedNext && isValidNextUrl(decodedNext) ? decodedNext : null;
   console.log('Login component - safeNextUrl:', safeNextUrl);
+
+  const signupSuccess = searchParams.get('signup') === 'success';
+  const paymentPending = searchParams.get('paymentPending') === 'true';
+  const signupEmailParam = searchParams.get('email');
+
+  useEffect(() => {
+    if (signupEmailParam) {
+      setEmail(decodeURIComponent(signupEmailParam));
+    }
+  }, [signupEmailParam]);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -95,6 +106,13 @@ export const Login: React.FC<LoginProps> = () => {
 
 
   return (
+    <>
+    <PageSeo
+      title="Sign In"
+      description="Sign in to your DIMES IDMS organization workspace."
+      path="/login"
+      noIndex
+    />
     <div 
       className="min-h-screen w-screen flex items-center justify-center bg-grid-pattern p-4"
       style={{
@@ -116,6 +134,16 @@ export const Login: React.FC<LoginProps> = () => {
            
           </CardHeader>
           <CardContent className="space-y-4">
+            {signupSuccess && (
+              <Alert className="border-emerald-200 bg-emerald-50">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                <AlertDescription className="text-emerald-900">
+                  {paymentPending
+                    ? 'Your organization is created. Sign in to finish payment from subscription settings.'
+                    : 'Your organization is ready. Sign in with the email and password you just created.'}
+                </AlertDescription>
+              </Alert>
+            )}
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email Address</Label>
@@ -245,6 +273,7 @@ export const Login: React.FC<LoginProps> = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 

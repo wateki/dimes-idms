@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -11,8 +11,6 @@ import {
   BarChart3,
   Shield,
   Zap,
-  Menu,
-  X,
   CheckCircle2,
   FileText,
   Users,
@@ -27,10 +25,15 @@ import {
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { Footer } from '@/components/shared/Footer';
+import { PageSeo } from '@/components/seo/PageSeo';
+import { organizationAndSoftwareJsonLd } from '@/components/seo/marketingJsonLd';
+import { PublicNav } from '@/components/public/layout/PublicNav';
+import { PublicCtaBand } from '@/components/public/layout/PublicCtaBand';
+import { IntegrationsStrip } from '@/components/public/layout/IntegrationsStrip';
+import { CTA } from '@/data/marketingCopy';
 
 export function FeaturesPage() {
   const navigate = useNavigate();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [heroVisible, setHeroVisible] = useState(false);
 
   useEffect(() => {
@@ -184,85 +187,13 @@ export function FeaturesPage() {
 
   return (
     <div className="min-h-screen bg-grid-pattern">
-      {/* Navigation */}
-      <nav className="fixed top-0 w-full bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-emerald-100 dark:border-gray-800 z-50">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link to="/" className="flex items-center">
-              <img 
-                src="/logo.png" 
-                alt="Dimes IDMS Logo" 
-                className="h-20 object-contain"
-              />
-            </Link>
-            
-            <div className="hidden md:flex items-center space-x-8">
-              <Link to="/" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
-                Home
-              </Link>
-              <Link to="/features" className="text-sm font-medium text-emerald-600">
-                Features
-              </Link>
-              <Link to="/pricing" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
-                Pricing
-              </Link>
-              <Link to="/about" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
-                About
-              </Link>
-              <Link to="/support" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
-                Support
-              </Link>
-              <Link to="/contact" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
-                Contact
-              </Link>
-              <Button variant="ghost" onClick={() => navigate('/login')}>
-                Sign In
-              </Button>
-              <Button onClick={() => navigate('/signup')}>
-                Get Started
-                <ArrowRight className="ml-2 w-4 h-4" />
-              </Button>
-            </div>
-
-            <div className="md:hidden">
-              <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </Button>
-            </div>
-          </div>
-
-          {mobileMenuOpen && (
-            <div className="md:hidden py-4 border-t border-emerald-100">
-              <div className="flex flex-col space-y-3">
-                <Link to="/" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Home
-                </Link>
-                <Link to="/features" className="text-sm font-medium text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Features
-                </Link>
-                <Link to="/pricing" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Pricing
-                </Link>
-                <Link to="/about" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  About
-                </Link>
-                <Link to="/support" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Support
-                </Link>
-                <Link to="/contact" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Contact
-                </Link>
-                <Button variant="ghost" className="justify-start" onClick={() => { navigate('/login'); setMobileMenuOpen(false); }}>
-                  Sign In
-                </Button>
-                <Button className="justify-start" onClick={() => { navigate('/signup'); setMobileMenuOpen(false); }}>
-                  Get Started
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      </nav>
+      <PageSeo
+        title="Features — KPI Analytics, Mapping & MEAL Workflows"
+        description="Explore DIMES IDMS features: data harmonization, Kobo and Excel import, KPI goal alignment, spatial maps, FCRM, approval workflows, and offline Dimes Collect mobile collection."
+        path="/features"
+        jsonLd={organizationAndSoftwareJsonLd()}
+      />
+      <PublicNav activePage="features" />
 
       {/* Hero */}
       <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 bg-grid-pattern relative" style={{ backgroundImage: 'linear-gradient(to bottom, var(--gradient-start), var(--gradient-middle), var(--gradient-end)), linear-gradient(0deg, transparent 24%, var(--grid-color) 25%, var(--grid-color) 26%, transparent 27%, transparent 74%, var(--grid-color) 75%, var(--grid-color) 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, var(--grid-color) 25%, var(--grid-color) 26%, transparent 27%, transparent 74%, var(--grid-color) 75%, var(--grid-color) 76%, transparent 77%, transparent)', backgroundSize: '100% 100%, 120px 120px, 120px 120px' }}>
@@ -270,14 +201,20 @@ export function FeaturesPage() {
           "container mx-auto max-w-4xl text-center transition-all duration-1000",
           heroVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
         )}>
-          <h1 className="text-5xl sm:text-6xl font-bold text-gray-900 mb-6">
-            Powerful Features for Your Organization
+          <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 dark:text-gray-100 mb-6">
+            MEAL features built for humanitarian program data
           </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Everything you need to harmonize data, manage projects, and maximize impact—all in one platform.
+          <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto mb-8">
+            From Kobo imports to KPI dashboards, offline field collection, and donor-ready reports — one platform for monitoring, evaluation, and learning.
           </p>
+          <Button size="lg" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => navigate('/signup')}>
+            {CTA.primary}
+            <ArrowRight className="ml-2 w-4 h-4" />
+          </Button>
         </div>
       </section>
+
+      <IntegrationsStrip />
 
       {/* Main Features */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-grid-pattern">
@@ -348,26 +285,10 @@ export function FeaturesPage() {
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-emerald-600 to-emerald-500">
-        <div className="container mx-auto max-w-4xl text-center">
-          <h2 className="text-4xl font-bold text-white mb-6">
-            Ready to Experience These Features?
-          </h2>
-          <p className="text-xl text-emerald-50 mb-8">
-            Start your free trial and see how DIMES can transform your organization
-          </p>
-          <Button 
-            size="lg" 
-            variant="secondary"
-            className="text-lg px-8 py-6 h-auto bg-white text-emerald-600 hover:bg-gray-100"
-            onClick={() => navigate('/signup')}
-          >
-            Start Free Trial
-            <ArrowRight className="ml-2 w-5 h-5" />
-          </Button>
-        </div>
-      </section>
+      <PublicCtaBand
+        title="See these features in your workspace"
+        subtitle="Start on the Free plan — import your first Kobo or spreadsheet and build a KPI view in minutes."
+      />
 
       {/* Footer */}
       <Footer />

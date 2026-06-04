@@ -1,8 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { FloatingContactActions } from '@/components/public/layout/FloatingContactActions';
 
 export function Footer() {
   return (
+    <>
+    <FloatingContactActions />
     <footer className="py-12 px-4 sm:px-6 lg:px-8 bg-gray-900 dark:bg-gray-950 text-gray-400 dark:text-gray-300">
       <div className="container mx-auto max-w-6xl">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
@@ -23,9 +26,9 @@ export function Footer() {
             <h3 className="text-white dark:text-gray-100 font-semibold mb-4">Product</h3>
             <ul className="space-y-2 text-sm">
               <li><Link to="/features" className="hover:text-emerald-400 dark:hover:text-emerald-300 transition-colors">Features</Link></li>
-              <li><a href="#" className="hover:text-emerald-400 dark:hover:text-emerald-300 transition-colors">Mobile App</a></li>
+              <li><Link to="/features" className="hover:text-emerald-400 dark:hover:text-emerald-300 transition-colors">Mobile App</Link></li>
               <li><Link to="/pricing" className="hover:text-emerald-400 dark:hover:text-emerald-300 transition-colors">Pricing</Link></li>
-              <li><a href="#" className="hover:text-emerald-400 dark:hover:text-emerald-300 transition-colors">Security</a></li>
+              <li><Link to="/features" className="hover:text-emerald-400 dark:hover:text-emerald-300 transition-colors">Security</Link></li>
             </ul>
           </div>
           <div>
@@ -33,7 +36,8 @@ export function Footer() {
             <ul className="space-y-2 text-sm">
               <li><Link to="/support" className="hover:text-emerald-400 dark:hover:text-emerald-300 transition-colors">Documentation</Link></li>
               <li><Link to="/support" className="hover:text-emerald-400 dark:hover:text-emerald-300 transition-colors">Support</Link></li>
-              <li><a href="#" className="hover:text-emerald-400 dark:hover:text-emerald-300 transition-colors">API</a></li>
+              <li><a href="/llms.txt" className="hover:text-emerald-400 dark:hover:text-emerald-300 transition-colors">AI overview</a></li>
+              <li><a href="/pricing.md" className="hover:text-emerald-400 dark:hover:text-emerald-300 transition-colors">Pricing (markdown)</a></li>
               <li><a href="#" className="hover:text-emerald-400 dark:hover:text-emerald-300 transition-colors">Blog</a></li>
             </ul>
           </div>
@@ -42,8 +46,8 @@ export function Footer() {
             <ul className="space-y-2 text-sm">
               <li><Link to="/about" className="hover:text-emerald-400 dark:hover:text-emerald-300 transition-colors">About</Link></li>
               <li><Link to="/contact" className="hover:text-emerald-400 dark:hover:text-emerald-300 transition-colors">Contact</Link></li>
-              <li><a href="#" className="hover:text-emerald-400 dark:hover:text-emerald-300 transition-colors">Privacy</a></li>
-              <li><a href="#" className="hover:text-emerald-400 dark:hover:text-emerald-300 transition-colors">Terms</a></li>
+              <li><Link to="/contact" className="hover:text-emerald-400 dark:hover:text-emerald-300 transition-colors">Privacy</Link></li>
+              <li><Link to="/contact" className="hover:text-emerald-400 dark:hover:text-emerald-300 transition-colors">Terms</Link></li>
             </ul>
           </div>
         </div>
@@ -52,5 +56,6 @@ export function Footer() {
         </div>
       </div>
     </footer>
+    </>
   );
 }

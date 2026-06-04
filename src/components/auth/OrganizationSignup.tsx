@@ -11,6 +11,8 @@ import { supabaseOrganizationSignupService, type OrganizationSignupRequest } fro
 import { supabaseOrganizationService } from '@/services/supabaseOrganizationService';
 import { PlanSelection, type Plan } from '@/components/shared/PlanSelection';
 import { supabase } from '@/lib/supabaseClient';
+import { PageSeo } from '@/components/seo/PageSeo';
+import { CONTACT_EMAIL, whatsappUrl } from '@/config/site';
 
 
 // Plan selection component for signup (uses same plans as PlansPricing)
@@ -215,6 +217,8 @@ export function OrganizationSignup() {
   const [authUserId, setAuthUserId] = useState<string | null>(null);
   const [emailConfirmed, setEmailConfirmed] = useState(false);
   const [checkingEmailStatus, setCheckingEmailStatus] = useState(false);
+  const [resendingEmail, setResendingEmail] = useState(false);
+  const [resendMessage, setResendMessage] = useState('');
   
       // Update URL when step changes (except when coming from URL params on mount)
   useEffect(() => {
@@ -398,6 +402,31 @@ export function OrganizationSignup() {
     }
   };
 
+  const handleResendConfirmation = async () => {
+    if (!email) return;
+    setResendingEmail(true);
+    setResendMessage('');
+    setError('');
+    try {
+      const { error: resendError } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: {
+          emailRedirectTo: organizationId
+            ? `${window.location.origin}/signup/complete?orgId=${organizationId}`
+            : `${window.location.origin}/signup/complete`,
+        },
+      });
+      if (resendError) throw resendError;
+      setResendMessage('Confirmation email sent. Check your inbox and spam folder.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Could not resend email. Try again in a few minutes.';
+      setError(message);
+    } finally {
+      setResendingEmail(false);
+    }
+  };
+
   const handleBack = () => {
     setError('');
     // If on step 1.5 (email confirmation), go back to step 1
@@ -442,10 +471,14 @@ export function OrganizationSignup() {
       // Update organization subscription tier
       await supabaseOrganizationSignupService.updateOrganizationSubscriptionTier(organizationId, subscriptionTier);
 
-      // If free plan, signup is complete - redirect to login
+      // If free plan, go straight to the product when already signed in
       if (planCode === 'PLN_FREE') {
-        // Show success message and redirect to login
-        navigate(`/login?signup=success&email=${encodeURIComponent(email)}`);
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          navigate('/dashboard', { replace: true });
+        } else {
+          navigate(`/login?signup=success&email=${encodeURIComponent(email)}`);
+        }
         return;
       }
 
@@ -497,6 +530,13 @@ export function OrganizationSignup() {
   const isPlanSelection = step === 2;
 
   return (
+    <>
+    <PageSeo
+      title="Create Your Organization Account"
+      description="Sign up for DIMES IDMS: create your NGO or MEAL team workspace, confirm your email, and start on the Free plan with no credit card."
+      path="/signup"
+      noIndex
+    />
     <div 
       className={`min-h-screen w-screen flex ${isPlanSelection ? 'items-start py-6' : 'items-center'} justify-center bg-grid-pattern p-3 sm:p-4 md:p-6`}
       style={{
@@ -514,7 +554,7 @@ export function OrganizationSignup() {
           <p className="text-sm text-muted-foreground">
             Having issues signing up? Contact us on{' '}
             <a 
-              href="https://wa.me/254114904624?text=Hi%2C%20I%20need%20personalized%20onboarding%20for%20the%20DIMES%20IDMS%20system." 
+              href={whatsappUrl('Hi, I need personalized onboarding for the DIMES IDMS system.')} 
               target="_blank" 
               rel="noopener noreferrer"
               className="text-green-600 hover:underline font-medium"
@@ -523,7 +563,7 @@ export function OrganizationSignup() {
             </a>
             {' '}or{' '}
             <a 
-              href="mailto:ian_warutere@gartsafrica.com?subject=DIMES%20IDMS%20Personalized%20Onboarding&body=Hi%2C%0A%0AI%20need%20personalized%20onboarding%20for%20the%20DIMES%20IDMS%20system.%0A%0APlease%20assist." 
+              href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('DIMES IDMS Personalized Onboarding')}&body=${encodeURIComponent('Hi,\n\nI need personalized onboarding for the DIMES IDMS system.\n\nPlease assist.')}`} 
               className="text-blue-600 hover:underline font-medium"
             >
               Email
@@ -537,7 +577,7 @@ export function OrganizationSignup() {
              
               <CardTitle className="text-2xl sm:text-3xl font-bold">Create Your Account</CardTitle>
               <CardDescription className="text-base sm:text-lg mt-1">
-                Get started with your account in just a few steps
+                About 3 minutes · Free plan · No credit card
               </CardDescription>
             </CardHeader>
           )}
@@ -726,7 +766,7 @@ export function OrganizationSignup() {
                     </>
                   ) : (
                     <>
-                      Next: Choose Plan
+                      Continue — confirm email next
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </>
                   )}
@@ -781,15 +821,34 @@ export function OrganizationSignup() {
                   </Alert>
                 )}
 
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6 space-y-3">
                   <p className="text-sm text-blue-900">
                     <strong>Didn't receive the email?</strong>
                   </p>
-                  <ul className="text-sm text-blue-800 mt-2 space-y-1 list-disc list-inside">
+                  <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
                     <li>Check your spam or junk folder</li>
                     <li>Make sure you entered the correct email address</li>
-                    <li>Wait a few minutes and try again</li>
+                    <li>Wait a few minutes, then resend below</li>
                   </ul>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full border-blue-300"
+                    onClick={handleResendConfirmation}
+                    disabled={resendingEmail || !email}
+                  >
+                    {resendingEmail ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Sending…
+                      </>
+                    ) : (
+                      'Resend confirmation email'
+                    )}
+                  </Button>
+                  {resendMessage && (
+                    <p className="text-sm text-green-700">{resendMessage}</p>
+                  )}
                 </div>
 
                 <div className="flex gap-4 pt-4">
@@ -857,6 +916,7 @@ export function OrganizationSignup() {
         </Card>
       </div>
     </div>
+    </>
   );
 }
 

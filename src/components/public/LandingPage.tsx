@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,8 +25,6 @@ import {
   ChevronRight,
   Crown,
   Building2,
-  Menu,
-  X,
   Map,
   Upload,
   FileCheck,
@@ -36,6 +34,14 @@ import { cn } from '@/lib/utils';
 import { Footer } from '@/components/shared/Footer';
 import { demoPlatformLogin, isDemoPlatformLoginConfigured } from '@/config/demoPlatform';
 import { toast } from '@/hooks/use-toast';
+import { PageSeo } from '@/components/seo/PageSeo';
+import { faqPageJsonLd, organizationAndSoftwareJsonLd } from '@/components/seo/marketingJsonLd';
+import { landingFaqs } from '@/data/marketingFaqs';
+import { MarketingFaqSection } from '@/components/public/MarketingFaqSection';
+import { PublicNav } from '@/components/public/layout/PublicNav';
+import { PublicCtaBand } from '@/components/public/layout/PublicCtaBand';
+import { IntegrationsStrip } from '@/components/public/layout/IntegrationsStrip';
+import { CTA } from '@/data/marketingCopy';
 
 const features = [
   {
@@ -118,7 +124,6 @@ export function LandingPage() {
   const { login, isAuthenticated } = useAuth();
   const [exploreLoading, setExploreLoading] = useState(false);
   const [heroVisible, setHeroVisible] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [visibleFeatures, setVisibleFeatures] = useState<Set<number>>(new Set());
   const featuresRef = useRef<HTMLDivElement>(null);
 
@@ -250,94 +255,17 @@ export function LandingPage() {
     },
   ];
 
+  const homeJsonLd = [...organizationAndSoftwareJsonLd(), faqPageJsonLd(landingFaqs)];
+
   return (
     <div className="min-h-screen bg-grid-pattern">
-      {/* Navigation */}
-      <nav className="fixed top-0 w-full bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-emerald-100 dark:border-gray-800 z-50">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link to="/" className="flex items-center">
-              <img 
-                src="/logo.png" 
-                alt="Dimes IDMS Logo" 
-                className="h-20 object-contain"
-              />
-            </Link>
-            
-            {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center space-x-8">
-              <Link to="/" className="text-sm font-medium text-emerald-600">
-                Home
-              </Link>
-              <Link to="/features" className="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-                Features
-              </Link>
-              <Link to="/pricing" className="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-                Pricing
-              </Link>
-              <Link to="/about" className="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-                About
-              </Link>
-              <Link to="/support" className="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-                Support
-              </Link>
-              <Link to="/contact" className="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-                Contact
-              </Link>
-              <Button variant="ghost" onClick={() => navigate('/login')}>
-                Sign In
-              </Button>
-              <Button onClick={() => navigate('/signup')}>
-                Get Started
-                <ArrowRight className="ml-2 w-4 h-4" />
-              </Button>
-            </div>
-
-            {/* Mobile Menu Button */}
-            <div className="md:hidden">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              >
-                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </Button>
-            </div>
-          </div>
-
-          {/* Mobile Menu */}
-          {mobileMenuOpen && (
-            <div className="md:hidden py-4 border-t border-emerald-100 dark:border-gray-800">
-              <div className="flex flex-col space-y-3">
-                <Link to="/" className="text-sm font-medium text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Home
-                </Link>
-                <Link to="/features" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Features
-                </Link>
-                <Link to="/pricing" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Pricing
-                </Link>
-                <Link to="/about" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  About
-                </Link>
-                <Link to="/support" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Support
-                </Link>
-                <Link to="/contact" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Contact
-                </Link>
-                <Button variant="ghost" className="justify-start" onClick={() => { navigate('/login'); setMobileMenuOpen(false); }}>
-                  Sign In
-                </Button>
-                <Button className="justify-start" onClick={() => { navigate('/signup'); setMobileMenuOpen(false); }}>
-                  Get Started
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      </nav>
+      <PageSeo
+        title="Humanitarian & MEAL Data Management Platform"
+        description="DIMES IDMS harmonizes scattered humanitarian program data from Kobo, Excel, and field tools into one real-time workspace with KPI analytics, maps, and offline mobile collection."
+        path="/"
+        jsonLd={homeJsonLd}
+      />
+      <PublicNav activePage="home" />
 
       {/* Hero Section */}
       <section className="pt-24 pb-16 px-4 sm:px-6 lg:px-8 bg-grid-pattern overflow-hidden relative" style={{ backgroundImage: 'linear-gradient(to bottom, rgba(209, 250, 229, 0.3), rgba(255, 255, 255, 0.5), rgba(209, 250, 229, 0.2)), linear-gradient(0deg, transparent 24%, #E1E1E1 25%, #E1E1E1 26%, transparent 27%, transparent 74%, #E1E1E1 75%, #E1E1E1 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, #E1E1E1 25%, #E1E1E1 26%, transparent 27%, transparent 74%, #E1E1E1 75%, #E1E1E1 76%, transparent 77%, transparent)', backgroundSize: '100% 100%, 120px 120px, 120px 120px' }}>
@@ -353,12 +281,15 @@ export function LandingPage() {
                 Trusted by humanitarian organizations worldwide
               </div>
               <h1 className="text-4xl sm:text-5xl lg:text-5xl font-bold text-gray-900 dark:text-gray-100 mb-6 leading-tight">
-                  Streamline Scattered Humanitarian Program Data & Workflows
+                One platform for humanitarian program data & MEAL workflows
                 <br />
-                <span className="bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">In real-time</span>
+                <span className="bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">Updated in real time</span>
               </h1>
-              <p className="text-lg sm:text-xl text-gray-600 dark:text-gray-300 mb-4 leading-relaxed">
-              Humanitarian organizations spend weeks consolidating data from field teams, donors, and partners in scattered formats. DIMES ends that — automatically collecting, standardizing, validating, and analyzing all your data in real-time so your team can focus on impact.
+              <p className="text-lg sm:text-xl text-gray-600 dark:text-gray-300 mb-2 leading-relaxed">
+                <strong className="font-semibold text-gray-800 dark:text-gray-200">DIMES IDMS</strong> is an Integrated Data Management System for NGOs and MEAL teams: it connects Kobo, Excel, CSV, and field tools, then standardizes and validates data so dashboards and donor reports stay current without manual merges.
+              </p>
+              <p className="text-base text-gray-600 dark:text-gray-400 mb-4 leading-relaxed">
+                Stop spending weeks reconciling spreadsheets — harmonize field, partner, and donor data in one workspace.
               </p>
               <div className="flex flex-col sm:flex-row items-start gap-4 mb-8">
                 <Button 
@@ -366,7 +297,7 @@ export function LandingPage() {
                   className="text-base px-7 py-4 h-auto bg-emerald-600 hover:bg-emerald-700 shadow-md font-semibold"
                   onClick={() => navigate('/signup')}
                 >
-                  Start Today
+                  {CTA.primary}
                   <ArrowRight className="ml-2 w-4 h-4" />
                 </Button>
                 {isDemoPlatformLoginConfigured() ? (
@@ -419,11 +350,15 @@ export function LandingPage() {
               <div className="flex flex-wrap items-center gap-6 text-sm text-gray-500">
                 <div className="flex items-center">
                   <CheckCircle2 className="w-5 h-5 text-emerald-500 mr-2" />
-                  <span>Setup instantly</span>
+                  <span>Free plan available</span>
                 </div>
                 <div className="flex items-center">
                   <CheckCircle2 className="w-5 h-5 text-emerald-500 mr-2" />
-                  <span>No credit card required</span>
+                  <span>No credit card for Free plan</span>
+                </div>
+                <div className="flex items-center">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500 mr-2" />
+                  <span>Kobo & Excel import</span>
                 </div>
                 {/* <div className="flex items-center">
                   <CheckCircle2 className="w-5 h-5 text-emerald-500 mr-2" />
@@ -453,6 +388,8 @@ export function LandingPage() {
           </div>
         </div>
       </section>
+
+      <IntegrationsStrip />
 
       {/* Features Grid */}
       <section 
@@ -574,8 +511,13 @@ export function LandingPage() {
                   </div>
                 ))}
               </div>
-              <Button size="lg" variant="outline" className="border-emerald-600 text-emerald-600 hover:bg-emerald-50">
-                Learn More About Mobile App
+              <Button
+                size="lg"
+                variant="outline"
+                className="border-emerald-600 text-emerald-600 hover:bg-emerald-50"
+                onClick={() => navigate('/features')}
+              >
+                See mobile & offline features
                 <ChevronRight className="ml-2 w-4 h-4" />
               </Button>
             </div>
@@ -779,40 +721,9 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Pricing CTA */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-green-700 to-green-600">
-        <div className="container mx-auto max-w-4xl text-center">
-          <h2 className="text-4xl font-bold text-white mb-6">
-            Ready to Transform Your Data Operations?
-          </h2>
-          <p className="text-xl text-green-50 mb-8 max-w-2xl mx-auto">
-            Join humanitarian organizations worldwide who trust DIMES to harmonize their data 
-            and streamline their MEAL operations.
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button 
-              size="lg" 
-              variant="secondary"
-              className="text-base px-7 py-4 h-auto bg-white text-green-600 hover:bg-neutral-50 font-semibold shadow-md"
-              onClick={() => navigate('/signup')}
-            >
-              Start Free Trial
-              <ArrowRight className="ml-2 w-4 h-4" />
-            </Button>
-            <Button 
-              size="lg" 
-              variant="outline"
-              className="text-base px-7 py-4 h-auto border-2 border-white bg-transparent text-white hover:bg-white/20 hover:text-white font-semibold shadow-sm"
-              onClick={() => navigate('/pricing')}
-            >
-              View Pricing
-            </Button>
-          </div>
-          <p className="text-sm text-green-100 mt-6">
-            No credit card required • 14-day free trial • Cancel anytime
-          </p>
-        </div>
-      </section>
+      <MarketingFaqSection faqs={landingFaqs} />
+
+      <PublicCtaBand variant="green" title="Ready to transform your data operations?" />
 
       {/* Footer */}
       <Footer />

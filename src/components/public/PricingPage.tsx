@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -9,17 +9,21 @@ import {
   Crown,
   Building2,
   Globe,
-  Menu,
-  X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Footer } from '@/components/shared/Footer';
 import { usePricingCurrency } from '@/hooks/usePricingCurrency';
-
+import { PageSeo } from '@/components/seo/PageSeo';
+import { faqPageJsonLd, organizationAndSoftwareJsonLd } from '@/components/seo/marketingJsonLd';
+import { PublicNav } from '@/components/public/layout/PublicNav';
+import { PublicCtaBand } from '@/components/public/layout/PublicCtaBand';
+import { IntegrationsStrip } from '@/components/public/layout/IntegrationsStrip';
+import { MarketingFaqSection } from '@/components/public/MarketingFaqSection';
+import { pricingFaqs } from '@/data/marketingFaqs';
+import { CTA } from '@/data/marketingCopy';
 
 export function PricingPage() {
   const navigate = useNavigate();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [heroVisible, setHeroVisible] = useState(false);
   const [showInUsd, setShowInUsd] = useState(false);
@@ -62,7 +66,7 @@ export function PricingPage() {
         'Email support',
         'Basic features',
       ],
-      cta: 'Start Free Trial',
+      cta: CTA.primary,
       popular: false,
     },
     {
@@ -80,7 +84,7 @@ export function PricingPage() {
         'Priority support',
         'Advanced features',
       ],
-      cta: 'Start Today',
+      cta: 'Choose Basic',
       popular: false,
     },
     {
@@ -100,7 +104,7 @@ export function PricingPage() {
         'Advanced analytics',
         'Custom integrations',
       ],
-      cta: 'Start Today',
+      cta: 'Choose Professional',
       popular: true,
     },
     {
@@ -122,92 +126,22 @@ export function PricingPage() {
         'SLA guarantee',
         'Custom training',
       ],
-      cta: 'Start Today',
+      cta: 'Choose Enterprise',
       popular: false,
     },
   ];
 
+  const pricingJsonLd = [...organizationAndSoftwareJsonLd(), faqPageJsonLd(pricingFaqs)];
+
   return (
     <div className="min-h-screen bg-grid-pattern">
-      {/* Navigation */}
-      <nav className="fixed top-0 w-full bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-emerald-100 dark:border-gray-800 z-50">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link to="/" className="flex items-center">
-              <img 
-                src="/logo.png" 
-                alt="Dimes IDMS Logo" 
-                className="h-20 object-contain"
-              />
-            </Link>
-            
-            <div className="hidden md:flex items-center space-x-8">
-              <Link to="/" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
-                Home
-              </Link>
-              <Link to="/features" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
-                Features
-              </Link>
-              <Link to="/pricing" className="text-sm font-medium text-emerald-600">
-                Pricing
-              </Link>
-              <Link to="/about" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
-                About
-              </Link>
-              <Link to="/support" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
-                Support
-              </Link>
-              <Link to="/contact" className="text-sm font-medium text-gray-700 hover:text-emerald-600 transition-colors">
-                Contact
-              </Link>
-              <Button variant="ghost" onClick={() => navigate('/login')}>
-                Sign In
-              </Button>
-              <Button onClick={() => navigate('/signup')}>
-                Get Started
-                <ArrowRight className="ml-2 w-4 h-4" />
-              </Button>
-            </div>
-
-            <div className="md:hidden">
-              <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </Button>
-            </div>
-          </div>
-
-          {mobileMenuOpen && (
-            <div className="md:hidden py-4 border-t border-emerald-100">
-              <div className="flex flex-col space-y-3">
-                <Link to="/" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Home
-                </Link>
-                <Link to="/features" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Features
-                </Link>
-                <Link to="/pricing" className="text-sm font-medium text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Pricing
-                </Link>
-                <Link to="/about" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  About
-                </Link>
-                <Link to="/support" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Support
-                </Link>
-                <Link to="/contact" className="text-sm font-medium text-gray-700 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>
-                  Contact
-                </Link>
-                <Button variant="ghost" className="justify-start" onClick={() => { navigate('/login'); setMobileMenuOpen(false); }}>
-                  Sign In
-                </Button>
-                <Button className="justify-start" onClick={() => { navigate('/signup'); setMobileMenuOpen(false); }}>
-                  Get Started
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      </nav>
+      <PageSeo
+        title="Pricing — Free & Paid Plans for NGOs"
+        description="DIMES IDMS pricing: Free plan (2 users, 1 project), Basic $150/mo, Professional $400/mo, Enterprise $800/mo. Annual billing available. No credit card required for Free."
+        path="/pricing"
+        jsonLd={pricingJsonLd}
+      />
+      <PublicNav activePage="pricing" />
 
       {/* Hero */}
       <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 bg-grid-pattern relative" style={{ backgroundImage: 'linear-gradient(to bottom, var(--gradient-start), var(--gradient-middle), var(--gradient-end)), linear-gradient(0deg, transparent 24%, var(--grid-color) 25%, var(--grid-color) 26%, transparent 27%, transparent 74%, var(--grid-color) 75%, var(--grid-color) 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, var(--grid-color) 25%, var(--grid-color) 26%, transparent 27%, transparent 74%, var(--grid-color) 75%, var(--grid-color) 76%, transparent 77%, transparent)', backgroundSize: '100% 100%, 120px 120px, 120px 120px' }}>
@@ -218,8 +152,11 @@ export function PricingPage() {
           <h1 className="text-5xl sm:text-6xl font-bold text-gray-900 mb-6">
             Simple, Transparent Pricing
           </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
-            Choose the plan that fits your organization's needs. All plans include our core features.
+          <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto mb-4">
+            Start free, scale as programs grow. Every plan includes core MEAL workflows, Dimes Collect mobile access, and data import.
+          </p>
+          <p className="text-sm text-emerald-700 dark:text-emerald-400 font-medium mb-8">
+            Free plan — no credit card required
           </p>
           
           {/* Billing Toggle */}
@@ -298,6 +235,8 @@ export function PricingPage() {
           )}
         </div>
       </section>
+
+      <IntegrationsStrip />
 
       {/* Pricing Cards */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-grid-pattern">
@@ -406,10 +345,13 @@ export function PricingPage() {
           </div>
 
           <div className="mt-12 text-center">
-            <p className="text-gray-600 mb-4">
-              All plans include a 14-day free trial. No credit card required.
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              Need NGO pricing or multi-country rollout?{' '}
+              <button type="button" className="text-emerald-600 hover:underline font-medium" onClick={() => navigate('/contact')}>
+                Contact sales
+              </button>
             </p>
-            <Button variant="link" onClick={() => navigate('/signup')}>
+            <Button variant="link" onClick={() => navigate('/features')}>
               Compare all features
               <ArrowRight className="ml-2 w-4 h-4" />
             </Button>
@@ -417,65 +359,9 @@ export function PricingPage() {
         </div>
       </section>
 
-      {/* FAQ */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-grid-pattern">
-        <div className="container mx-auto max-w-4xl">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Frequently Asked Questions</h2>
-          </div>
+      <MarketingFaqSection faqs={pricingFaqs} title="Pricing questions" />
 
-          <div className="space-y-6">
-            {[
-              {
-                q: 'Can I change plans later?',
-                a: 'Yes, you can upgrade or downgrade your plan at any time. Changes take effect immediately.',
-              },
-              {
-                q: 'What happens after my free trial?',
-                a: 'After your 14-day free trial, you can choose to continue with a paid plan or your account will be paused. No charges until you decide to continue.',
-              },
-              {
-                q: 'Do you offer discounts for non-profits?',
-                a: 'Yes, we offer special pricing for registered non-profit organizations. Contact our sales team for more information.',
-              },
-              {
-                q: 'Is there a setup fee?',
-                a: 'No, there are no setup fees. You only pay for your chosen plan.',
-              },
-            ].map((faq, index) => (
-              <Card key={index} className="border-2">
-                <CardHeader>
-                  <CardTitle className="text-lg">{faq.q}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600">{faq.a}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-emerald-600 to-emerald-500">
-        <div className="container mx-auto max-w-4xl text-center">
-          <h2 className="text-4xl font-bold text-white mb-6">
-            Ready to Get Started?
-          </h2>
-          <p className="text-xl text-emerald-50 mb-8">
-            Start your free trial today. No credit card required.
-          </p>
-          <Button 
-            size="lg" 
-            variant="secondary"
-            className="text-lg px-8 py-6 h-auto bg-white text-emerald-600 hover:bg-gray-100"
-            onClick={() => navigate('/signup')}
-          >
-            Start Free Trial
-            <ArrowRight className="ml-2 w-5 h-5" />
-          </Button>
-        </div>
-      </section>
+      <PublicCtaBand showSecondary={false} />
 
       {/* Footer */}
       <Footer />

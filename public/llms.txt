@@ -1,0 +1,36 @@
+# DIMES IDMS
+
+> Integrated Data Management System for humanitarian and MEAL organizations — harmonize field, partner, and donor data; track KPIs; map interventions; collect offline with Dimes Collect.
+
+DIMES IDMS helps NGOs and MEAL teams stop spending weeks consolidating scattered spreadsheets and survey exports. The platform standardizes, validates, and analyzes program data in one workspace with role-based access and audit trails.
+
+## Key pages
+
+- Home: /
+- Features: /features
+- Pricing: /pricing (see also /pricing.md for structured tiers)
+- About: /about
+- Support: /support
+- Contact: /contact
+- Sign up: /signup
+
+## Product highlights
+
+- Unified data harmonization across Excel, CSV, KoboToolbox, ODK, and APIs
+- KPI analytics linked to organizational goals and projects
+- Spatial analytics and mapping
+- Built-in FCRM and review/approval workflows
+- Dimes Collect: offline-first mobile data collection
+- Multi-organization collaboration with data sovereignty controls
+
+## Pricing summary
+
+- Free: $0/month — 2 users, 1 project, core forms/reports, mobile app, email support
+- Basic: $150/month — 7 users, 4 projects, priority support
+- Professional: $400/month — 20 users, 10 projects, dedicated server, advanced analytics
+- Enterprise: $800/month — unlimited users/projects, multi-region, SLA, custom training
+
+## Contact
+
+- Email: ian_warutere@gartsafrica.com
+- Organization: GARTS Eastern Africa

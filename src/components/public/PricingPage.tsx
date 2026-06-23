@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { 
   ArrowRight,
   CheckCircle2,
@@ -24,7 +23,6 @@ import { CTA } from '@/data/marketingCopy';
 
 export function PricingPage() {
   const navigate = useNavigate();
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [heroVisible, setHeroVisible] = useState(false);
   const [showInUsd, setShowInUsd] = useState(false);
 
@@ -42,7 +40,6 @@ export function PricingPage() {
   const useLocalCurrency = isConverted && !showInUsd;
 
   useEffect(() => {
-    // Reset and trigger animation independently for this page
     setHeroVisible(false);
     const timer = setTimeout(() => {
       setHeroVisible(true);
@@ -54,7 +51,6 @@ export function PricingPage() {
     {
       name: 'Free',
       icon: Building2,
-      monthlyPrice: 0,
       annualPrice: 0,
       description: 'Perfect for small organizations getting started',
       features: [
@@ -72,8 +68,7 @@ export function PricingPage() {
     {
       name: 'Basic',
       icon: Building2,
-      monthlyPrice: 150,
-      annualPrice: 1620, // 150 * 12 * 0.9 (10% discount)
+      annualPrice: 150,
       description: 'For small to medium organizations',
       features: [
         'Up to 7 users',
@@ -90,8 +85,7 @@ export function PricingPage() {
     {
       name: 'Professional',
       icon: Crown,
-      monthlyPrice: 400,
-      annualPrice: 4320, // 400 * 12 * 0.9 (10% discount)
+      annualPrice: 400,
       description: 'For growing organizations with advanced needs',
       features: [
         'Up to 20 users',
@@ -110,8 +104,7 @@ export function PricingPage() {
     {
       name: 'Enterprise',
       icon: Globe,
-      monthlyPrice: 800,
-      annualPrice: 8640, // 800 * 12 * 0.9 (10% discount)
+      annualPrice: 800,
       description: 'For large organizations with complex requirements',
       features: [
         'Unlimited users',
@@ -137,7 +130,7 @@ export function PricingPage() {
     <div className="min-h-screen bg-grid-pattern">
       <PageSeo
         title="Pricing — Free & Paid Plans for NGOs"
-        description="DIMES IDMS pricing: Free plan (2 users, 1 project), Basic $150/mo, Professional $400/mo, Enterprise $800/mo. Annual billing available. No credit card required for Free."
+        description="DIMES IDMS pricing: Free plan (2 users, 1 project), Basic $150/year, Professional $400/year, Enterprise $800/year. No credit card required for Free."
         path="/pricing"
         jsonLd={pricingJsonLd}
       />
@@ -158,59 +151,7 @@ export function PricingPage() {
           <p className="text-sm text-emerald-700 dark:text-emerald-400 font-medium mb-8">
             Free plan — no credit card required
           </p>
-          
-          {/* Billing Toggle */}
-          <div className="relative inline-flex items-center p-1 bg-gray-100 rounded-lg">
-            {/* Animated sliding background */}
-            <div
-              className={cn(
-                "absolute top-1 bottom-1 left-1 rounded-md bg-white shadow-sm transition-all duration-300 ease-in-out",
-                billingCycle === 'monthly' ? 'translate-x-0' : 'translate-x-full'
-              )}
-              style={{ width: 'calc(50% - 0.25rem)' }}
-            />
-            <ToggleGroup
-              type="single"
-              value={billingCycle}
-              onValueChange={(value) => {
-                if (value) setBillingCycle(value as 'monthly' | 'annual');
-              }}
-              className="relative z-10 inline-flex items-center"
-            >
-              <ToggleGroupItem
-                value="monthly"
-                aria-label="Monthly billing"
-                className={cn(
-                  "px-4 py-2 rounded-md text-sm font-medium transition-colors duration-300",
-                  "data-[state=on]:text-emerald-600",
-                  "data-[state=off]:text-gray-600 hover:data-[state=off]:text-gray-900",
-                  "bg-transparent"
-                )}
-              >
-                Monthly
-              </ToggleGroupItem>
-              <ToggleGroupItem
-                value="annual"
-                aria-label="Annual billing"
-                className={cn(
-                  "px-4 py-2 rounded-md text-sm font-medium transition-colors duration-300",
-                  "data-[state=on]:text-emerald-600",
-                  "data-[state=off]:text-gray-600 hover:data-[state=off]:text-gray-900",
-                  "bg-transparent"
-                )}
-              >
-                Annual
-                <span className={cn(
-                  "ml-2 text-xs px-2 py-0.5 rounded-full transition-all duration-300",
-                  billingCycle === 'annual'
-                    ? 'bg-emerald-100 text-emerald-600'
-                    : 'bg-transparent text-gray-600'
-                )}>
-                  Save 10%
-                </span>
-              </ToggleGroupItem>
-            </ToggleGroup>
-          </div>
+
           {!currencyLoading && (isConverted || currencyError) && (
             <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-sm text-gray-600">
               {isConverted ? (
@@ -244,11 +185,10 @@ export function PricingPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {plans.map((plan, index) => {
               const Icon = plan.icon;
-              const price = billingCycle === 'monthly' ? plan.monthlyPrice : plan.annualPrice;
-              const displayPrice = price ? (billingCycle === 'annual' ? price / 12 : price) : null;
-              
+              const displayPrice = plan.annualPrice;
+
               return (
-                <div className="relative flex flex-col h-full">
+                <div key={index} className="relative flex flex-col h-full">
                   {plan.popular && (
                     <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
                       <span className="bg-emerald-600 text-white px-4 py-1 rounded-full text-sm font-medium shadow-lg">
@@ -256,89 +196,67 @@ export function PricingPage() {
                       </span>
                     </div>
                   )}
-                  <Card 
-                    key={index}
+                  <Card
                     className={cn(
                       "border-2 relative transition-all duration-300 hover:shadow-xl flex flex-col h-full overflow-hidden min-w-0",
-                      plan.popular 
-                        ? "border-emerald-500" 
+                      plan.popular
+                        ? "border-emerald-500"
                         : "border-emerald-100 hover:border-emerald-200"
                     )}
                   >
                     <CardHeader className={cn("flex-shrink-0 overflow-hidden", plan.popular && "pt-6")}>
-                    <div className="flex items-center justify-between mb-4">
-                      <CardTitle className="text-2xl">{plan.name}</CardTitle>
-                      <div className={cn(
-                        "w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0",
-                        plan.popular ? "bg-emerald-100" : "bg-gray-100"
-                      )}>
-                        <Icon className={cn(
-                          "w-6 h-6",
-                          plan.popular ? "text-emerald-600" : "text-gray-600"
-                        )} />
+                      <div className="flex items-center justify-between mb-4">
+                        <CardTitle className="text-2xl">{plan.name}</CardTitle>
+                        <div className={cn(
+                          "w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0",
+                          plan.popular ? "bg-emerald-100" : "bg-gray-100"
+                        )}>
+                          <Icon className={cn(
+                            "w-6 h-6",
+                            plan.popular ? "text-emerald-600" : "text-gray-600"
+                          )} />
+                        </div>
                       </div>
-                    </div>
-                    <div className="mb-4 min-w-0 relative">
-                      {displayPrice !== null ? (
-                        <>
-                          {displayPrice === 0 ? (
-                            <div key={`${plan.name}-${billingCycle}-free`} className="animate-fade-in">
-                              <span className="text-4xl font-bold text-gray-900 dark:text-gray-100">
-                                {useLocalCurrency ? formatPrice(0) : '$0'}
-                              </span>
-                              <span className="text-gray-600 dark:text-gray-400">/month</span>
-                            </div>
-                          ) : (
-                            <>
-                              <div key={`${plan.name}-${billingCycle}-price`} className="flex flex-wrap items-baseline gap-1 min-w-0 animate-fade-in">
-                                <span className="text-4xl font-bold text-gray-900 dark:text-gray-100 break-words min-w-0">
-                                  {useLocalCurrency
-                                    ? formatPrice(displayPrice)
-                                    : `$${displayPrice.toLocaleString('en-US', { minimumFractionDigits: displayPrice % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}`}
-                                </span>
-                                <span className="text-gray-600 dark:text-gray-400 flex-shrink-0">/{billingCycle === 'annual' ? 'month' : 'month'}</span>
-                              </div>
-                              {billingCycle === 'annual' && plan.annualPrice > 0 && (
-                                <p key={`${plan.name}-${billingCycle}-billed`} className="text-xs text-gray-500 dark:text-gray-400 mt-1 break-words max-w-full animate-fade-in" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                                  Billed annually ({useLocalCurrency ? formatPrice(plan.annualPrice) : `$${plan.annualPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}/year)
-                                </p>
-                              )}
-                            </>
-                          )}
-                        </>
-                      ) : (
-                        <span key={`${plan.name}-${billingCycle}-custom`} className="text-4xl font-bold text-gray-900 dark:text-gray-100 animate-fade-in">
-                          {useLocalCurrency ? formatPrice(0) : '$0'}
-                        </span>
-                      )}
-                    </div>
-                    <CardDescription className="text-base min-h-[4.5rem]">
-                      {plan.description}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex flex-col flex-1 min-w-0 overflow-hidden">
-                    <ul className="space-y-3 mb-6 flex-1 min-w-0">
-                      {plan.features.map((feature, i) => (
-                        <li key={i} className="flex items-center text-sm">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500 mr-2 flex-shrink-0" />
-                          <span className="text-gray-600">{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <Button 
-                      className={cn(
-                        "w-full mt-auto",
-                        plan.popular 
-                          ? "bg-emerald-600 hover:bg-emerald-700" 
-                          : "border-emerald-600 text-emerald-600 hover:bg-emerald-50"
-                      )}
-                      variant={plan.popular ? "default" : "outline"}
-                      onClick={() => navigate('/signup')}
-                    >
-                      {plan.cta}
-                    </Button>
-                  </CardContent>
-                </Card>
+                      <div className="mb-4 min-w-0 relative">
+                        <div className="flex flex-wrap items-baseline gap-1 min-w-0 animate-fade-in">
+                          <span className="text-4xl font-bold text-gray-900 dark:text-gray-100 break-words min-w-0">
+                            {displayPrice === 0
+                              ? (useLocalCurrency ? formatPrice(0) : '$0')
+                              : (useLocalCurrency
+                                  ? formatPrice(displayPrice)
+                                  : `$${displayPrice.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`)
+                            }
+                          </span>
+                          <span className="text-gray-600 dark:text-gray-400 flex-shrink-0">/year</span>
+                        </div>
+                      </div>
+                      <CardDescription className="text-base min-h-[4.5rem]">
+                        {plan.description}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-col flex-1 min-w-0 overflow-hidden">
+                      <ul className="space-y-3 mb-6 flex-1 min-w-0">
+                        {plan.features.map((feature, i) => (
+                          <li key={i} className="flex items-center text-sm">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500 mr-2 flex-shrink-0" />
+                            <span className="text-gray-600">{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <Button
+                        className={cn(
+                          "w-full mt-auto",
+                          plan.popular
+                            ? "bg-emerald-600 hover:bg-emerald-700"
+                            : "border-emerald-600 text-emerald-600 hover:bg-emerald-50"
+                        )}
+                        variant={plan.popular ? "default" : "outline"}
+                        onClick={() => navigate('/signup')}
+                      >
+                        {plan.cta}
+                      </Button>
+                    </CardContent>
+                  </Card>
                 </div>
               );
             })}

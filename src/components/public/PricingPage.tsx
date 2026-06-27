@@ -68,7 +68,7 @@ export function PricingPage() {
     {
       name: 'Basic',
       icon: Building2,
-      annualPrice: 150,
+      annualPrice: 199,
       description: 'For small to medium organizations',
       features: [
         'Up to 7 users',
@@ -85,7 +85,7 @@ export function PricingPage() {
     {
       name: 'Professional',
       icon: Crown,
-      annualPrice: 400,
+      annualPrice: 399,
       description: 'For growing organizations with advanced needs',
       features: [
         'Up to 20 users',
@@ -104,7 +104,7 @@ export function PricingPage() {
     {
       name: 'Enterprise',
       icon: Globe,
-      annualPrice: 800,
+      annualPrice: 799,
       description: 'For large organizations with complex requirements',
       features: [
         'Unlimited users',
